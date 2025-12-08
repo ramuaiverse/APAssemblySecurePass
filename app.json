@@ -1,0 +1,55 @@
+{
+  "expo": {
+    "name": "AP Assembly Digital Pass",
+    "slug": "apassemblydigitalpass",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "light",
+    "splash": {
+      "backgroundColor": "#FFFFFF"
+    },
+    "assetBundlePatterns": ["**/*"],
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.apassembly.digitalpass",
+      "infoPlist": {
+        "NSCameraUsageDescription": "This app needs access to your camera to scan QR codes for visitor passes."
+      },
+      "splash": {
+        "backgroundColor": "#FFFFFF"
+      }
+    },
+    "android": {
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/icon.png",
+        "backgroundColor": "#FFFFFF"
+      },
+      "splash": {
+        "backgroundColor": "#FFFFFF"
+      },
+      "package": "com.apassembly.digitalpass",
+      "permissions": ["CAMERA"],
+      "permission": {
+        "CAMERA": "This app needs access to your camera to scan QR codes for visitor passes."
+      }
+    },
+    "web": {
+      "favicon": "./assets/icon.png",
+      "proxy": "https://smart-gate-backend-714903368119.us-central1.run.app"
+    },
+    "plugins": [
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "This app needs access to your camera to scan QR codes for visitor passes."
+        }
+      ]
+    ],
+    "extra": {
+      "eas": {
+        "projectId": "apassemblydigitalpass"
+      }
+    }
+  }
+}
