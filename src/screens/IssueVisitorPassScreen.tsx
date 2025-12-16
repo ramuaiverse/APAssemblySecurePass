@@ -488,13 +488,13 @@ export default function IssueVisitorPassScreen({ navigation }: Props) {
         "Pass created successfully:",
         JSON.stringify(passResponse, null, 2)
       );
-      console.log("QR Code ID:", passResponse.qr_code_id);
-      console.log("QR Code URL:", passResponse.qr_code_url);
+      // console.log("QR Code ID:", passResponse.qr_code_id);
+      // console.log("QR Code URL:", passResponse.qr_code_url);
 
-      // Navigate to PreviewPass screen with the API response
-      navigation.navigate("PreviewPass", {
-        passData: passResponse,
-      });
+      // // Navigate to PreviewPass screen with the API response
+      // navigation.navigate("PreviewPass", {
+      //   passData: passResponse,
+      // });
     } catch (error) {
       // console.error("Error creating pass:", error);
 

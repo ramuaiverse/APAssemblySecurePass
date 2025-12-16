@@ -39,7 +39,7 @@ export default function LoginScreen({ navigation }: Props) {
   const [loading, setLoading] = useState(false);
   const [usernameError, setUsernameError] = useState("");
   const [passwordError, setPasswordError] = useState("");
-  const [loginMode, setLoginMode] = useState<"login" | "security">("login");
+  const [activeTab, setActiveTab] = useState<"admin" | "security">("admin");
 
   const handleLogin = async () => {
     // Clear previous errors
@@ -87,7 +87,7 @@ export default function LoginScreen({ navigation }: Props) {
         });
 
         // Navigate based on selected login mode
-        if (loginMode === "login") {
+        if (activeTab === "admin") {
           navigation.replace("IssueVisitorPass");
         } else {
           navigation.replace("QRScan");
@@ -190,44 +190,52 @@ export default function LoginScreen({ navigation }: Props) {
 
         {/* Login Card */}
         <View style={styles.loginCard}>
-          {/* Toggle Switch */}
-          <View style={styles.toggleContainer}>
-            <TouchableOpacity
-              style={[
-                styles.toggleOption,
-                loginMode === "login" && styles.toggleOptionActive,
-              ]}
-              onPress={() => setLoginMode("login")}
-            >
-              <Text
+          {/* Tab Selection */}
+          <View style={styles.tabWrapper}>
+            <View style={styles.tabContainer}>
+              <TouchableOpacity
                 style={[
-                  styles.toggleText,
-                  loginMode === "login" && styles.toggleTextActive,
+                  styles.tab,
+                  activeTab === "admin" ? styles.tabActive : styles.tabInactive,
                 ]}
+                onPress={() => setActiveTab("admin")}
               >
-                Login
-              </Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={[
-                styles.toggleOption,
-                loginMode === "security" && styles.toggleOptionActive,
-              ]}
-              onPress={() => setLoginMode("security")}
-            >
-              <Text
+                <Text
+                  style={[
+                    styles.tabText,
+                    activeTab === "admin"
+                      ? styles.tabTextActive
+                      : styles.tabTextInactive,
+                  ]}
+                >
+                  Admin Login
+                </Text>
+              </TouchableOpacity>
+              <TouchableOpacity
                 style={[
-                  styles.toggleText,
-                  loginMode === "security" && styles.toggleTextActive,
+                  styles.tab,
+                  activeTab === "security"
+                    ? styles.tabActive
+                    : styles.tabInactive,
                 ]}
+                onPress={() => setActiveTab("security")}
               >
-                Security Login
-              </Text>
-            </TouchableOpacity>
+                <Text
+                  style={[
+                    styles.tabText,
+                    activeTab === "security"
+                      ? styles.tabTextActive
+                      : styles.tabTextInactive,
+                  ]}
+                >
+                  Security Login
+                </Text>
+              </TouchableOpacity>
+            </View>
           </View>
 
           <Text style={styles.cardTitle}>
-            {loginMode === "login" ? "Login" : "Security Login"}
+            {activeTab === "admin" ? "Admin Login" : "Security Login"}
           </Text>
           <Text style={styles.cardSubtitle}>
             Enter your credentials to access the system.
@@ -463,31 +471,39 @@ const styles = StyleSheet.create({
     fontSize: 12,
     marginBottom: 10,
   },
-  toggleContainer: {
-    flexDirection: "row",
-    backgroundColor: "#F3F4F6",
-    borderRadius: 10,
-    padding: 4,
+  tabWrapper: {
     marginBottom: 20,
   },
-  toggleOption: {
-    flex: 1,
-    paddingVertical: 10,
-    paddingHorizontal: 15,
-    borderRadius: 8,
-    alignItems: "center",
-    justifyContent: "center",
+  tabContainer: {
+    flexDirection: "row",
+    gap: 8,
+    backgroundColor: "#FFFFFF",
+    borderRadius: 12,
+    padding: 4,
   },
-  toggleOptionActive: {
+  tab: {
+    flex: 1,
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    borderRadius: 8,
+    backgroundColor: "#FFFFFF",
+  },
+  tabActive: {
     backgroundColor: "#457E51",
   },
-  toggleText: {
+  tabInactive: {
+    backgroundColor: "transparent",
+  },
+  tabText: {
     fontSize: 14,
     fontWeight: "500",
-    color: "#6B7280",
+    textAlign: "center",
+    color: "#111827",
   },
-  toggleTextActive: {
+  tabTextActive: {
     color: "#FFFFFF",
-    fontWeight: "600",
+  },
+  tabTextInactive: {
+    color: "#111827",
   },
 });

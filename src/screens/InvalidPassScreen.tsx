@@ -1,8 +1,9 @@
-import React from "react";
+import React, { useEffect } from "react";
 import { View, Text, StyleSheet, TouchableOpacity } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import { Ionicons } from "@expo/vector-icons";
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
+import { RouteProp } from "@react-navigation/native";
 import { RootStackParamList } from "@/types";
 import LogOutIcon from "../../assets/logOut.svg";
 import BackButtonIcon from "../../assets/backButton.svg";
@@ -12,11 +13,39 @@ type InvalidPassScreenNavigationProp = NativeStackNavigationProp<
   "InvalidPass"
 >;
 
+type InvalidPassScreenRouteProp = RouteProp<RootStackParamList, "InvalidPass">;
+
 type Props = {
   navigation: InvalidPassScreenNavigationProp;
+  route: InvalidPassScreenRouteProp;
 };
 
-export default function InvalidPassScreen({ navigation }: Props) {
+export default function InvalidPassScreen({ navigation, route }: Props) {
+  // Get validation response from route params if available
+  const validationResponse = route.params?.validationResponse;
+  const errorMessage =
+    validationResponse?.message ||
+    (validationResponse?.suspended
+      ? "Pass is suspended."
+      : validationResponse?.expired
+      ? "Pass has expired."
+      : validationResponse?.not_yet_valid
+      ? "Pass is not yet valid."
+      : "Pass details not matching. Do not allow entry.");
+  const status = validationResponse?.status || "rejected";
+  const suspended = validationResponse?.suspended ?? false;
+  const expired = validationResponse?.expired ?? false;
+  const notYetValid = validationResponse?.not_yet_valid ?? false;
+
+  // Log the validation response for debugging
+  useEffect(() => {
+    console.log(
+      "InvalidPassScreen - Validation Response:",
+      JSON.stringify(validationResponse, null, 2)
+    );
+    console.log("InvalidPassScreen - Error Message:", errorMessage);
+    console.log("InvalidPassScreen - Status:", status);
+  }, [validationResponse, errorMessage, status]);
   const handleScanNext = () => {
     navigation.replace("QRScan");
   };
@@ -55,9 +84,12 @@ export default function InvalidPassScreen({ navigation }: Props) {
 
         {/* Status Text */}
         <Text style={styles.statusText}>Invalid Pass</Text>
-        <Text style={styles.statusSubtext}>
-          Pass details not matching. Do not allow entry.
-        </Text>
+        <Text style={styles.statusSubtext}>{errorMessage}</Text>
+        {status && (
+          <Text style={styles.statusBadge}>
+            Status: {status.charAt(0).toUpperCase() + status.slice(1)}
+          </Text>
+        )}
 
         {/* Scan Next Button */}
         <TouchableOpacity
@@ -114,9 +146,18 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: "#fff",
     textAlign: "center",
-    marginBottom: 50,
+    marginBottom: 10,
     paddingHorizontal: 20,
     opacity: 0.9,
+  },
+  statusBadge: {
+    fontSize: 14,
+    color: "#fff",
+    textAlign: "center",
+    marginBottom: 50,
+    paddingHorizontal: 20,
+    opacity: 0.8,
+    fontWeight: "500",
   },
   scanNextButton: {
     backgroundColor: "#fff",

@@ -9,9 +9,7 @@
     "splash": {
       "backgroundColor": "#FFFFFF"
     },
-    "assetBundlePatterns": [
-      "**/*"
-    ],
+    "assetBundlePatterns": ["**/*"],
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.apassembly.digitalpass",
@@ -51,6 +49,13 @@
         "expo-camera",
         {
           "cameraPermission": "This app needs access to your camera to scan QR codes for visitor passes."
+        }
+      ],
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "This app needs access to your photos to upload pass images.",
+          "cameraPermission": "This app needs access to your camera to take pass photos."
         }
       ]
     ],
