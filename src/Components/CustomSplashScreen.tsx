@@ -1,5 +1,5 @@
 import React from "react";
-import { View, StyleSheet, Dimensions } from "react-native";
+import { View, StyleSheet, Dimensions, Platform } from "react-native";
 import AssemblyLogo from "../../assets/assembly.svg";
 import AssemblyDigitalPass from "../../assets/assemblyDigitalPass.svg";
 import AssemblyIcon from "../../assets/assemblyIcon.svg";
@@ -8,8 +8,11 @@ import { SafeAreaView } from "react-native-safe-area-context";
 const { width, height } = Dimensions.get("window");
 
 const CustomSplashScreen: React.FC = () => {
+  // Use regular View on web since SafeAreaView might not work properly
+  const Container = Platform.OS === "web" ? View : SafeAreaView;
+
   return (
-    <SafeAreaView style={styles.container}>
+    <Container style={styles.container}>
       <View style={styles.topSection}>
         <AssemblyLogo width={width} height={height / 5} />
       </View>
@@ -19,7 +22,7 @@ const CustomSplashScreen: React.FC = () => {
       <View style={styles.bottomSection}>
         <AssemblyIcon width={width} height={height / 3} />
       </View>
-    </SafeAreaView>
+    </Container>
   );
 };
 
@@ -45,7 +48,6 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: "flex-end",
     alignItems: "center",
-    // paddingBottom: 60,
   },
 });
 

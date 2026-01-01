@@ -1,4 +1,4 @@
-import React, { useEffect } from "react";
+import React from "react";
 import { View, Text, StyleSheet, TouchableOpacity } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import { Ionicons } from "@expo/vector-icons";
@@ -37,15 +37,6 @@ export default function InvalidPassScreen({ navigation, route }: Props) {
   const expired = validationResponse?.expired ?? false;
   const notYetValid = validationResponse?.not_yet_valid ?? false;
 
-  // Log the validation response for debugging
-  useEffect(() => {
-    console.log(
-      "InvalidPassScreen - Validation Response:",
-      JSON.stringify(validationResponse, null, 2)
-    );
-    console.log("InvalidPassScreen - Error Message:", errorMessage);
-    console.log("InvalidPassScreen - Status:", status);
-  }, [validationResponse, errorMessage, status]);
   const handleScanNext = () => {
     navigation.replace("QRScan");
   };

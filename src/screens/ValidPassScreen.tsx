@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useState } from "react";
 import {
   View,
   Text,
@@ -8,6 +8,10 @@ import {
   Alert,
   ActivityIndicator,
   ScrollView,
+  Modal,
+  TextInput,
+  KeyboardAvoidingView,
+  Platform,
 } from "react-native";
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { RouteProp } from "@react-navigation/native";
@@ -57,6 +61,10 @@ const formatDate = (dateString: string | null | undefined): string => {
 export default function ValidPassScreen({ navigation, route }: Props) {
   // Get validation response from route params
   const validationResponse = route.params?.validationResponse;
+  console.log(
+    "Validation Response:",
+    JSON.stringify(validationResponse, null, 2)
+  );
   const visitor = validationResponse?.visitor;
   const pass = validationResponse?.pass;
 
@@ -107,58 +115,81 @@ export default function ValidPassScreen({ navigation, route }: Props) {
   const [openingCamera, setOpeningCamera] = useState(false);
   const [photoUploaded, setPhotoUploaded] = useState(false);
 
+  // Suspend modal state
+  const [showSuspendModal, setShowSuspendModal] = useState(false);
+  const [suspendReason, setSuspendReason] = useState("");
+  const [suspending, setSuspending] = useState(false);
+
   // Check if photo already exists from API (don't show save button)
   const photoExistsFromAPI = !!visitorPhotoUrl;
 
-  // Log the validation response for debugging
-  useEffect(() => {
-    console.log(
-      "ValidPassScreen - Validation Response:",
-      JSON.stringify(validationResponse, null, 2)
-    );
-    console.log("ValidPassScreen - Visitor:", JSON.stringify(visitor, null, 2));
-    console.log("ValidPassScreen - Pass:", JSON.stringify(pass, null, 2));
-    console.log("ValidPassScreen - Visitor Name:", visitorName);
-    console.log("ValidPassScreen - Reference:", requestedBy);
-    console.log("ValidPassScreen - Valid From:", validFrom);
-    console.log("ValidPassScreen - Valid To:", validTo);
-    console.log("ValidPassScreen - Session:", session);
-    console.log("ValidPassScreen - Category:", category);
-    console.log("ValidPassScreen - Pass Category:", passCategory);
-    console.log("ValidPassScreen - Pass Sub Category:", passSubCategory);
-    console.log("ValidPassScreen - Pass Type:", passType);
-    console.log("ValidPassScreen - Purpose:", purpose);
-    console.log("ValidPassScreen - Pass Number:", passNumber);
-    console.log("ValidPassScreen - Status:", status);
-    console.log("ValidPassScreen - Visitor Photo URL:", visitorPhotoUrl);
-    console.log("ValidPassScreen - Visitor Photo State:", visitorPhoto);
-    console.log("ValidPassScreen - Photo Exists From API:", photoExistsFromAPI);
-    console.log("ValidPassScreen - Photo Uploaded:", photoUploaded);
-  }, [
-    validationResponse,
-    visitor,
-    pass,
-    visitorName,
-    requestedBy,
-    validFrom,
-    validTo,
-    session,
-    category,
-    passCategory,
-    passSubCategory,
-    passType,
-    purpose,
-    passNumber,
-    status,
-    visitorPhotoUrl,
-    visitorPhoto,
-    photoExistsFromAPI,
-    photoUploaded,
-  ]);
-
-  const handleScanNext = () => {
-    console.log("Scan Next button pressed");
+  const handleScanNext = async () => {
     navigation.replace("QRScan");
+  };
+
+  const handleReportPress = () => {
+    setShowSuspendModal(true);
+    setSuspendReason("");
+  };
+
+  const handleSuspendSubmit = async () => {
+    if (!suspendReason.trim()) {
+      Alert.alert("Error", "Please enter a suspend reason");
+      return;
+    }
+
+    if (!visitorId) {
+      Alert.alert("Error", "Visitor ID is missing");
+      return;
+    }
+
+    setSuspending(true);
+
+    try {
+      const suspendedBy = "system";
+
+      const response = await api.suspendVisitor(visitorId, {
+        suspended_by: suspendedBy,
+        reason: suspendReason.trim(),
+      });
+
+      // Close modal and reset state
+      setShowSuspendModal(false);
+      setSuspendReason("");
+      setSuspending(false);
+
+      // Show success message and navigate
+      Alert.alert("Success", "Visitor has been suspended successfully", [
+        {
+          text: "OK",
+          onPress: () => {
+            // Navigate to QRScan screen
+            navigation.replace("QRScan");
+          },
+        },
+      ]);
+    } catch (error) {
+      const errorMessage =
+        error instanceof Error
+          ? error.message
+          : "Failed to suspend visitor. Please try again.";
+
+      Alert.alert("Error", errorMessage, [
+        {
+          text: "OK",
+          onPress: () => {
+            setSuspending(false);
+          },
+        },
+      ]);
+    } finally {
+      setSuspending(false);
+    }
+  };
+
+  const handleSuspendCancel = () => {
+    setShowSuspendModal(false);
+    setSuspendReason("");
   };
 
   const handleBack = () => {
@@ -170,8 +201,6 @@ export default function ValidPassScreen({ navigation, route }: Props) {
   };
 
   const handleTakePhoto = async () => {
-    console.log("Taking photo");
-
     if (openingCamera) {
       // Prevent multiple rapid taps while camera is opening
       return;
@@ -200,16 +229,10 @@ export default function ValidPassScreen({ navigation, route }: Props) {
         quality: 0.8,
       });
 
-      console.log("Camera result:", result);
-
       if (!result.canceled && result.assets && result.assets[0]) {
-        console.log("Photo captured:", result.assets[0].uri);
         setVisitorPhoto(result.assets[0].uri);
-      } else {
-        console.log("Camera was canceled or no assets");
       }
     } catch (error) {
-      console.error("Error taking photo:", error);
       Alert.alert(
         "Error",
         error instanceof Error
@@ -223,10 +246,7 @@ export default function ValidPassScreen({ navigation, route }: Props) {
   };
 
   const handleSavePhoto = async () => {
-    console.log("Saving photo");
-    console.log("Visitor photo:", visitorPhoto);
     if (!visitorPhoto) {
-      console.log("No visitor photo");
       return;
     }
 
@@ -249,11 +269,6 @@ export default function ValidPassScreen({ navigation, route }: Props) {
       }
     }
 
-    console.log("QR Data for upload:", qrData);
-    console.log("Visitor ID:", visitorId);
-    console.log("Pass Number:", passNumber);
-    console.log("Pass QR String:", passQrString);
-
     if (!qrData) {
       Alert.alert("Error", "Unable to upload photo. QR data not found.");
       return;
@@ -270,9 +285,7 @@ export default function ValidPassScreen({ navigation, route }: Props) {
       // Navigate to QRScan screen after successful upload
       setSaving(false);
       Alert.alert("Success", "Visitor photo uploaded successfully!");
-      // navigation.replace("QRScan");
     } catch (error) {
-      console.error("Error saving photo:", error);
       const errorMessage =
         error instanceof Error
           ? error.message
@@ -297,7 +310,7 @@ export default function ValidPassScreen({ navigation, route }: Props) {
 
       {/* Illustrative Graphic Section */}
       <View style={styles.graphicContainer}>
-        <AssemblyIcon width={120} height={140} />
+        <AssemblyIcon width={100} height={120} />
       </View>
 
       <ScrollView
@@ -408,7 +421,53 @@ export default function ValidPassScreen({ navigation, route }: Props) {
                 <Text style={styles.detailValue}>{requestedBy}</Text>
               </View>
             </View>
+
+            {/* Identification Number */}
+            <View style={styles.fullSeparator} />
+            <View style={styles.detailRow}>
+              <ReferenceIcon width={40} height={40} />
+              <View style={styles.detailContent}>
+                <Text style={styles.detailLabel}>Identification Number</Text>
+                <Text style={styles.detailValue}>
+                  {identificationNumber || "N/A"}
+                </Text>
+              </View>
+            </View>
+
+            {/* Identification Photo */}
+            {identificationPhotoUrl && (
+              <>
+                <View style={styles.fullSeparator} />
+                <View style={styles.photoContainer}>
+                  <Text style={styles.photoLabel}>Identification Document</Text>
+                  <Image
+                    source={{ uri: identificationPhotoUrl }}
+                    style={styles.identificationPhoto}
+                  />
+                </View>
+              </>
+            )}
+
+            {/* Purpose */}
+            <View style={styles.fullSeparator} />
+            <View style={styles.detailRow}>
+              <ReferenceIcon width={40} height={40} />
+              <View style={styles.detailContent}>
+                <Text style={styles.detailLabel}>Purpose</Text>
+                <Text style={styles.detailValue}>{purpose || "N/A"}</Text>
+              </View>
+            </View>
           </>
+
+          {/* Report Button */}
+          <View style={styles.fullSeparator} />
+          <TouchableOpacity
+            style={styles.reportButton}
+            onPress={handleReportPress}
+            activeOpacity={0.7}
+          >
+            <Text style={styles.reportButtonText}>Report</Text>
+          </TouchableOpacity>
 
           {/* Buttons */}
           <TouchableOpacity
@@ -461,6 +520,70 @@ export default function ValidPassScreen({ navigation, route }: Props) {
       <View style={styles.backgroundContainer} pointerEvents="none">
         <BackGroundIcon height={200} />
       </View>
+
+      {/* Suspend Modal - Bottom Action Sheet */}
+      <Modal
+        visible={showSuspendModal}
+        transparent={true}
+        animationType="slide"
+        onRequestClose={handleSuspendCancel}
+      >
+        <View style={styles.modalOverlay}>
+          <TouchableOpacity
+            style={styles.modalBackdrop}
+            activeOpacity={1}
+            onPress={handleSuspendCancel}
+          />
+          <KeyboardAvoidingView
+            behavior={Platform.OS === "ios" ? "padding" : "height"}
+            style={styles.keyboardAvoidingView}
+            keyboardVerticalOffset={Platform.OS === "ios" ? 0 : 20}
+          >
+            <View style={styles.actionSheetContent}>
+              {/* Handle bar */}
+              <View style={styles.actionSheetHandle} />
+
+              <Text style={styles.modalTitle}>Suspend Visitor</Text>
+              <Text style={styles.modalSubtitle}>
+                Please enter the reason for suspending this visitor
+              </Text>
+
+              <TextInput
+                style={styles.reasonInput}
+                placeholder="Enter suspend reason..."
+                placeholderTextColor="#9CA3AF"
+                value={suspendReason}
+                onChangeText={setSuspendReason}
+                multiline
+                numberOfLines={4}
+                textAlignVertical="top"
+                editable={!suspending}
+              />
+
+              <View style={styles.modalButtons}>
+                <TouchableOpacity
+                  style={[styles.modalButton, styles.modalButtonCancel]}
+                  onPress={handleSuspendCancel}
+                  disabled={suspending}
+                >
+                  <Text style={styles.modalButtonCancelText}>Cancel</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[styles.modalButton, styles.modalButtonSubmit]}
+                  onPress={handleSuspendSubmit}
+                  disabled={suspending || !suspendReason.trim()}
+                >
+                  {suspending ? (
+                    <ActivityIndicator color="#FFFFFF" />
+                  ) : (
+                    <Text style={styles.modalButtonSubmitText}>Submit</Text>
+                  )}
+                </TouchableOpacity>
+              </View>
+            </View>
+          </KeyboardAvoidingView>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -533,11 +656,6 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "flex-start",
   },
-  separator: {
-    height: 1,
-    backgroundColor: "#E5E7EB",
-    marginVertical: 15,
-  },
   detailContent: {
     flex: 1,
     marginLeft: 15,
@@ -552,21 +670,6 @@ const styles = StyleSheet.create({
     color: "#111827",
     fontWeight: "500",
     lineHeight: 20,
-  },
-  visitorNameCenteredContainer: {
-    alignItems: "center",
-    marginTop: 8,
-    marginBottom: 8,
-  },
-  visitorNameLabelCentered: {
-    fontSize: 12,
-    color: "#6B7280",
-    marginBottom: 4,
-  },
-  visitorNameValueCentered: {
-    fontSize: 16,
-    color: "#111827",
-    fontWeight: "600",
   },
   scanNextButton: {
     backgroundColor: "#E3F7E8",
@@ -594,12 +697,27 @@ const styles = StyleSheet.create({
     alignItems: "center",
     marginBottom: 16,
   },
+  photoLabel: {
+    fontSize: 12,
+    color: "#6B7280",
+    marginBottom: 8,
+    fontWeight: "500",
+  },
   visitorPhoto: {
     width: 100,
     height: 100,
     borderRadius: 50,
     borderWidth: 3,
     borderColor: "#457E51",
+  },
+  identificationPhoto: {
+    width: "100%",
+    maxWidth: 300,
+    height: 200,
+    borderRadius: 8,
+    borderWidth: 2,
+    borderColor: "#E5E7EB",
+    resizeMode: "contain",
   },
   takePhotoButton: {
     backgroundColor: "#457E51",
@@ -653,5 +771,113 @@ const styles = StyleSheet.create({
     bottom: 0,
     left: 0,
     right: 0,
+  },
+  reportButton: {
+    backgroundColor: "#FEE2E2",
+    borderRadius: 10,
+    padding: 15,
+    width: "100%",
+    alignItems: "center",
+    justifyContent: "center",
+    marginTop: 20,
+    borderWidth: 2,
+    borderColor: "#EF4444",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 4,
+    elevation: 4,
+  },
+  reportButtonText: {
+    color: "#DC2626",
+    fontSize: 18,
+    fontWeight: "600",
+  },
+  modalOverlay: {
+    flex: 1,
+    justifyContent: "flex-end",
+  },
+  modalBackdrop: {
+    position: "absolute",
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: "rgba(0, 0, 0, 0.5)",
+  },
+  keyboardAvoidingView: {
+    width: "100%",
+  },
+  actionSheetContent: {
+    backgroundColor: "#FFFFFF",
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    padding: 24,
+    paddingBottom: Platform.OS === "ios" ? 34 : 24,
+    width: "100%",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: -2 },
+    shadowOpacity: 0.25,
+    shadowRadius: 3.84,
+    elevation: 5,
+  },
+  actionSheetHandle: {
+    width: 40,
+    height: 4,
+    backgroundColor: "#D1D5DB",
+    borderRadius: 2,
+    alignSelf: "center",
+    marginBottom: 16,
+  },
+  modalTitle: {
+    fontSize: 20,
+    fontWeight: "bold",
+    color: "#111827",
+    marginBottom: 8,
+  },
+  modalSubtitle: {
+    fontSize: 14,
+    color: "#6B7280",
+    marginBottom: 20,
+  },
+  reasonInput: {
+    borderWidth: 1,
+    borderColor: "#E5E7EB",
+    borderRadius: 8,
+    padding: 12,
+    fontSize: 16,
+    color: "#111827",
+    backgroundColor: "#F9FAFB",
+    minHeight: 100,
+    marginBottom: 20,
+  },
+  modalButtons: {
+    flexDirection: "row",
+    gap: 12,
+    justifyContent: "flex-end",
+  },
+  modalButton: {
+    paddingVertical: 12,
+    paddingHorizontal: 24,
+    borderRadius: 8,
+    minWidth: 100,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  modalButtonCancel: {
+    backgroundColor: "#F3F4F6",
+  },
+  modalButtonSubmit: {
+    backgroundColor: "#EF4444",
+  },
+  modalButtonCancelText: {
+    color: "#6B7280",
+    fontSize: 16,
+    fontWeight: "600",
+  },
+  modalButtonSubmitText: {
+    color: "#FFFFFF",
+    fontSize: 16,
+    fontWeight: "600",
   },
 });

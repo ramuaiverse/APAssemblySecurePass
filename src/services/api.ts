@@ -7,34 +7,34 @@ const API_BASE_URL =
 const VALIDATION_API_BASE_URL =
   "https://category-service-714903368119.us-central1.run.app";
 
-// UserLoginRequest schema from Swagger
+// UserLoginRequest schema from new API
 export interface LoginRequest {
   username: string;
   password: string;
+  expected_role?: string;
 }
 
-// TokenResponse schema from Swagger
+// UserLoginResponse schema from new API
 export interface LoginResponse {
-  access_token: string;
-  refresh_token: string;
-  token_type: string; // default: "bearer"
-  expires_in: number;
-}
-
-// RefreshTokenRequest schema from Swagger
-export interface RefreshTokenRequest {
-  refresh_token: string;
-}
-
-// RefreshTokenResponse is the same as LoginResponse
-export type RefreshTokenResponse = LoginResponse;
-
-// QRValidationRequest schema from Swagger
-export interface QRValidationRequest {
-  qr_code_id?: string;
-  qr_data?: string;
-  qr_code?: string;
-  qr_string?: string;
+  username: string;
+  email: string;
+  full_name: string;
+  mobile: string;
+  employee_id: string | null;
+  role: string;
+  approval_level: string | null;
+  hod_approver: boolean;
+  legislative_approver: boolean;
+  is_superior: boolean;
+  must_set_password: boolean;
+  profile_picture: string | null;
+  id: string; // uuid
+  is_active: boolean;
+  created_at: string; // date-time
+  updated_at: string; // date-time
+  created_by: string | null;
+  sub_categories: Array<object>;
+  is_first_time_login: boolean | null;
 }
 
 // ScanStatus enum from Swagger
@@ -112,25 +112,45 @@ export interface VisitorFormData {
 
 export const api = {
   login: async (credentials: LoginRequest): Promise<LoginResponse> => {
+    // Validate required fields
+    if (!credentials.username || !credentials.password) {
+      throw new Error("Username and password are required");
+    }
+
+    // Build request body - ensure all fields are strings
+    const requestBody: LoginRequest = {
+      username: String(credentials.username).trim(),
+      password: String(credentials.password),
+    };
+
+    // Add expected_role if provided
+    if (credentials.expected_role) {
+      requestBody.expected_role = String(credentials.expected_role).trim();
+    }
+
+    // Ensure username is not empty after trim
+    if (!requestBody.username) {
+      throw new Error("Username cannot be empty");
+    }
+
+    // The API expects form-encoded data
+    const formData = new URLSearchParams();
+    formData.append("username", requestBody.username);
+    formData.append("password", requestBody.password);
+    formData.append("expected_role", requestBody.expected_role || "");
+
     try {
-      // API expects JSON format with username and password (both required)
-      if (!credentials.username || !credentials.password) {
-        throw new Error("Username and password are required");
-      }
-
-      const requestBody: LoginRequest = {
-        username: credentials.username,
-        password: credentials.password,
-      };
-
-      const response = await fetch(`${API_BASE_URL}/api/v1/auth/login`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Accept: "application/json",
-        },
-        body: JSON.stringify(requestBody),
-      });
+      const response = await fetch(
+        `${VALIDATION_API_BASE_URL}/api/v1/pass-requests/auth/login`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/x-www-form-urlencoded",
+            Accept: "application/json",
+          },
+          body: formData.toString(),
+        }
+      );
 
       let data;
       const contentType = response.headers.get("content-type");
@@ -143,34 +163,23 @@ export const api = {
       }
 
       if (!response.ok) {
-        // Log the full error response for debugging
-        // console.error("Login API Error:", {
-        //   status: response.status,
-        //   statusText: response.statusText,
-        //   data: JSON.stringify(data, null, 2),
-        // });
-
-        // Handle 422 validation errors - show detailed field errors
+        // Handle 422 validation errors
         if (response.status === 422) {
           let errorMessage = "Validation Error: ";
 
-          if (Array.isArray(data.detail)) {
-            // FastAPI validation errors format
+          if (Array.isArray(data?.detail)) {
             const validationErrors = data.detail
               .map((err: any) => {
                 const field =
                   err.loc && Array.isArray(err.loc)
-                    ? err.loc.slice(1).join(".") // Remove 'body' from path
+                    ? err.loc.slice(1).join(".")
                     : "field";
                 const msg = err.msg || err.message || "Invalid value";
                 return `${field}: ${msg}`;
               })
               .join("\n");
             errorMessage += validationErrors;
-          } else if (data.detail && typeof data.detail === "object") {
-            // Try to extract error message from detail object
-            errorMessage += JSON.stringify(data.detail, null, 2);
-          } else if (typeof data.detail === "string") {
+          } else if (typeof data?.detail === "string") {
             errorMessage += data.detail;
           } else {
             errorMessage +=
@@ -180,218 +189,43 @@ export const api = {
           throw new Error(errorMessage);
         }
 
-        // Handle 401 Unauthorized (invalid credentials)
+        // Handle 401 Unauthorized
         if (response.status === 401) {
-          // Extract error message from detail field
-          let errorMsg = "Invalid username or password";
+          const errorMsg =
+            typeof data?.detail === "string"
+              ? data.detail
+              : data?.message || data?.error || "Invalid username or password";
 
-          if (typeof data.detail === "string") {
-            errorMsg = data.detail;
-          } else if (data.detail && typeof data.detail === "object") {
-            // If detail is an object, try to extract message
-            errorMsg = data.detail.message || JSON.stringify(data.detail);
-          } else if (data.message) {
-            errorMsg = data.message;
-          } else if (data.error) {
-            errorMsg = data.error;
-          }
-
-          // Create a custom error with the message
           const error = new Error(errorMsg);
-          // Add a flag to indicate this is a credentials error
           (error as any).isCredentialsError = true;
           throw error;
         }
 
-        // Handle other error formats
+        // Handle other errors
         const errorMessage =
-          (Array.isArray(data.detail)
+          (Array.isArray(data?.detail)
             ? data.detail
                 .map((e: any) => e.msg || e.message || JSON.stringify(e))
                 .join(", ")
-            : typeof data.detail === "string"
+            : typeof data?.detail === "string"
             ? data.detail
-            : data.detail
-            ? JSON.stringify(data.detail)
-            : null) ||
-          data.message ||
-          data.error ||
-          (typeof data === "string"
-            ? data
-            : `Login failed: ${response.statusText}`);
+            : data?.message || data?.error) ||
+          `Login failed: ${response.statusText || `Status ${response.status}`}`;
 
         throw new Error(errorMessage);
       }
 
-      return data;
-    } catch (error) {
-      if (error instanceof Error) {
-        throw error;
-      }
-      throw new Error("Network error. Please check your connection.");
-    }
-  },
-
-  refreshToken: async (refreshToken: string): Promise<RefreshTokenResponse> => {
-    try {
-      const requestBody: RefreshTokenRequest = {
-        refresh_token: refreshToken,
-      };
-
-      const response = await fetch(`${API_BASE_URL}/api/v1/auth/refresh`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Accept: "application/json",
-        },
-        body: JSON.stringify(requestBody),
-      });
-
-      let data;
-      const contentType = response.headers.get("content-type");
-
-      if (contentType && contentType.includes("application/json")) {
-        data = await response.json();
+      // Handle successful response - check if data is nested
+      let loginData: LoginResponse;
+      if (data.data && typeof data.data === "object") {
+        loginData = data.data as LoginResponse;
+      } else if (data.user && typeof data.user === "object") {
+        loginData = data.user as LoginResponse;
       } else {
-        const text = await response.text();
-        throw new Error(`Server error: ${text || `Status ${response.status}`}`);
+        loginData = data as LoginResponse;
       }
 
-      if (!response.ok) {
-        // console.error("Refresh Token API Error:", {
-        //   status: response.status,
-        //   statusText: response.statusText,
-        //   data: JSON.stringify(data, null, 2),
-        // });
-
-        const errorMessage =
-          (Array.isArray(data.detail)
-            ? data.detail
-                .map((e: any) => e.msg || e.message || JSON.stringify(e))
-                .join(", ")
-            : typeof data.detail === "string"
-            ? data.detail
-            : data.detail
-            ? JSON.stringify(data.detail)
-            : null) ||
-          data.message ||
-          data.error ||
-          (typeof data === "string"
-            ? data
-            : `Token refresh failed: ${response.statusText}`);
-
-        throw new Error(errorMessage);
-      }
-
-      return data;
-    } catch (error) {
-      if (error instanceof Error) {
-        throw error;
-      }
-      throw new Error("Network error. Please check your connection.");
-    }
-  },
-
-  validateQRCode: async (
-    qrCodeId: string,
-    location: string = "Main Gate",
-    event?: string
-  ): Promise<QRValidationResponse> => {
-    try {
-      // Get access token
-      const { tokenStorage } = await import("./tokenStorage");
-      const accessToken = await tokenStorage.getAccessToken();
-
-      if (!accessToken) {
-        throw new Error("No access token available. Please login again.");
-      }
-
-      const requestBody: QRValidationRequest = {
-        qr_code_id: qrCodeId,
-      };
-
-      // Build URL with query parameters
-      let url = `${API_BASE_URL}/api/v1/passes/validate?location=${encodeURIComponent(
-        location
-      )}`;
-      if (event) {
-        url += `&event=${encodeURIComponent(event)}`;
-      }
-
-      const response = await fetch(url, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Accept: "application/json",
-          Authorization: `Bearer ${accessToken}`,
-        },
-        body: JSON.stringify(requestBody),
-      });
-
-      let data;
-      const contentType = response.headers.get("content-type");
-
-      if (contentType && contentType.includes("application/json")) {
-        data = await response.json();
-      } else {
-        const text = await response.text();
-        throw new Error(`Server error: ${text || `Status ${response.status}`}`);
-      }
-
-      if (!response.ok) {
-        // console.error("Validate QR Code API Error:", {
-        //   status: response.status,
-        //   statusText: response.statusText,
-        //   data: JSON.stringify(data, null, 2),
-        // });
-
-        // Handle 401 Unauthorized - token might be expired
-        if (response.status === 401) {
-          // Try to refresh token
-          const { tokenManager } = await import("./tokenManager");
-          const refreshed = await tokenManager.refreshToken();
-
-          if (refreshed) {
-            // Retry with new token
-            const newAccessToken = await tokenStorage.getAccessToken();
-            const retryResponse = await fetch(url, {
-              method: "POST",
-              headers: {
-                "Content-Type": "application/json",
-                Accept: "application/json",
-                Authorization: `Bearer ${newAccessToken}`,
-              },
-              body: JSON.stringify(requestBody),
-            });
-
-            if (retryResponse.ok) {
-              return await retryResponse.json();
-            }
-          }
-
-          throw new Error("Authentication failed. Please login again.");
-        }
-
-        const errorMessage =
-          (Array.isArray(data.detail)
-            ? data.detail
-                .map((e: any) => e.msg || e.message || JSON.stringify(e))
-                .join(", ")
-            : typeof data.detail === "string"
-            ? data.detail
-            : data.detail
-            ? JSON.stringify(data.detail)
-            : null) ||
-          data.message ||
-          data.error ||
-          (typeof data === "string"
-            ? data
-            : `Validation failed: ${response.statusText}`);
-
-        throw new Error(errorMessage);
-      }
-
-      return data;
+      return loginData;
     } catch (error) {
       if (error instanceof Error) {
         throw error;
@@ -402,20 +236,11 @@ export const api = {
 
   createPass: async (formData: VisitorFormData): Promise<PassResponse> => {
     try {
-      // Get access token
-      const { tokenStorage } = await import("./tokenStorage");
-      const accessToken = await tokenStorage.getAccessToken();
-
-      if (!accessToken) {
-        throw new Error("No access token available. Please login again.");
-      }
-
       const response = await fetch(`${API_BASE_URL}/api/v1/passes`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
           Accept: "application/json",
-          Authorization: `Bearer ${accessToken}`,
         },
         body: JSON.stringify(formData),
       });
@@ -431,44 +256,11 @@ export const api = {
       }
 
       if (!response.ok) {
-        // console.error("Create Pass API Error:", {
-        //   status: response.status,
-        //   statusText: response.statusText,
-        //   data: JSON.stringify(data, null, 2),
-        // });
-
-        // Handle 401 Unauthorized - token might be expired
-        if (response.status === 401) {
-          // Try to refresh token
-          const { tokenManager } = await import("./tokenManager");
-          const refreshed = await tokenManager.refreshToken();
-
-          if (refreshed) {
-            // Retry with new token
-            const newAccessToken = await tokenStorage.getAccessToken();
-            const retryResponse = await fetch(`${API_BASE_URL}/api/v1/passes`, {
-              method: "POST",
-              headers: {
-                "Content-Type": "application/json",
-                Accept: "application/json",
-                Authorization: `Bearer ${newAccessToken}`,
-              },
-              body: JSON.stringify(formData),
-            });
-
-            if (retryResponse.ok) {
-              return await retryResponse.json();
-            }
-          }
-
-          throw new Error("Authentication failed. Please login again.");
-        }
-
         // Handle 422 validation errors
         if (response.status === 422) {
           let errorMessage = "Validation Error: ";
 
-          if (Array.isArray(data.detail)) {
+          if (Array.isArray(data?.detail)) {
             const validationErrors = data.detail
               .map((err: any) => {
                 const field =
@@ -480,7 +272,7 @@ export const api = {
               })
               .join("\n");
             errorMessage += validationErrors;
-          } else if (typeof data.detail === "string") {
+          } else if (typeof data?.detail === "string") {
             errorMessage += data.detail;
           } else {
             errorMessage += "Invalid request format. Please check your input.";
@@ -489,18 +281,15 @@ export const api = {
           throw new Error(errorMessage);
         }
 
+        // Handle other errors
         const errorMessage =
-          (Array.isArray(data.detail)
+          (Array.isArray(data?.detail)
             ? data.detail
                 .map((e: any) => e.msg || e.message || JSON.stringify(e))
                 .join(", ")
-            : typeof data.detail === "string"
+            : typeof data?.detail === "string"
             ? data.detail
-            : data.detail
-            ? JSON.stringify(data.detail)
-            : null) ||
-          data.message ||
-          data.error ||
+            : data?.message || data?.error) ||
           (typeof data === "string"
             ? data
             : `Failed to create pass: ${response.statusText}`);
@@ -519,21 +308,35 @@ export const api = {
 
   // Validate QR code without authentication (public endpoint)
   validateQRCodePublic: async (
-    qrCodeId: string
+    qrCodeId: string,
+    gate?: string,
+    gateAction?: "entry" | "exit"
   ): Promise<QRValidationResponse> => {
     try {
-      const response = await fetch(
-        `${VALIDATION_API_BASE_URL}/api/v1/pass-requests/validate-qr/${encodeURIComponent(
-          qrCodeId
-        )}`,
-        {
-          method: "GET",
-          headers: {
-            "Content-Type": "application/json",
-            Accept: "application/json",
-          },
-        }
-      );
+      // Build URL with optional gate and gate_action query parameters
+      let url = `${VALIDATION_API_BASE_URL}/api/v1/pass-requests/validate-qr/${encodeURIComponent(
+        qrCodeId
+      )}`;
+
+      const queryParams: string[] = [];
+      if (gate) {
+        queryParams.push(`gate=${encodeURIComponent(gate)}`);
+      }
+      if (gateAction) {
+        queryParams.push(`gate_action=${encodeURIComponent(gateAction)}`);
+      }
+
+      if (queryParams.length > 0) {
+        url += `?${queryParams.join("&")}`;
+      }
+
+      const response = await fetch(url, {
+        method: "GET",
+        headers: {
+          "Content-Type": "application/json",
+          Accept: "application/json",
+        },
+      });
 
       let data;
       const contentType = response.headers.get("content-type");
@@ -572,197 +375,65 @@ export const api = {
       }
       throw new Error("Network error. Please check your connection.");
     }
-    // try {
-    //   // Validate that qrCodeId is not empty
-    //   if (!qrCodeId) {
-    //     throw new Error("QR code data is required");
-    //   }
-
-    //   // Convert to string and trim
-    //   let qrDataString = String(qrCodeId).trim();
-
-    //   // Extract UUID from URL if it's a URL format
-    //   // Format: http://localhost:3000/validate/{uuid} or similar
-    //   if (qrDataString.includes("/validate/")) {
-    //     const match = qrDataString.match(/\/validate\/([^\/\s]+)/);
-    //     if (match && match[1]) {
-    //       qrDataString = match[1];
-    //       console.log("Extracted UUID from URL in API:", qrDataString);
-    //     }
-    //   }
-
-    //   // If it's a full URL but doesn't match the pattern, try to extract the last part
-    //   if (qrDataString.includes("http") && qrDataString.includes("/")) {
-    //     const parts = qrDataString.split("/");
-    //     const lastPart = parts[parts.length - 1];
-    //     // Check if last part looks like a UUID (contains hyphens and is reasonably long)
-    //     if (lastPart.includes("-") && lastPart.length > 20) {
-    //       qrDataString = lastPart;
-    //       console.log("Extracted UUID from URL path in API:", qrDataString);
-    //     }
-    //   }
-
-    //   if (
-    //     qrDataString === "" ||
-    //     qrDataString === "null" ||
-    //     qrDataString === "undefined"
-    //   ) {
-    //     throw new Error("QR code data is invalid");
-    //   }
-
-    //   // Create request body with qr_data field
-    //   // Ensure the value is a valid non-empty string
-    //   const qrDataValue = qrDataString;
-
-    //   // Final validation before creating request body
-    //   if (
-    //     !qrDataValue ||
-    //     qrDataValue === null ||
-    //     qrDataValue === undefined ||
-    //     qrDataValue.trim() === ""
-    //   ) {
-    //     console.error("QR data value is invalid:", {
-    //       original: qrCodeId,
-    //       processed: qrDataString,
-    //       type: typeof qrCodeId,
-    //     });
-    //     throw new Error("QR code data is required and cannot be empty");
-    //   }
-
-    //   // Create request body - ensure qr_data is explicitly set
-    //   const requestBody: Record<string, string> = {};
-    //   requestBody.qr_data = qrDataValue;
-
-    //   // Final check that qr_data is set
-    //   if (!requestBody.qr_data) {
-    //     console.error("Failed to set qr_data in request body");
-    //     throw new Error("Failed to set QR data in request body");
-    //   }
-
-    //   // Verify request body structure
-    //   console.log("=== Validate QR Request Debug ===");
-    //   console.log("QR Code ID (original):", qrCodeId);
-    //   console.log("QR Code ID (processed):", qrDataString);
-    //   console.log("QR Code ID Type:", typeof qrCodeId);
-    //   console.log("QR Code ID Length:", qrDataString.length);
-    //   console.log("Request Body Object:", requestBody);
-    //   console.log("Request Body qr_data value:", requestBody.qr_data);
-    //   console.log("Request Body qr_data type:", typeof requestBody.qr_data);
-    //   console.log("Request Body qr_data length:", requestBody.qr_data?.length);
-    //   console.log(
-    //     "API URL:",
-    //     `${VALIDATION_API_BASE_URL}/api/v1/pass-requests/validate-qr`
-    //   );
-
-    //   const requestBodyString = JSON.stringify(requestBody);
-    //   console.log("Request Body String:", requestBodyString);
-
-    //   // Verify the stringified body before sending
-    //   try {
-    //     const parsed = JSON.parse(requestBodyString);
-    //     console.log("Request Body String parsed back:", parsed);
-    //     console.log("Parsed qr_data value:", parsed.qr_data);
-    //     console.log("Parsed qr_data type:", typeof parsed.qr_data);
-
-    //     // Final validation - ensure qr_data exists and is not null
-    //     if (
-    //       !parsed.qr_data ||
-    //       parsed.qr_data === null ||
-    //       parsed.qr_data === undefined
-    //     ) {
-    //       console.error(
-    //         "ERROR: qr_data is null/undefined in parsed request body!"
-    //       );
-    //       throw new Error("QR data is null in request body");
-    //     }
-    //   } catch (e) {
-    //     console.error("Error parsing/validating request body string:", e);
-    //     if (
-    //       e instanceof Error &&
-    //       (e.message.includes("null") || e.message.includes("undefined"))
-    //     ) {
-    //       throw e;
-    //     }
-    //   }
-
-    //   const response = await fetch(
-    //     `${VALIDATION_API_BASE_URL}/api/v1/pass-requests/validate-qr`,
-    //     {
-    //       method: "POST",
-    //       headers: {
-    //         "Content-Type": "application/json",
-    //         Accept: "application/json",
-    //       },
-    //       body: requestBodyString,
-    //     }
-    //   );
-
-    //   console.log("Validate QR Response Status:", response.status);
-
-    //   let data;
-    //   const contentType = response.headers.get("content-type");
-
-    //   if (contentType && contentType.includes("application/json")) {
-    //     data = await response.json();
-    //   } else {
-    //     const text = await response.text();
-    //     console.log("Validate QR Non-JSON Response:", text);
-    //     throw new Error(`Server error: ${text || `Status ${response.status}`}`);
-    //   }
-
-    //   if (!response.ok) {
-    //     console.log(
-    //       "Validate QR Error Response:",
-    //       JSON.stringify(data, null, 2)
-    //     );
-    //     console.log("Response Status:", response.status);
-
-    //     const errorMessage =
-    //       (Array.isArray(data.detail)
-    //         ? data.detail
-    //             .map((e: any) => e.msg || e.message || JSON.stringify(e))
-    //             .join(", ")
-    //         : typeof data.detail === "string"
-    //         ? data.detail
-    //         : data.detail
-    //         ? JSON.stringify(data.detail)
-    //         : null) ||
-    //       data.message ||
-    //       data.error ||
-    //       (typeof data === "string"
-    //         ? data
-    //         : `Validation failed: ${response.statusText}`);
-
-    //     throw new Error(errorMessage);
-    //   }
-
-    //   return data;
-    // } catch (error) {
-    //   console.error("Validate QR Code Error:", error);
-    //   if (error instanceof Error) {
-    //     throw error;
-    //   }
-    //   throw new Error("Network error. Please check your connection.");
-    // }
   },
 
   // Validate pass number without authentication (public endpoint)
   validatePassNumber: async (
-    passNumber: string
+    passNumber: string,
+    options?: {
+      auto_record_scan?: boolean;
+      scanned_by?: string;
+      gate_location?: string;
+      gate_action?: "entry" | "exit";
+    }
   ): Promise<QRValidationResponse> => {
     try {
-      const response = await fetch(
-        `${VALIDATION_API_BASE_URL}/api/v1/pass-requests/validate-pass-number/${encodeURIComponent(
-          passNumber
-        )}`,
-        {
-          method: "GET",
-          headers: {
-            "Content-Type": "application/json",
-            Accept: "application/json",
-          },
-        }
-      );
+      // Build URL with query parameters
+      let url = `${VALIDATION_API_BASE_URL}/api/v1/pass-requests/validate-pass-number/${encodeURIComponent(
+        passNumber
+      )}`;
+
+      const queryParams: string[] = [];
+
+      // Add auto_record_scan (default: true)
+      if (options?.auto_record_scan !== undefined) {
+        queryParams.push(`auto_record_scan=${options.auto_record_scan}`);
+      } else {
+        queryParams.push(`auto_record_scan=true`);
+      }
+
+      // Add scanned_by if provided
+      if (options?.scanned_by) {
+        queryParams.push(
+          `scanned_by=${encodeURIComponent(options.scanned_by)}`
+        );
+      }
+
+      // Add gate_location if provided
+      if (options?.gate_location) {
+        queryParams.push(
+          `gate_location=${encodeURIComponent(options.gate_location)}`
+        );
+      }
+
+      // Add gate_action if provided
+      if (options?.gate_action) {
+        queryParams.push(
+          `gate_action=${encodeURIComponent(options.gate_action)}`
+        );
+      }
+
+      if (queryParams.length > 0) {
+        url += `?${queryParams.join("&")}`;
+      }
+
+      const response = await fetch(url, {
+        method: "GET",
+        headers: {
+          "Content-Type": "application/json",
+          Accept: "application/json",
+        },
+      });
 
       let data;
       const contentType = response.headers.get("content-type");
@@ -827,9 +498,6 @@ export const api = {
         qrData
       )}/upload-photo`;
 
-      console.log("Upload photo URL:", url);
-      console.log("QR Data:", qrData);
-
       const response = await fetch(url, {
         method: "POST",
         headers: {
@@ -839,9 +507,6 @@ export const api = {
         body: formData,
       });
 
-      console.log("Upload response status:", response.status);
-      console.log("Upload response ok:", response.ok);
-
       let data;
       const contentType = response.headers.get("content-type");
 
@@ -849,12 +514,10 @@ export const api = {
         data = await response.json();
       } else {
         const text = await response.text();
-        console.log("Upload response text:", text);
         throw new Error(`Server error: ${text || `Status ${response.status}`}`);
       }
 
       if (!response.ok) {
-        console.log("Upload error data:", data);
         const errorMessage =
           (Array.isArray(data.detail)
             ? data.detail
@@ -875,6 +538,115 @@ export const api = {
       }
 
       return data;
+    } catch (error) {
+      if (error instanceof Error) {
+        throw error;
+      }
+      throw new Error("Network error. Please check your connection.");
+    }
+  },
+
+  // Suspend visitor
+  suspendVisitor: async (
+    visitorId: string,
+    data: {
+      suspended_by: string;
+      reason: string;
+    }
+  ): Promise<any> => {
+    // Validate visitorId
+    if (!visitorId || !visitorId.trim()) {
+      throw new Error("visitorId is required");
+    }
+
+    // Validate required fields
+    if (!data.suspended_by || !data.reason) {
+      throw new Error("suspended_by and reason are required");
+    }
+
+    // Build request body - ensure all fields are strings
+    const requestBody = {
+      suspended_by: String(data.suspended_by).trim(),
+      reason: String(data.reason).trim(),
+    };
+
+    // Ensure fields are not empty after trim
+    if (!requestBody.suspended_by || !requestBody.reason) {
+      throw new Error("suspended_by and reason cannot be empty");
+    }
+
+    const url = `${VALIDATION_API_BASE_URL}/api/v1/pass-requests/visitors/${visitorId}/suspend`;
+
+    // The API expects form-encoded data
+    const formData = new URLSearchParams();
+    formData.append("suspended_by", requestBody.suspended_by);
+    formData.append("reason", requestBody.reason);
+
+    try {
+      const response = await fetch(url, {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/x-www-form-urlencoded",
+          Accept: "application/json",
+        },
+        body: formData.toString(),
+      });
+
+      let responseData;
+      const contentType = response.headers.get("content-type");
+
+      if (contentType && contentType.includes("application/json")) {
+        responseData = await response.json();
+      } else {
+        const text = await response.text();
+        throw new Error(`Server error: ${text || `Status ${response.status}`}`);
+      }
+
+      if (!response.ok) {
+        // Handle 422 validation errors
+        if (response.status === 422) {
+          let errorMessage = "Validation Error: ";
+
+          if (Array.isArray(responseData?.detail)) {
+            const validationErrors = responseData.detail
+              .map((err: any) => {
+                const field =
+                  err.loc && Array.isArray(err.loc)
+                    ? err.loc.slice(1).join(".")
+                    : "field";
+                const msg = err.msg || err.message || "Invalid value";
+                return `${field}: ${msg}`;
+              })
+              .join("\n");
+            errorMessage += validationErrors;
+          } else if (typeof responseData?.detail === "string") {
+            errorMessage += responseData.detail;
+          } else {
+            errorMessage += "Invalid request format.";
+          }
+
+          throw new Error(errorMessage);
+        }
+
+        // Handle other errors
+        const errorMessage =
+          (Array.isArray(responseData?.detail)
+            ? responseData.detail
+                .map((e: any) => e.msg || e.message || JSON.stringify(e))
+                .join(", ")
+            : typeof responseData?.detail === "string"
+            ? responseData.detail
+            : responseData?.message || responseData?.error) ||
+          (typeof responseData === "string"
+            ? responseData
+            : `Suspend visitor failed: ${
+                response.statusText || `Status ${response.status}`
+              }`);
+
+        throw new Error(errorMessage);
+      }
+
+      return responseData;
     } catch (error) {
       if (error instanceof Error) {
         throw error;

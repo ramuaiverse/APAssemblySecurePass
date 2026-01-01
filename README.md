@@ -5,13 +5,13 @@ Secure pass application for AP Assembly - A React Native Expo app for scanning, 
 ## Features
 
 - **Custom Splash Screen**: Beautiful splash screen with AP Assembly branding
-- **Secure Authentication**: Login with username and password, automatic token refresh, and session management
+- **Secure Authentication**: Login with username and password for admin and security roles
 - **QR Code Scanner**: Scan visitor pass QR codes with camera integration
 - **Pass Validation**: Validate scanned QR codes and display visitor details
 - **Issue Visitor Pass**: Create new visitor passes with comprehensive form
 - **Pass Preview**: Preview generated passes before finalizing
-- **Token Management**: Automatic token refresh and inactivity-based logout
-- **Offline Support**: Token storage with AsyncStorage for persistent sessions
+- **Gate Selection**: Select gate location (Gate 1, 2, 3, 4, or Gallery) for validation
+- **Action Tracking**: Track entry and exit actions for visitor passes
 
 ## Prerequisites
 
@@ -44,7 +44,7 @@ npm start
 
 ```
 APAssemblySecurePass/
-├── App.tsx                          # Main app entry point with token initialization
+├── App.tsx                          # Main app entry point
 ├── app.json                         # Expo configuration
 ├── package.json                     # Dependencies and scripts
 ├── tsconfig.json                    # TypeScript configuration
@@ -83,38 +83,37 @@ APAssemblySecurePass/
     │   └── index.tsx                # Navigation configuration with stack navigator
     ├── screens/                     # Screen components
     │   ├── LoginScreen.tsx          # Authentication screen
-    │   ├── QRScanScreen.tsx        # QR code scanner screen
+    │   ├── QRScanScreen.tsx         # QR code scanner screen with gate/action selection
     │   ├── ValidPassScreen.tsx      # Display valid pass details
     │   ├── InvalidPassScreen.tsx    # Display invalid pass alert
     │   ├── IssueVisitorPassScreen.tsx  # Form to create new visitor pass
     │   └── PreviewPassScreen.tsx    # Preview generated pass
     ├── services/                    # API and business logic services
-    │   ├── api.ts                   # API client with authentication
-    │   ├── tokenManager.ts          # Token refresh and session management
-    │   └── tokenStorage.ts          # AsyncStorage wrapper for token persistence
+    │   └── api.ts                   # API client for backend communication
     └── types/                       # TypeScript type definitions
         └── index.ts                 # Navigation and API type definitions
 ```
 
 ## API Integration
 
-The app integrates with a backend API for authentication and pass management:
+The app integrates with backend APIs for authentication and pass management:
 
-- **Base URL**: `https://smart-gate-backend-714903368119.us-central1.run.app`
-- **Authentication**: JWT-based with access and refresh tokens
+- **Validation API Base URL**: `https://category-service-714903368119.us-central1.run.app`
+- **Backend API Base URL**: `https://smart-gate-backend-714903368119.us-central1.run.app`
+- **Authentication**: Username and password-based authentication
 - **Endpoints**:
-  - `POST /api/v1/auth/login` - User authentication
-  - `POST /api/v1/auth/refresh` - Token refresh
-  - `POST /api/v1/passes/validate` - QR code validation
+  - `POST /api/v1/pass-requests/auth/login` - User authentication (admin/security roles)
+  - `GET /api/v1/pass-requests/validate-qr/{qrCodeId}` - QR code validation (public)
+  - `GET /api/v1/pass-requests/validate/{passNumber}` - Pass number validation (public)
   - `POST /api/v1/passes` - Create new visitor pass
 
 ## Authentication & Security
 
-- **Token Management**: Automatic token refresh before expiry
-- **Session Management**: Inactivity-based logout (5 minutes of inactivity)
-- **Secure Storage**: Tokens stored securely using AsyncStorage
-- **Auto-refresh**: Tokens are refreshed automatically when app becomes active
-- **Token Validation**: Automatic validation on app startup
+- **Login System**: Username and password authentication
+- **Role-Based Access**: Separate login flows for admin and security roles
+- **Admin Access**: Full access to issue visitor passes
+- **Security Access**: Access to QR scanning and pass validation
+- **Session Management**: Simple session-based navigation (no persistent storage)
 
 ## Technologies Used
 
@@ -124,9 +123,8 @@ The app integrates with a backend API for authentication and pass management:
 - **React Navigation** - Navigation library
   - `@react-navigation/native` (^6.1.18)
   - `@react-navigation/native-stack` (^6.9.17)
-- **Expo Camera** (~15.0.0) - QR code scanning
-- **AsyncStorage** (@react-native-async-storage/async-storage) - Token persistence
-- **React Native SVG** (^15.12.1) - SVG rendering
+- **Expo Camera** (~17.0.10) - QR code scanning
+- **React Native SVG** (15.12.1) - SVG rendering
 - **React Native SVG Transformer** (^1.5.1) - SVG import support
 - **Expo Linear Gradient** (^15.0.7) - Gradient backgrounds
 - **Expo Vector Icons** (^14.0.0) - Icon library
@@ -185,8 +183,9 @@ The app validates QR codes by sending the `qr_code_id` to the backend API. The Q
 
 ## Notes
 
-- The app automatically handles token refresh and session management
-- Users are logged out after 5 minutes of inactivity
-- Tokens are validated on app startup
-- The app supports both single and multiple entry passes
-- Pass types include: daily, single, multiple, and event passes
+- The app uses role-based authentication (admin/security)
+- Admin users can issue visitor passes
+- Security users can scan and validate passes
+- Gate selection (Gate 1, 2, 3, 4, or Gallery) is required for validation
+- Entry and exit actions can be tracked during validation
+- The app supports various pass types including daily, single, multiple, and event passes

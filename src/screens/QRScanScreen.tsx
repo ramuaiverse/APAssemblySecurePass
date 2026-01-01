@@ -16,7 +16,6 @@ import { CameraView, useCameraPermissions } from "expo-camera";
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { RouteProp } from "@react-navigation/native";
 import { RootStackParamList } from "@/types";
-import { tokenManager } from "@/services/tokenManager";
 import { api } from "@/services/api";
 import { Alert } from "react-native";
 import FlashIcon from "../../assets/flash.svg";
@@ -39,9 +38,13 @@ const { width, height } = Dimensions.get("window");
 const SCAN_AREA_SIZE = width * 0.7;
 
 type TabType = "scan" | "uniqueId";
+type ActionType = "entry" | "exit";
 
 export default function QRScanScreen({ navigation }: Props) {
   const [permission, requestPermission] = useCameraPermissions();
+  // Gate/action selection state (moved from ValidPassScreen)
+  const [selectedGate, setSelectedGate] = useState<string | null>(null);
+  const [actionType, setActionType] = useState<ActionType | null>(null);
   const [scanned, setScanned] = useState(false);
   const [flashlightOn, setFlashlightOn] = useState(false);
   const [validating, setValidating] = useState(false);
@@ -79,7 +82,6 @@ export default function QRScanScreen({ navigation }: Props) {
   };
 
   const handleLogout = async () => {
-    await tokenManager.logout();
     navigation.replace("Login");
   };
 
@@ -90,7 +92,18 @@ export default function QRScanScreen({ navigation }: Props) {
       return;
     }
 
-    // Clear error message if ID is complete
+    // Check if gate and action are selected
+    if (!selectedGate) {
+      setErrorMessage("Please select a gate");
+      return;
+    }
+
+    if (!actionType) {
+      setErrorMessage("Please select an action type");
+      return;
+    }
+
+    // Clear error message if all validations pass
     setErrorMessage("");
 
     if (isProcessingRef.current || validating) {
@@ -101,25 +114,29 @@ export default function QRScanScreen({ navigation }: Props) {
     setValidating(true);
 
     try {
-      console.log("Validating Unique ID:", idString);
+      // Prepare gate_action - only include if actionType is "entry" or "exit"
+      const gateAction =
+        actionType === "entry" || actionType === "exit"
+          ? actionType
+          : undefined;
 
-      // Call the validate API with the 5-digit ID (no authentication required)
-      const validationResponse = await api.validatePassNumber(idString);
+      // Use selectedGate directly (it can be gate1/gate2/gate3/gate4 or "gallery")
+      const gateLocation = selectedGate || undefined;
 
-      console.log(
-        "Unique ID Validation API Response:",
-        JSON.stringify(validationResponse, null, 2)
-      );
+      // Call the validate API with the 5-digit ID (no authentication required) with all parameters
+      const validationResponse = await api.validatePassNumber(idString, {
+        auto_record_scan: true,
+        gate_location: gateLocation,
+        gate_action: gateAction,
+      });
 
       // Navigate based on valid field from API response
       if (validationResponse.valid === true) {
-        console.log("✅ Valid pass - Navigating to ValidPass screen");
         isProcessingRef.current = false;
         navigation.replace("ValidPass", {
           validationResponse: validationResponse,
         });
       } else {
-        console.log("❌ Invalid pass - Reason:", validationResponse.message);
         isProcessingRef.current = false;
         navigation.replace("InvalidPass", {
           validationResponse: validationResponse,
@@ -140,7 +157,6 @@ export default function QRScanScreen({ navigation }: Props) {
             text: "OK",
             onPress: async () => {
               isProcessingRef.current = false;
-              await tokenManager.logout();
               navigation.replace("Login");
             },
           },
@@ -150,23 +166,11 @@ export default function QRScanScreen({ navigation }: Props) {
         errorMessage.includes("Failed to validate") ||
         errorMessage === "Failed to validate ID. Please try again."
       ) {
-        console.log(
-          "❌ ID validation failed - Navigating to InvalidPass screen"
-        );
         isProcessingRef.current = false;
         navigation.replace("InvalidPass", {});
         return;
       } else {
         navigation.replace("InvalidPass", {});
-        // Alert.alert("Validation Error", errorMessage, [
-        //   {
-        //     text: "OK",
-        //     onPress: () => {
-        //       isProcessingRef.current = false;
-        //       setValidating(false);
-        //     },
-        //   },
-        // ]);
         return;
       }
     }
@@ -174,6 +178,7 @@ export default function QRScanScreen({ navigation }: Props) {
 
   const handleInputChange = (index: number, value: string) => {
     if (validating) return;
+    if (!selectedGate || !actionType) return;
 
     // Clear error message when user starts typing
     if (errorMessage) {
@@ -226,7 +231,16 @@ export default function QRScanScreen({ navigation }: Props) {
   const handleBarCodeScanned = async ({ data }: { data: string }) => {
     // Validate scanned data first
     if (!data || data === null || data === undefined) {
-      console.error("Scanned data is null or undefined");
+      return;
+    }
+
+    // Check if gate and action are selected before allowing scan
+    if (!selectedGate || !actionType) {
+      Alert.alert(
+        "Selection Required",
+        "Please select both Gate and Action Type before scanning.",
+        [{ text: "OK" }]
+      );
       return;
     }
 
@@ -248,18 +262,12 @@ export default function QRScanScreen({ navigation }: Props) {
     setLastScannedCode(data);
 
     try {
-      // Log the raw scanned data first
-      console.log("Raw Scanned QR Data:", data);
-      console.log("Scanned Data Type:", typeof data);
-      console.log("Scanned Data Length:", data?.length);
-
       // Extract qr_data from scanned data
       // The API expects qr_data field, so we'll try to extract it or use the data directly
       let qrData: string;
 
       // First, ensure we have valid data
       if (!data || data.trim() === "") {
-        console.error("Empty QR code data");
         Alert.alert("Error", "Invalid QR code. Please scan again.");
         isProcessingRef.current = false;
         setScanned(false);
@@ -277,7 +285,6 @@ export default function QRScanScreen({ navigation }: Props) {
         const match = data.match(/\/validate\/([^\/\s]+)/);
         if (match && match[1]) {
           extractedId = match[1];
-          console.log("Extracted UUID from URL:", extractedId);
         }
       }
 
@@ -288,7 +295,6 @@ export default function QRScanScreen({ navigation }: Props) {
         // Check if last part looks like a UUID (contains hyphens and is reasonably long)
         if (lastPart.includes("-") && lastPart.length > 20) {
           extractedId = lastPart;
-          console.log("Extracted UUID from URL path:", extractedId);
         }
       }
 
@@ -296,7 +302,6 @@ export default function QRScanScreen({ navigation }: Props) {
 
       // Ensure we have a valid QR data value
       if (!qrData || qrData.trim() === "") {
-        console.error("Invalid QR code data:", data);
         Alert.alert("Error", "Invalid QR code. Please scan again.");
         isProcessingRef.current = false;
         setScanned(false);
@@ -305,71 +310,33 @@ export default function QRScanScreen({ navigation }: Props) {
         return;
       }
 
-      console.log("Original scanned data:", data);
-      console.log("Final QR Data to send:", qrData);
-      console.log("QR Data Type:", typeof qrData);
-      console.log("QR Data Length:", qrData.length);
-      console.log("QR Data Value:", JSON.stringify(qrData));
+      // Prepare gate_action - only include if actionType is "entry" or "exit"
+      const gateAction =
+        actionType === "entry" || actionType === "exit"
+          ? actionType
+          : undefined;
 
-      // Call the validate API (no authentication required)
-      const validationResponse = await api.validateQRCodePublic(qrData);
+      // Use selectedGate directly (it can be gate1/gate2/gate3/gate4 or "gallery")
+      const gateLocation = selectedGate || undefined;
 
-      // Log full validation response
-      console.log(
-        "QR Validation API Response:",
-        JSON.stringify(validationResponse, null, 2)
+      console.log("gateLocation", gateLocation);
+      console.log("gateAction", gateAction);
+
+      // Call the validate API (no authentication required) with gate and action parameters
+      const validationResponse = await api.validateQRCodePublic(
+        qrData,
+        gateLocation,
+        gateAction
       );
-      console.log(
-        "Validation Status:",
-        validationResponse.valid ? "VALID" : "INVALID"
-      );
-      console.log("Scan Status:", validationResponse.status);
-      console.log("Message:", validationResponse.message);
-      console.log("Scan ID:", validationResponse.scan_id);
 
       // Navigate based on valid field from API response
       if (validationResponse.valid === true) {
-        // Valid pass - navigate to ValidPass screen
-        const visitor = validationResponse.visitor;
-        const pass = validationResponse.pass;
-
-        // Log visitor and pass details if available
-        if (visitor) {
-          console.log("Visitor:", JSON.stringify(visitor, null, 2));
-          console.log("Visitor Name:", visitor.name);
-          console.log("Phone:", visitor.phone);
-          console.log("Email:", visitor.email);
-        }
-        if (pass) {
-          console.log("Pass:", JSON.stringify(pass, null, 2));
-          console.log("Pass Number:", pass.pass_number);
-          console.log("Session:", pass.session);
-          console.log("Category:", pass.category);
-          console.log("Purpose:", pass.purpose);
-          console.log(
-            "Valid From:",
-            pass.valid_from_formatted || pass.valid_from
-          );
-          console.log("Valid To:", pass.valid_to_formatted || pass.valid_to);
-          console.log("Requested By:", pass.requested_by);
-        }
-
-        console.log("✅ Valid pass - Navigating to ValidPass screen");
-
         // Reset ref before navigation
         isProcessingRef.current = false;
         navigation.replace("ValidPass", {
           validationResponse: validationResponse,
         });
       } else {
-        // Invalid pass - navigate to InvalidPass screen
-        console.log("❌ Invalid pass - Status:", validationResponse.status);
-        console.log("Suspended:", validationResponse.suspended);
-        console.log("Expired:", validationResponse.expired);
-        console.log("Not Yet Valid:", validationResponse.not_yet_valid);
-        if (validationResponse.message) {
-          console.log("Message:", validationResponse.message);
-        }
         // Reset ref before navigation
         isProcessingRef.current = false;
         navigation.replace("InvalidPass", {
@@ -377,8 +344,6 @@ export default function QRScanScreen({ navigation }: Props) {
         });
       }
     } catch (error) {
-      // console.error("Error validating QR code:", error);
-
       // Show error alert
       const errorMessage =
         error instanceof Error
@@ -395,7 +360,6 @@ export default function QRScanScreen({ navigation }: Props) {
             text: "OK",
             onPress: async () => {
               isProcessingRef.current = false;
-              await tokenManager.logout();
               navigation.replace("Login");
             },
           },
@@ -407,27 +371,11 @@ export default function QRScanScreen({ navigation }: Props) {
         errorMessage === "Failed to validate QR code"
       ) {
         // Handle 500 error or validation failure - navigate to InvalidPass screen
-        console.log(
-          "❌ QR code validation failed - Navigating to InvalidPass screen"
-        );
         // Reset ref before navigation
         isProcessingRef.current = false;
         navigation.replace("InvalidPass", {});
         return;
       } else {
-        // For other errors, show alert and reset state only when user dismisses it
-        // Alert.alert("Validation Error", errorMessage, [
-        //   {
-        //     text: "OK",
-        //     onPress: () => {
-        //       // Reset scanning state and clear last scanned code to allow scanning again
-        //       isProcessingRef.current = false;
-        //       setScanned(false);
-        //       setValidating(false);
-        //       setLastScannedCode(null);
-        //     },
-        //   },
-        // ]);
         navigation.replace("InvalidPass", {});
         // Keep scanned as true until alert is dismissed
         // Don't reset validating here - it will be reset when user dismisses alert
@@ -479,148 +427,286 @@ export default function QRScanScreen({ navigation }: Props) {
         </TouchableOpacity>
       </View>
 
-      {/* Assembly Icon */}
-      <View style={styles.instructionsContainer}>
-        <AssemblyIcon width={120} height={140} />
-      </View>
-
-      {/* Tab Selection - Always visible */}
-      <View style={styles.tabWrapper}>
-        <View style={styles.tabContainer}>
-          <TouchableOpacity
-            style={[
-              styles.tab,
-              activeTab === "scan" ? styles.tabActive : styles.tabInactive,
-            ]}
-            onPress={() => handleTabChange("scan")}
-            disabled={validating}
-          >
-            <Text
-              style={[
-                styles.tabText,
-                activeTab === "scan"
-                  ? styles.tabTextActive
-                  : styles.tabTextInactive,
-              ]}
-            >
-              Scan QR Code
-            </Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={[
-              styles.tab,
-              activeTab === "uniqueId" ? styles.tabActive : styles.tabInactive,
-            ]}
-            onPress={() => handleTabChange("uniqueId")}
-            disabled={validating}
-          >
-            <Text
-              style={[
-                styles.tabText,
-                activeTab === "uniqueId"
-                  ? styles.tabTextActive
-                  : styles.tabTextInactive,
-              ]}
-            >
-              Unique ID
-            </Text>
-          </TouchableOpacity>
+      <ScrollView
+        contentContainerStyle={styles.scrollContent}
+        keyboardShouldPersistTaps="handled"
+        showsVerticalScrollIndicator={false}
+      >
+        {/* Header Section - Compact layout */}
+        {/* Assembly Icon - Smaller for scan mode */}
+        {/* {activeTab === "scan" ? (
+        <View style={styles.instructionsContainerCompact}>
+          <AssemblyIcon width={60} height={70} />
         </View>
-      </View>
+      ) : (
+        <View style={styles.instructionsContainer}>
+          <AssemblyIcon width={120} height={140} />
+        </View>
+      )} */}
+        <View style={styles.instructionsContainer}>
+          <AssemblyIcon width={80} height={80} />
+        </View>
 
-      {activeTab === "scan" ? (
-        <>
-          {/* Camera View Container */}
-          <View style={styles.cameraContainer}>
-            <CameraView
-              style={styles.camera}
-              facing="back"
-              onBarcodeScanned={scanned ? undefined : handleBarCodeScanned}
-              barcodeScannerSettings={{
-                barcodeTypes: ["qr"],
-              }}
-              enableTorch={flashlightOn}
-            />
-            {/* Overlay - Positioned absolutely on top of camera */}
-            <View
-              style={styles.overlay}
-              onLayout={(event) => {
-                const { width, height } = event.nativeEvent.layout;
-                setOverlayDimensions({ width, height });
-              }}
+        {/* Tab Selection - Always visible */}
+        <View style={styles.tabWrapper}>
+          <View style={styles.tabContainer}>
+            <TouchableOpacity
+              style={[
+                styles.tab,
+                activeTab === "scan" ? styles.tabActive : styles.tabInactive,
+              ]}
+              onPress={() => handleTabChange("scan")}
+              disabled={validating}
             >
-              {/* Scanning Frame */}
-              <View
+              <Text
                 style={[
-                  styles.scanFrame,
-                  overlayDimensions && {
-                    left: (overlayDimensions.width - SCAN_AREA_SIZE) / 2,
-                    top:
-                      (overlayDimensions.height -
-                        footerHeight -
-                        SCAN_AREA_SIZE) /
-                      2,
-                  },
+                  styles.tabText,
+                  activeTab === "scan"
+                    ? styles.tabTextActive
+                    : styles.tabTextInactive,
                 ]}
               >
-                <View style={styles.corner} />
-                <View style={[styles.corner, styles.topRight]} />
-                <View style={[styles.corner, styles.bottomLeft]} />
-                <View style={[styles.corner, styles.bottomRight]} />
-              </View>
-
-              {/* Loading Indicator Overlay */}
-              {validating && (
-                <View style={styles.loadingOverlay}>
-                  <View style={styles.loadingContainer}>
-                    <ActivityIndicator size="large" color="#457E51" />
-                    <Text style={styles.loadingText}>
-                      Validating QR Code...
-                    </Text>
-                  </View>
-                </View>
-              )}
-
-              {/* Footer - Positioned absolutely at bottom */}
-              <View
-                style={styles.footer}
-                onLayout={(event) => {
-                  const { height } = event.nativeEvent.layout;
-                  setFooterHeight(height);
-                }}
+                Scan QR Code
+              </Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[
+                styles.tab,
+                activeTab === "uniqueId"
+                  ? styles.tabActive
+                  : styles.tabInactive,
+              ]}
+              onPress={() => handleTabChange("uniqueId")}
+              disabled={validating}
+            >
+              <Text
+                style={[
+                  styles.tabText,
+                  activeTab === "uniqueId"
+                    ? styles.tabTextActive
+                    : styles.tabTextInactive,
+                ]}
               >
-                <View style={styles.footerLeft}>
-                  <View style={styles.scanningDot} />
-                  <Text style={styles.scanningText}>
-                    {validating ? "Validating..." : "Scanning..."}
-                  </Text>
-                </View>
+                Unique ID
+              </Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+
+        {/* Gate and Action Selection - Vertical layout */}
+        <View style={styles.selectionContainer}>
+          {/* Gate Selection */}
+          <View style={styles.gateSelectionWrapperCompact}>
+            <View style={styles.gateSelectionCardCompact}>
+              <Text style={styles.gateSelectionLabelCompact}>Gate</Text>
+              <View style={styles.gateButtonsContainerCompact}>
+                {["gate1", "gate2", "gate3", "gate4", "gallery"].map((gate) => (
+                  <TouchableOpacity
+                    key={gate}
+                    style={[
+                      styles.gateButtonCompact,
+                      selectedGate === gate && styles.gateButtonSelectedCompact,
+                    ]}
+                    onPress={() => setSelectedGate(gate)}
+                    disabled={validating}
+                    activeOpacity={0.7}
+                  >
+                    <Text
+                      style={[
+                        styles.gateButtonTextCompact,
+                        selectedGate === gate &&
+                          styles.gateButtonTextSelectedCompact,
+                      ]}
+                    >
+                      {gate === "gallery"
+                        ? "Gallery"
+                        : gate.replace("gate", "")}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+            </View>
+          </View>
+
+          {/* Action Selection - Below Gate */}
+          <View style={styles.actionSelectionWrapperCompact}>
+            <View style={styles.actionSelectionCardCompact}>
+              <Text style={styles.actionSelectionLabelCompact}>Action</Text>
+              <View style={styles.actionButtonsContainerCompact}>
                 <TouchableOpacity
-                  style={styles.flashlightButton}
-                  onPress={() => setFlashlightOn(!flashlightOn)}
+                  style={[
+                    styles.actionButtonCompact,
+                    styles.actionButtonEntryCompact,
+                    actionType === "entry" &&
+                      styles.actionButtonSelectedCompact,
+                  ]}
+                  onPress={() => setActionType("entry")}
+                  disabled={validating}
+                  activeOpacity={0.7}
                 >
-                  <FlashIcon width={12} height={12} />
-                  <Text style={styles.flashlightText}>Flashlight</Text>
+                  <Text
+                    style={[
+                      styles.actionButtonTextCompact,
+                      actionType === "entry" &&
+                        styles.actionButtonTextSelectedCompact,
+                    ]}
+                  >
+                    Entry
+                  </Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[
+                    styles.actionButtonCompact,
+                    styles.actionButtonExitCompact,
+                    actionType === "exit" &&
+                      styles.actionButtonExitSelectedCompact,
+                  ]}
+                  onPress={() => setActionType("exit")}
+                  disabled={validating}
+                  activeOpacity={0.7}
+                >
+                  <Text
+                    style={[
+                      styles.actionButtonTextCompact,
+                      actionType === "exit" &&
+                        styles.actionButtonTextSelectedExitCompact,
+                    ]}
+                  >
+                    Exit
+                  </Text>
                 </TouchableOpacity>
               </View>
             </View>
           </View>
-        </>
-      ) : (
-        <KeyboardAvoidingView
-          behavior={Platform.OS === "ios" ? "padding" : "height"}
-          style={styles.keyboardView}
-          keyboardVerticalOffset={Platform.OS === "ios" ? 0 : 20}
-        >
-          <ScrollView
-            contentContainerStyle={styles.scrollContent}
-            keyboardShouldPersistTaps="handled"
-            showsVerticalScrollIndicator={false}
+        </View>
+
+        {activeTab === "scan" ? (
+          <>
+            {/* Camera View Container */}
+            <View style={styles.cameraContainer}>
+              <CameraView
+                style={styles.camera}
+                facing="back"
+                onBarcodeScanned={
+                  scanned || !selectedGate || !actionType
+                    ? undefined
+                    : handleBarCodeScanned
+                }
+                barcodeScannerSettings={{
+                  barcodeTypes: ["qr"],
+                }}
+                enableTorch={flashlightOn}
+              />
+              {/* Overlay - Positioned absolutely on top of camera */}
+              <View
+                style={styles.overlay}
+                onLayout={(event) => {
+                  const { width, height } = event.nativeEvent.layout;
+                  setOverlayDimensions({ width, height });
+                }}
+              >
+                {/* Scanning Frame */}
+                <View
+                  style={[
+                    styles.scanFrame,
+                    overlayDimensions && {
+                      left: Math.max(
+                        10,
+                        (overlayDimensions.width - SCAN_AREA_SIZE) / 2
+                      ),
+                      top: Math.max(
+                        10,
+                        (overlayDimensions.height -
+                          footerHeight -
+                          SCAN_AREA_SIZE) /
+                          2
+                      ),
+                      width: Math.min(
+                        SCAN_AREA_SIZE,
+                        overlayDimensions.width - 20
+                      ),
+                      height: Math.min(
+                        SCAN_AREA_SIZE,
+                        overlayDimensions.height - footerHeight - 20
+                      ),
+                    },
+                  ]}
+                >
+                  <View style={styles.corner} />
+                  <View style={[styles.corner, styles.topRight]} />
+                  <View style={[styles.corner, styles.bottomLeft]} />
+                  <View style={[styles.corner, styles.bottomRight]} />
+                </View>
+
+                {/* Loading Indicator Overlay */}
+                {validating && (
+                  <View style={styles.loadingOverlay}>
+                    <View style={styles.loadingContainer}>
+                      <ActivityIndicator size="large" color="#457E51" />
+                      <Text style={styles.loadingText}>
+                        Validating QR Code...
+                      </Text>
+                    </View>
+                  </View>
+                )}
+
+                {/* Selection Required Overlay */}
+                {!validating && (!selectedGate || !actionType) && (
+                  <View style={styles.selectionRequiredOverlay}>
+                    <View style={styles.selectionRequiredContainer}>
+                      <Text style={styles.selectionRequiredText}>
+                        Please select Gate and Action Type to start scanning
+                      </Text>
+                    </View>
+                  </View>
+                )}
+
+                {/* Footer - Positioned absolutely at bottom */}
+                <View
+                  style={styles.footer}
+                  onLayout={(event) => {
+                    const { height } = event.nativeEvent.layout;
+                    setFooterHeight(height);
+                  }}
+                >
+                  <View style={styles.footerLeft}>
+                    <View style={styles.scanningDot} />
+                    <Text style={styles.scanningText}>
+                      {validating
+                        ? "Validating..."
+                        : !selectedGate || !actionType
+                        ? "Select Gate & Action"
+                        : "Scanning..."}
+                    </Text>
+                  </View>
+                  <TouchableOpacity
+                    style={styles.flashlightButton}
+                    onPress={() => setFlashlightOn(!flashlightOn)}
+                  >
+                    <FlashIcon width={12} height={12} />
+                    <Text style={styles.flashlightText}>Flashlight</Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+            </View>
+          </>
+        ) : (
+          <KeyboardAvoidingView
+            behavior={Platform.OS === "ios" ? "padding" : "height"}
+            style={styles.keyboardView}
+            keyboardVerticalOffset={Platform.OS === "ios" ? 0 : 20}
           >
             {/* Unique ID Input Section */}
             <View style={styles.contentCard}>
               <View style={styles.uniqueIdContainer}>
                 <Text style={styles.uniqueIdLabel}>Enter 5-digit ID</Text>
+                {(!selectedGate || !actionType) && (
+                  <View style={styles.selectionRequiredContainer}>
+                    <Text style={styles.selectionRequiredText}>
+                      Please select Gate and Action before entering ID
+                    </Text>
+                  </View>
+                )}
                 <View style={styles.inputBoxContainer}>
                   {uniqueId.map((digit, index) => (
                     <TextInput
@@ -631,6 +717,8 @@ export default function QRScanScreen({ navigation }: Props) {
                       style={[
                         styles.inputBox,
                         digit !== "" && styles.inputBoxFilled,
+                        (!selectedGate || !actionType) &&
+                          styles.inputBoxDisabled,
                       ]}
                       value={digit}
                       onChangeText={(value) => handleInputChange(index, value)}
@@ -640,7 +728,7 @@ export default function QRScanScreen({ navigation }: Props) {
                       keyboardType="numeric"
                       maxLength={1}
                       selectTextOnFocus
-                      editable={!validating}
+                      editable={!validating && !!selectedGate && !!actionType}
                       textAlign="center"
                     />
                   ))}
@@ -649,9 +737,13 @@ export default function QRScanScreen({ navigation }: Props) {
                   <Text style={styles.errorText}>{errorMessage}</Text>
                 ) : null}
                 <TouchableOpacity
-                  style={styles.verifyButton}
+                  style={[
+                    styles.verifyButton,
+                    (!selectedGate || !actionType) &&
+                      styles.verifyButtonDisabled,
+                  ]}
                   onPress={handleUniqueIdValidation}
-                  disabled={validating}
+                  disabled={validating || !selectedGate || !actionType}
                 >
                   {validating ? (
                     <ActivityIndicator color="#FFFFFF" />
@@ -671,9 +763,9 @@ export default function QRScanScreen({ navigation }: Props) {
                 </View>
               )}
             </View>
-          </ScrollView>
-        </KeyboardAvoidingView>
-      )}
+          </KeyboardAvoidingView>
+        )}
+      </ScrollView>
     </SafeAreaView>
   );
 }
@@ -706,7 +798,6 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     alignItems: "center",
     paddingHorizontal: 15,
-    paddingTop: 15,
   },
   headerButton: {
     justifyContent: "center",
@@ -738,6 +829,16 @@ const styles = StyleSheet.create({
     padding: 20,
     alignItems: "center",
   },
+  instructionsContainerCompact: {
+    padding: 8,
+    alignItems: "center",
+  },
+  selectionContainer: {
+    flexDirection: "column",
+    paddingHorizontal: 20,
+    gap: 8,
+    marginBottom: 12,
+  },
   tabWrapper: {
     paddingHorizontal: 20,
     marginBottom: 10,
@@ -752,6 +853,7 @@ const styles = StyleSheet.create({
     width: SCAN_AREA_SIZE,
     height: SCAN_AREA_SIZE,
     position: "absolute",
+    overflow: "hidden",
   },
   corner: {
     position: "absolute",
@@ -796,8 +898,8 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    padding: 20,
-    paddingBottom: 40,
+    padding: 15,
+    paddingBottom: 20,
   },
   footerLeft: {
     flexDirection: "row",
@@ -863,9 +965,45 @@ const styles = StyleSheet.create({
     color: "#111827",
     textAlign: "center",
   },
+  selectionRequiredOverlay: {
+    position: "absolute",
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: "rgba(0, 0, 0, 0.6)",
+    justifyContent: "center",
+    alignItems: "center",
+    zIndex: 999,
+  },
+  selectionRequiredContainer: {
+    backgroundColor: "#FFFFFF",
+    borderRadius: 16,
+    padding: 24,
+    alignItems: "center",
+    justifyContent: "center",
+    minWidth: 250,
+    maxWidth: "80%",
+    shadowColor: "#000",
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.25,
+    shadowRadius: 3.84,
+    elevation: 5,
+  },
+  selectionRequiredText: {
+    fontSize: 14,
+    fontWeight: "600",
+    color: "#111827",
+    textAlign: "center",
+    lineHeight: 20,
+  },
   contentCard: {
     backgroundColor: "#FFFFFF",
     marginHorizontal: 20,
+    marginTop: 10,
     marginBottom: 10,
     borderRadius: 16,
     padding: 20,
@@ -880,8 +1018,8 @@ const styles = StyleSheet.create({
   },
   tab: {
     flex: 1,
-    paddingVertical: 12,
-    paddingHorizontal: 16,
+    paddingVertical: 8,
+    paddingHorizontal: 8,
     borderRadius: 8,
     backgroundColor: "#FFFFFF",
   },
@@ -935,6 +1073,11 @@ const styles = StyleSheet.create({
     backgroundColor: "#FFFFFF",
     borderColor: "#457E51",
   },
+  inputBoxDisabled: {
+    backgroundColor: "#F3F4F6",
+    borderColor: "#D1D5DB",
+    opacity: 0.6,
+  },
   errorText: {
     color: "#EF4444",
     fontSize: 14,
@@ -951,6 +1094,10 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
+  verifyButtonDisabled: {
+    backgroundColor: "#9CA3AF",
+    opacity: 0.6,
+  },
   verifyButtonText: {
     color: "#FFFFFF",
     fontSize: 16,
@@ -962,5 +1109,117 @@ const styles = StyleSheet.create({
   scrollContent: {
     flexGrow: 1,
     paddingBottom: 20,
+  },
+  // Compact styles for gate selection
+  gateSelectionWrapperCompact: {
+    width: "100%",
+  },
+  gateSelectionCardCompact: {
+    backgroundColor: "#FFFFFF",
+    borderRadius: 8,
+    padding: 8,
+  },
+  gateSelectionLabelCompact: {
+    fontSize: 14,
+    fontWeight: "600",
+    color: "#111827",
+    marginBottom: 6,
+  },
+  gateButtonsContainerCompact: {
+    flexDirection: "row",
+    gap: 4,
+  },
+  gateButtonCompact: {
+    flex: 1,
+    backgroundColor: "#F3F4F6",
+    borderRadius: 6,
+    padding: 10,
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: 1.5,
+    borderColor: "transparent",
+    shadowColor: "#000",
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.1,
+    shadowRadius: 1,
+    elevation: 5,
+  },
+  gateButtonSelectedCompact: {
+    backgroundColor: "#E3F7E8",
+    borderColor: "#457E51",
+  },
+  gateButtonTextCompact: {
+    fontSize: 12,
+    color: "#6B7280",
+  },
+  gateButtonTextSelectedCompact: {
+    color: "#457E51",
+  },
+  // Compact styles for action selection
+  actionSelectionWrapperCompact: {
+    width: "100%",
+  },
+  actionSelectionCardCompact: {
+    backgroundColor: "#FFFFFF",
+    borderRadius: 8,
+    padding: 8,
+  },
+  actionSelectionLabelCompact: {
+    fontSize: 14,
+    fontWeight: "600",
+    color: "#111827",
+    marginBottom: 6,
+  },
+  actionButtonsContainerCompact: {
+    flexDirection: "row",
+    gap: 4,
+  },
+  actionButtonCompact: {
+    flex: 0.4,
+    maxWidth: 100,
+    borderRadius: 6,
+    padding: 6,
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: 1.5,
+    borderColor: "transparent",
+    shadowColor: "#000",
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.1,
+    shadowRadius: 1,
+    elevation: 5,
+  },
+  actionButtonEntryCompact: {
+    backgroundColor: "#E3F7E8",
+  },
+  actionButtonExitCompact: {
+    backgroundColor: "#FEF3C7",
+  },
+  actionButtonSelectedCompact: {
+    borderColor: "#457E51",
+    borderWidth: 1.5,
+  },
+  actionButtonExitSelectedCompact: {
+    borderColor: "#F59E0B",
+    borderWidth: 1.5,
+  },
+  actionButtonTextCompact: {
+    fontSize: 12,
+    fontWeight: "500",
+    color: "#6B7280",
+  },
+  actionButtonTextSelectedCompact: {
+    color: "#457E51",
+    fontWeight: "600",
+  },
+  actionButtonTextSelectedExitCompact: {
+    color: "#D97706",
+    fontWeight: "600",
   },
 });

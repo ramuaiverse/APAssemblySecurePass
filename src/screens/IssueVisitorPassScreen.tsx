@@ -16,7 +16,6 @@ import { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { useFocusEffect } from "@react-navigation/native";
 import { RootStackParamList } from "@/types";
 import { api } from "@/services/api";
-import { tokenManager } from "@/services/tokenManager";
 import { Alert, ActivityIndicator } from "react-native";
 import VisitorPassIcon from "../../assets/visitorPass.svg";
 import LogOutIcon from "../../assets/logOut.svg";
@@ -36,7 +35,7 @@ type Props = {
 };
 
 const IDENTIFICATION_TYPES = [
-  "Aadhar",
+  "Aadhaar",
   "PAN",
   "Driving License",
   "Passport",
@@ -99,17 +98,6 @@ export default function IssueVisitorPassScreen({ navigation }: Props) {
   const [tempEndHour, setTempEndHour] = useState(12);
   const [tempEndMinute, setTempEndMinute] = useState(0);
   const [tempEndAmPm, setTempEndAmPm] = useState<"AM" | "PM">("AM");
-
-  // Initialize times
-  React.useEffect(() => {
-    const start = new Date();
-    start.setHours(10, 0, 0, 0);
-    setStartTime(start);
-
-    const end = new Date();
-    end.setHours(12, 0, 0, 0);
-    setEndTime(end);
-  }, []);
 
   // Reset all form fields when screen is focused
   const resetForm = () => {
@@ -476,28 +464,9 @@ export default function IssueVisitorPassScreen({ navigation }: Props) {
         notes: null, // Optional field
       };
 
-      console.log(
-        "Creating pass with data:",
-        JSON.stringify(formData, null, 2)
-      );
-
       // Call the API
-      const passResponse = await api.createPass(formData);
-
-      console.log(
-        "Pass created successfully:",
-        JSON.stringify(passResponse, null, 2)
-      );
-      // console.log("QR Code ID:", passResponse.qr_code_id);
-      // console.log("QR Code URL:", passResponse.qr_code_url);
-
-      // // Navigate to PreviewPass screen with the API response
-      // navigation.navigate("PreviewPass", {
-      //   passData: passResponse,
-      // });
+      await api.createPass(formData);
     } catch (error) {
-      // console.error("Error creating pass:", error);
-
       const errorMessage =
         error instanceof Error
           ? error.message
@@ -512,7 +481,6 @@ export default function IssueVisitorPassScreen({ navigation }: Props) {
           {
             text: "OK",
             onPress: async () => {
-              await tokenManager.logout();
               navigation.replace("Login");
             },
           },

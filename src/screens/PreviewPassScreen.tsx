@@ -1,4 +1,4 @@
-import React, { useEffect, useRef } from "react";
+import React, { useRef } from "react";
 import {
   View,
   Text,
@@ -9,7 +9,6 @@ import {
   Alert,
   Platform,
 } from "react-native";
-import * as Print from "expo-print";
 import * as FileSystem from "expo-file-system";
 import { captureRef } from "react-native-view-shot";
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
@@ -19,8 +18,6 @@ import QRCode from "react-native-qrcode-svg";
 import CloseIcon from "../../assets/close.svg";
 import { SafeAreaView } from "react-native-safe-area-context";
 import BackGroundIcon from "../../assets/backGround.svg";
-import PrintIcon from "../../assets/print.svg";
-import DownloadIcon from "../../assets/download.svg";
 import ShareIcon from "../../assets/share.svg";
 
 type PreviewPassScreenNavigationProp = NativeStackNavigationProp<
@@ -127,16 +124,6 @@ export default function PreviewPassScreen({ navigation, route }: Props) {
     ? formatTimeFromISO(passData.valid_until)
     : "N/A";
 
-  // Log pass data for debugging
-  useEffect(() => {
-    console.log(
-      "PreviewPassScreen - Pass Data:",
-      JSON.stringify(passData, null, 2)
-    );
-    console.log("PreviewPassScreen - QR Code URL:", qrCodeUrl);
-    console.log("PreviewPassScreen - QR Code ID:", qrCodeId);
-  }, [passData, qrCodeUrl, qrCodeId]);
-
   // Format phone number to show only digits
   const formatPhoneNumber = (phone: string) => {
     return phone.replace(/\D/g, "");
@@ -149,214 +136,6 @@ export default function PreviewPassScreen({ navigation, route }: Props) {
 
   const handleClose = () => {
     navigation.goBack();
-  };
-
-  const generateHTML = () => {
-    const passId =
-      qrCodeId ||
-      `AP${date.replace(/-/g, "")}${Math.floor(Math.random() * 10000)}`;
-
-    // Generate QR code data for HTML (use qr_code_id or URL)
-    const qrDataForHTML = qrCodeId || qrCodeUrl || "";
-    // For HTML, we'll display the QR code ID as text since we can't embed SVG easily
-    const qrCodeSection = qrDataForHTML
-      ? `<div style="text-align: center; padding: 20px;">
-          <p style="font-size: 12px; color: #111827; font-weight: 600; margin-bottom: 10px;">QR Code ID</p>
-          <p style="font-size: 10px; color: #6B7280; word-break: break-all; background-color: #F9FAFB; padding: 10px; border-radius: 8px;">${qrDataForHTML}</p>
-          <p style="font-size: 11px; color: #9CA3AF; margin-top: 10px;">Scan this code using the mobile app</p>
-        </div>`
-      : `<p style="text-align: center; padding: 50px; background-color: #F3F4F6; border-radius: 10px;">QR Code</p>`;
-
-    return `
-      <!DOCTYPE html>
-      <html>
-        <head>
-          <meta charset="UTF-8">
-          <style>
-            body {
-              font-family: Arial, sans-serif;
-              padding: 20px;
-              max-width: 600px;
-              margin: 0 auto;
-            }
-            .header {
-              text-align: center;
-              margin-bottom: 30px;
-            }
-            .header h1 {
-              color: #111827;
-              margin: 0;
-            }
-            .qr-section {
-              text-align: center;
-              margin: 30px 0;
-              padding: 20px;
-              background-color: #F9FAFB;
-              border-radius: 10px;
-            }
-            .info-section {
-              background-color: #F9FAFB;
-              padding: 20px;
-              border-radius: 10px;
-              margin-bottom: 20px;
-            }
-            .info-row {
-              margin-bottom: 15px;
-            }
-            .info-label {
-              font-size: 12px;
-              color: #6B7280;
-              margin-bottom: 5px;
-            }
-            .info-value {
-              font-size: 16px;
-              color: #111827;
-              font-weight: 600;
-            }
-            .details-section {
-              background-color: #FFFFFF;
-              padding: 20px;
-              border-radius: 10px;
-              border: 1px solid #E5E7EB;
-            }
-            .detail-row {
-              display: flex;
-              justify-content: space-between;
-              margin-bottom: 15px;
-              padding-bottom: 15px;
-              border-bottom: 1px solid #F3F4F6;
-            }
-            .detail-row:last-child {
-              border-bottom: none;
-              margin-bottom: 0;
-              padding-bottom: 0;
-            }
-            .detail-label {
-              font-size: 14px;
-              color: #6B7280;
-            }
-            .detail-value {
-              font-size: 14px;
-              color: #111827;
-              font-weight: 500;
-              text-align: right;
-            }
-            .authorized-badge {
-              display: inline-block;
-              background-color: #00A551;
-              color: white;
-              padding: 4px 12px;
-              border-radius: 12px;
-              font-size: 10px;
-              font-weight: bold;
-              margin-left: 10px;
-            }
-            .pass-id {
-              text-align: center;
-              margin-top: 20px;
-              font-size: 12px;
-              color: #6B7280;
-            }
-          </style>
-        </head>
-        <body>
-          <div class="header">
-            <h1>Visitor Pass</h1>
-          </div>
-          
-          <div class="qr-section">
-            <p><strong>QR Code</strong></p>
-            ${qrCodeSection}
-            <p style="font-size: 10px; color: #9CA3AF; margin-top: 10px;">Pass ID: ${passId}</p>
-          </div>
-          
-          <div class="info-section">
-            <div class="info-row">
-              <div class="info-label">Name</div>
-              <div class="info-value">${visitorName}</div>
-            </div>
-            <div class="info-row">
-              <div class="info-label">Mobile Number</div>
-              <div class="info-value">${mobileNumber}</div>
-            </div>
-          </div>
-          
-          <div class="details-section">
-            <div class="detail-row">
-              <div class="detail-label">Date</div>
-              <div class="detail-value">${date}</div>
-            </div>
-            <div class="detail-row">
-              <div class="detail-label">Time Slot</div>
-              <div class="detail-value">${startTime} - ${endTime}</div>
-            </div>
-            <div class="detail-row">
-              <div class="detail-label">Purpose</div>
-              <div class="detail-value">${purpose}</div>
-            </div>
-            <div class="detail-row">
-              <div class="detail-label">Visitors</div>
-              <div class="detail-value">
-                ${numberOfVisitors} Person${
-      parseInt(numberOfVisitors) > 1 ? "s" : ""
-    }
-                <span class="authorized-badge">AUTHORIZED</span>
-              </div>
-            </div>
-          </div>
-          
-          <div class="pass-id">
-            Pass ID: ${passId}
-          </div>
-        </body>
-      </html>
-    `;
-  };
-
-  const handlePrint = async () => {
-    try {
-      const html = generateHTML();
-      await Print.printAsync({
-        html,
-      });
-    } catch (error) {
-      Alert.alert("Error", "Failed to print. Please try again.");
-    }
-  };
-
-  const handlePDF = async () => {
-    try {
-      const html = generateHTML();
-      const { uri } = await Print.printToFileAsync({
-        html,
-        base64: false,
-      });
-
-      if (Platform.OS === "ios") {
-        // On iOS, share the PDF using Share API
-        const shareOptions: any = {
-          url: uri,
-        };
-        await Share.share(shareOptions);
-      } else {
-        // On Android, try to share the PDF, fallback to alert
-        try {
-          await Share.share({
-            url: uri,
-            message: `Visitor Pass PDF for ${visitorName}`,
-          } as any);
-        } catch (shareError) {
-          // If sharing fails, show file location
-          Alert.alert(
-            "PDF Generated",
-            `PDF saved to: ${uri}\n\nYou can find it in your Downloads folder.`,
-            [{ text: "OK" }]
-          );
-        }
-      }
-    } catch (error) {
-      Alert.alert("Error", "Failed to generate PDF. Please try again.");
-    }
   };
 
   const handleShare = async () => {
@@ -386,10 +165,8 @@ This pass is authorized for entry.`;
           });
 
           imageUri = uri;
-          console.log("QR code image captured:", imageUri);
         }
       } catch (qrError) {
-        console.warn("Could not capture QR code image:", qrError);
         // Continue with text-only share if QR capture fails
       }
 
@@ -407,7 +184,6 @@ This pass is authorized for entry.`;
             ? `file://${imageUri}`
             : imageUri;
         shareOptions.url = fileUri;
-        console.log("Sharing image URI:", fileUri);
       } else if (qrCodeUrl) {
         // Fallback to QR code URL if image capture failed
         shareOptions.url = qrCodeUrl;
@@ -420,24 +196,10 @@ This pass is authorized for entry.`;
         try {
           await FileSystem.deleteAsync(imageUri, { idempotent: true });
         } catch (cleanupError) {
-          console.warn(
-            "Could not delete temporary QR code file:",
-            cleanupError
-          );
+          // Failed to delete temporary file - system will clean up eventually
         }
-      }
-
-      if (result.action === Share.sharedAction) {
-        if (result.activityType) {
-          console.log("Shared with activity type:", result.activityType);
-        } else {
-          console.log("Shared successfully");
-        }
-      } else if (result.action === Share.dismissedAction) {
-        console.log("Share dismissed");
       }
     } catch (error) {
-      // console.error("Error sharing:", error);
       Alert.alert("Error", "Failed to share pass. Please try again.");
     }
   };
@@ -600,12 +362,6 @@ const styles = StyleSheet.create({
 
     padding: 6,
   },
-  qrCodeImage: {
-    width: 150,
-    height: 150,
-    backgroundColor: "#FFFFFF",
-    borderRadius: 8,
-  },
   qrCodePlaceholder: {
     fontSize: 12,
     color: "#9CA3AF",
@@ -698,21 +454,6 @@ const styles = StyleSheet.create({
     paddingTop: 20,
     borderTopWidth: 1,
     borderTopColor: "#F3F4F6",
-  },
-  actionButton: {
-    flex: 1,
-    alignItems: "center",
-    justifyContent: "center",
-    padding: 6,
-    borderWidth: 1,
-    borderColor: "#457E51",
-    borderRadius: 8,
-  },
-  actionButtonText: {
-    marginTop: 8,
-    fontSize: 12,
-    color: "#111827",
-    fontWeight: "500",
   },
   shareButton: {
     width: "60%",

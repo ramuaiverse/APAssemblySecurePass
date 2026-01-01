@@ -14,7 +14,6 @@ import {
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { RootStackParamList } from "@/types";
 import { api } from "@/services/api";
-import { tokenManager } from "@/services/tokenManager";
 import Assembly from "../../assets/assembly.svg";
 import DigitalPass from "../../assets/digitalPass.svg";
 import UserNameIcon from "../../assets/userName.svg";
@@ -39,7 +38,7 @@ export default function LoginScreen({ navigation }: Props) {
   const [loading, setLoading] = useState(false);
   const [usernameError, setUsernameError] = useState("");
   const [passwordError, setPasswordError] = useState("");
-  const [activeTab, setActiveTab] = useState<"admin" | "security">("admin");
+  const [activeTab, setActiveTab] = useState<"admin" | "security">("security");
 
   const handleLogin = async () => {
     // Clear previous errors
@@ -66,42 +65,30 @@ export default function LoginScreen({ navigation }: Props) {
       const response = await api.login({
         username: username.trim(),
         password: password,
+        // expected_role: activeTab === "admin" ? "admin" : "security",
       });
 
-      // Log the full response for debugging
-      console.log("Login API Response:", JSON.stringify(response, null, 2));
-      console.log("Access Token:", response.access_token);
-      console.log("Refresh Token:", response.refresh_token);
-      console.log("Token Type:", response.token_type);
-      console.log("Expires In:", response.expires_in, "seconds");
-
-      // Only navigate if access_token is present in the response
-      if (response.access_token) {
-        console.log("Access token received, initializing token manager");
-
-        // Initialize token manager with tokens
-        await tokenManager.initializeTokens({
-          access_token: response.access_token,
-          refresh_token: response.refresh_token,
-          expires_in: response.expires_in,
-        });
-
+      // Check if user is active and login is successful
+      if (response.id && response.is_active) {
         // Navigate based on selected login mode
-        if (activeTab === "admin") {
-          navigation.replace("IssueVisitorPass");
-        } else {
-          navigation.replace("QRScan");
-        }
+        // Admin login navigation - commented out for now
+        // if (activeTab === "admin") {
+        //   navigation.replace("IssueVisitorPass");
+        // } else {
+        //   navigation.replace("QRScan");
+        // }
+        // Security login navigation
+        navigation.replace("QRScan");
       } else {
-        console.warn("No access_token in response:", response);
-        // If no access_token, show an error
+        // If user is not active or no ID, show an error
         Alert.alert(
           "Login Failed",
-          "Authentication failed. No access token received."
+          response.is_active === false
+            ? "Your account is inactive. Please contact administrator."
+            : "Authentication failed. Please try again."
         );
       }
     } catch (error) {
-      // console.error("Login error:", error);
       const errorMessage =
         error instanceof Error
           ? error.message
@@ -190,8 +177,8 @@ export default function LoginScreen({ navigation }: Props) {
 
         {/* Login Card */}
         <View style={styles.loginCard}>
-          {/* Tab Selection */}
-          <View style={styles.tabWrapper}>
+          {/* Tab Selection - Commented out for now */}
+          {/* <View style={styles.tabWrapper}>
             <View style={styles.tabContainer}>
               <TouchableOpacity
                 style={[
@@ -232,10 +219,11 @@ export default function LoginScreen({ navigation }: Props) {
                 </Text>
               </TouchableOpacity>
             </View>
-          </View>
+          </View> */}
 
           <Text style={styles.cardTitle}>
-            {activeTab === "admin" ? "Admin Login" : "Security Login"}
+            {/* {activeTab === "admin" ? "Admin Login" : "Security Login"} */}
+            Security Login
           </Text>
           <Text style={styles.cardSubtitle}>
             Enter your credentials to access the system.
@@ -344,11 +332,6 @@ const styles = StyleSheet.create({
   },
   header: {
     alignItems: "center",
-  },
-  sealContainer: {
-    marginBottom: 15,
-    alignItems: "center",
-    justifyContent: "center",
   },
   logoContainer: {
     paddingVertical: 20,
