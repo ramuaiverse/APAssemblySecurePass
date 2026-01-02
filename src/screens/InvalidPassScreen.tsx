@@ -38,11 +38,11 @@ export default function InvalidPassScreen({ navigation, route }: Props) {
   const notYetValid = validationResponse?.not_yet_valid ?? false;
 
   const handleScanNext = () => {
-    navigation.replace("QRScan");
+    navigation.replace("PreCheck");
   };
 
   const handleBack = () => {
-    navigation.replace("QRScan");
+    navigation.replace("PreCheck");
   };
 
   const handleLogout = () => {

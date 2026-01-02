@@ -1,6 +1,9 @@
 export type RootStackParamList = {
   Login: undefined;
-  QRScan: undefined;
+  PreCheck: undefined;
+  QRScan: {
+    mode?: "gateEntryExit" | "verifyVisitor";
+  };
   ValidPass: {
     validationResponse: {
       valid: boolean;

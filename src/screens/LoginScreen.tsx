@@ -77,8 +77,8 @@ export default function LoginScreen({ navigation }: Props) {
         // } else {
         //   navigation.replace("QRScan");
         // }
-        // Security login navigation
-        navigation.replace("QRScan");
+        // Security login navigation - navigate to PreCheck screen first
+        navigation.replace("PreCheck");
       } else {
         // If user is not active or no ID, show an error
         Alert.alert(

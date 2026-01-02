@@ -61,10 +61,7 @@ const formatDate = (dateString: string | null | undefined): string => {
 export default function ValidPassScreen({ navigation, route }: Props) {
   // Get validation response from route params
   const validationResponse = route.params?.validationResponse;
-  console.log(
-    "Validation Response:",
-    JSON.stringify(validationResponse, null, 2)
-  );
+  console.log("Validation Response:", validationResponse);
   const visitor = validationResponse?.visitor;
   const pass = validationResponse?.pass;
 
@@ -124,7 +121,7 @@ export default function ValidPassScreen({ navigation, route }: Props) {
   const photoExistsFromAPI = !!visitorPhotoUrl;
 
   const handleScanNext = async () => {
-    navigation.replace("QRScan");
+    navigation.replace("PreCheck");
   };
 
   const handleReportPress = () => {
@@ -163,8 +160,8 @@ export default function ValidPassScreen({ navigation, route }: Props) {
         {
           text: "OK",
           onPress: () => {
-            // Navigate to QRScan screen
-            navigation.replace("QRScan");
+            // Navigate to PreCheck screen
+            navigation.replace("PreCheck");
           },
         },
       ]);
@@ -193,7 +190,7 @@ export default function ValidPassScreen({ navigation, route }: Props) {
   };
 
   const handleBack = () => {
-    navigation.replace("QRScan");
+    navigation.replace("PreCheck");
   };
 
   const handleLogout = () => {
@@ -429,7 +426,9 @@ export default function ValidPassScreen({ navigation, route }: Props) {
               <View style={styles.detailContent}>
                 <Text style={styles.detailLabel}>Identification Number</Text>
                 <Text style={styles.detailValue}>
-                  {identificationNumber || "N/A"}
+                  {(identificationType?.toUpperCase() || "N/A") +
+                    " " +
+                    (identificationNumber || "N/A")}
                 </Text>
               </View>
             </View>

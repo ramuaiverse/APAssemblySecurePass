@@ -34,14 +34,20 @@ type Props = {
   route: RouteProp<RootStackParamList, "QRScan">;
 };
 
+type ScanMode = "gateEntryExit" | "verifyVisitor";
+
 const { width, height } = Dimensions.get("window");
 const SCAN_AREA_SIZE = width * 0.7;
 
 type TabType = "scan" | "uniqueId";
 type ActionType = "entry" | "exit";
 
-export default function QRScanScreen({ navigation }: Props) {
+export default function QRScanScreen({ navigation, route }: Props) {
   const [permission, requestPermission] = useCameraPermissions();
+  // Get mode from route params, default to "gateEntryExit" for backward compatibility
+  const scanMode: ScanMode = route.params?.mode || "gateEntryExit";
+  const showGateAndAction = scanMode === "gateEntryExit";
+
   // Gate/action selection state (moved from ValidPassScreen)
   const [selectedGate, setSelectedGate] = useState<string | null>(null);
   const [actionType, setActionType] = useState<ActionType | null>(null);
@@ -78,7 +84,7 @@ export default function QRScanScreen({ navigation }: Props) {
   }, [permission]);
 
   const handleBack = () => {
-    navigation.replace("Login");
+    navigation.replace("PreCheck");
   };
 
   const handleLogout = async () => {
@@ -92,15 +98,17 @@ export default function QRScanScreen({ navigation }: Props) {
       return;
     }
 
-    // Check if gate and action are selected
-    if (!selectedGate) {
-      setErrorMessage("Please select a gate");
-      return;
-    }
+    // Check if gate and action are selected (only for gateEntryExit mode)
+    if (showGateAndAction) {
+      if (!selectedGate) {
+        setErrorMessage("Please select a gate");
+        return;
+      }
 
-    if (!actionType) {
-      setErrorMessage("Please select an action type");
-      return;
+      if (!actionType) {
+        setErrorMessage("Please select an action type");
+        return;
+      }
     }
 
     // Clear error message if all validations pass
@@ -114,14 +122,16 @@ export default function QRScanScreen({ navigation }: Props) {
     setValidating(true);
 
     try {
-      // Prepare gate_action - only include if actionType is "entry" or "exit"
+      // Prepare gate_action - only include if actionType is "entry" or "exit" and mode is gateEntryExit
       const gateAction =
-        actionType === "entry" || actionType === "exit"
+        showGateAndAction && (actionType === "entry" || actionType === "exit")
           ? actionType
           : undefined;
 
-      // Use selectedGate directly (it can be gate1/gate2/gate3/gate4 or "gallery")
-      const gateLocation = selectedGate || undefined;
+      // Use selectedGate directly (it can be gate1/gate2/gate3/gate4 or "gallery") - only for gateEntryExit mode
+      const gateLocation = showGateAndAction
+        ? selectedGate || undefined
+        : undefined;
 
       // Call the validate API with the 5-digit ID (no authentication required) with all parameters
       const validationResponse = await api.validatePassNumber(idString, {
@@ -178,7 +188,8 @@ export default function QRScanScreen({ navigation }: Props) {
 
   const handleInputChange = (index: number, value: string) => {
     if (validating) return;
-    if (!selectedGate || !actionType) return;
+    // Only check gate/action for gateEntryExit mode
+    if (showGateAndAction && (!selectedGate || !actionType)) return;
 
     // Clear error message when user starts typing
     if (errorMessage) {
@@ -234,8 +245,8 @@ export default function QRScanScreen({ navigation }: Props) {
       return;
     }
 
-    // Check if gate and action are selected before allowing scan
-    if (!selectedGate || !actionType) {
+    // Check if gate and action are selected before allowing scan (only for gateEntryExit mode)
+    if (showGateAndAction && (!selectedGate || !actionType)) {
       Alert.alert(
         "Selection Required",
         "Please select both Gate and Action Type before scanning.",
@@ -316,11 +327,10 @@ export default function QRScanScreen({ navigation }: Props) {
           ? actionType
           : undefined;
 
-      // Use selectedGate directly (it can be gate1/gate2/gate3/gate4 or "gallery")
-      const gateLocation = selectedGate || undefined;
-
-      console.log("gateLocation", gateLocation);
-      console.log("gateAction", gateAction);
+      // Use selectedGate directly (it can be gate1/gate2/gate3/gate4 or "gallery") - only for gateEntryExit mode
+      const gateLocation = showGateAndAction
+        ? selectedGate || undefined
+        : undefined;
 
       // Call the validate API (no authentication required) with gate and action parameters
       const validationResponse = await api.validateQRCodePublic(
@@ -493,92 +503,97 @@ export default function QRScanScreen({ navigation }: Props) {
           </View>
         </View>
 
-        {/* Gate and Action Selection - Vertical layout */}
-        <View style={styles.selectionContainer}>
-          {/* Gate Selection */}
-          <View style={styles.gateSelectionWrapperCompact}>
-            <View style={styles.gateSelectionCardCompact}>
-              <Text style={styles.gateSelectionLabelCompact}>Gate</Text>
-              <View style={styles.gateButtonsContainerCompact}>
-                {["gate1", "gate2", "gate3", "gate4", "gallery"].map((gate) => (
+        {/* Gate and Action Selection - Vertical layout (only shown for gateEntryExit mode) */}
+        {showGateAndAction && (
+          <View style={styles.selectionContainer}>
+            {/* Gate Selection */}
+            <View style={styles.gateSelectionWrapperCompact}>
+              <View style={styles.gateSelectionCardCompact}>
+                <Text style={styles.gateSelectionLabelCompact}>Gate</Text>
+                <View style={styles.gateButtonsContainerCompact}>
+                  {["gate1", "gate2", "gate3", "gate4", "gallery"].map(
+                    (gate) => (
+                      <TouchableOpacity
+                        key={gate}
+                        style={[
+                          styles.gateButtonCompact,
+                          selectedGate === gate &&
+                            styles.gateButtonSelectedCompact,
+                        ]}
+                        onPress={() => setSelectedGate(gate)}
+                        disabled={validating}
+                        activeOpacity={0.7}
+                      >
+                        <Text
+                          style={[
+                            styles.gateButtonTextCompact,
+                            selectedGate === gate &&
+                              styles.gateButtonTextSelectedCompact,
+                          ]}
+                        >
+                          {gate === "gallery"
+                            ? "Gallery"
+                            : gate.replace("gate", "")}
+                        </Text>
+                      </TouchableOpacity>
+                    )
+                  )}
+                </View>
+              </View>
+            </View>
+
+            {/* Action Selection - Below Gate */}
+            <View style={styles.actionSelectionWrapperCompact}>
+              <View style={styles.actionSelectionCardCompact}>
+                <Text style={styles.actionSelectionLabelCompact}>Action</Text>
+                <View style={styles.actionButtonsContainerCompact}>
                   <TouchableOpacity
-                    key={gate}
                     style={[
-                      styles.gateButtonCompact,
-                      selectedGate === gate && styles.gateButtonSelectedCompact,
+                      styles.actionButtonCompact,
+                      styles.actionButtonEntryCompact,
+                      actionType === "entry" &&
+                        styles.actionButtonSelectedCompact,
                     ]}
-                    onPress={() => setSelectedGate(gate)}
+                    onPress={() => setActionType("entry")}
                     disabled={validating}
                     activeOpacity={0.7}
                   >
                     <Text
                       style={[
-                        styles.gateButtonTextCompact,
-                        selectedGate === gate &&
-                          styles.gateButtonTextSelectedCompact,
+                        styles.actionButtonTextCompact,
+                        actionType === "entry" &&
+                          styles.actionButtonTextSelectedCompact,
                       ]}
                     >
-                      {gate === "gallery"
-                        ? "Gallery"
-                        : gate.replace("gate", "")}
+                      Entry
                     </Text>
                   </TouchableOpacity>
-                ))}
-              </View>
-            </View>
-          </View>
-
-          {/* Action Selection - Below Gate */}
-          <View style={styles.actionSelectionWrapperCompact}>
-            <View style={styles.actionSelectionCardCompact}>
-              <Text style={styles.actionSelectionLabelCompact}>Action</Text>
-              <View style={styles.actionButtonsContainerCompact}>
-                <TouchableOpacity
-                  style={[
-                    styles.actionButtonCompact,
-                    styles.actionButtonEntryCompact,
-                    actionType === "entry" &&
-                      styles.actionButtonSelectedCompact,
-                  ]}
-                  onPress={() => setActionType("entry")}
-                  disabled={validating}
-                  activeOpacity={0.7}
-                >
-                  <Text
+                  <TouchableOpacity
                     style={[
-                      styles.actionButtonTextCompact,
-                      actionType === "entry" &&
-                        styles.actionButtonTextSelectedCompact,
-                    ]}
-                  >
-                    Entry
-                  </Text>
-                </TouchableOpacity>
-                <TouchableOpacity
-                  style={[
-                    styles.actionButtonCompact,
-                    styles.actionButtonExitCompact,
-                    actionType === "exit" &&
-                      styles.actionButtonExitSelectedCompact,
-                  ]}
-                  onPress={() => setActionType("exit")}
-                  disabled={validating}
-                  activeOpacity={0.7}
-                >
-                  <Text
-                    style={[
-                      styles.actionButtonTextCompact,
+                      styles.actionButtonCompact,
+                      styles.actionButtonExitCompact,
                       actionType === "exit" &&
-                        styles.actionButtonTextSelectedExitCompact,
+                        styles.actionButtonExitSelectedCompact,
                     ]}
+                    onPress={() => setActionType("exit")}
+                    disabled={validating}
+                    activeOpacity={0.7}
                   >
-                    Exit
-                  </Text>
-                </TouchableOpacity>
+                    <Text
+                      style={[
+                        styles.actionButtonTextCompact,
+                        actionType === "exit" &&
+                          styles.actionButtonTextSelectedExitCompact,
+                      ]}
+                    >
+                      Exit
+                    </Text>
+                  </TouchableOpacity>
+                </View>
               </View>
             </View>
           </View>
-        </View>
+        )}
 
         {activeTab === "scan" ? (
           <>
@@ -588,7 +603,8 @@ export default function QRScanScreen({ navigation }: Props) {
                 style={styles.camera}
                 facing="back"
                 onBarcodeScanned={
-                  scanned || !selectedGate || !actionType
+                  scanned ||
+                  (showGateAndAction && (!selectedGate || !actionType))
                     ? undefined
                     : handleBarCodeScanned
                 }
@@ -650,16 +666,18 @@ export default function QRScanScreen({ navigation }: Props) {
                   </View>
                 )}
 
-                {/* Selection Required Overlay */}
-                {!validating && (!selectedGate || !actionType) && (
-                  <View style={styles.selectionRequiredOverlay}>
-                    <View style={styles.selectionRequiredContainer}>
-                      <Text style={styles.selectionRequiredText}>
-                        Please select Gate and Action Type to start scanning
-                      </Text>
+                {/* Selection Required Overlay (only for gateEntryExit mode) */}
+                {!validating &&
+                  showGateAndAction &&
+                  (!selectedGate || !actionType) && (
+                    <View style={styles.selectionRequiredOverlay}>
+                      <View style={styles.selectionRequiredContainer}>
+                        <Text style={styles.selectionRequiredText}>
+                          Please select Gate and Action Type to start scanning
+                        </Text>
+                      </View>
                     </View>
-                  </View>
-                )}
+                  )}
 
                 {/* Footer - Positioned absolutely at bottom */}
                 <View
@@ -674,7 +692,7 @@ export default function QRScanScreen({ navigation }: Props) {
                     <Text style={styles.scanningText}>
                       {validating
                         ? "Validating..."
-                        : !selectedGate || !actionType
+                        : showGateAndAction && (!selectedGate || !actionType)
                         ? "Select Gate & Action"
                         : "Scanning..."}
                     </Text>
@@ -700,7 +718,7 @@ export default function QRScanScreen({ navigation }: Props) {
             <View style={styles.contentCard}>
               <View style={styles.uniqueIdContainer}>
                 <Text style={styles.uniqueIdLabel}>Enter 5-digit ID</Text>
-                {(!selectedGate || !actionType) && (
+                {showGateAndAction && (!selectedGate || !actionType) && (
                   <View style={styles.selectionRequiredContainer}>
                     <Text style={styles.selectionRequiredText}>
                       Please select Gate and Action before entering ID
@@ -717,7 +735,8 @@ export default function QRScanScreen({ navigation }: Props) {
                       style={[
                         styles.inputBox,
                         digit !== "" && styles.inputBoxFilled,
-                        (!selectedGate || !actionType) &&
+                        showGateAndAction &&
+                          (!selectedGate || !actionType) &&
                           styles.inputBoxDisabled,
                       ]}
                       value={digit}
@@ -728,7 +747,10 @@ export default function QRScanScreen({ navigation }: Props) {
                       keyboardType="numeric"
                       maxLength={1}
                       selectTextOnFocus
-                      editable={!validating && !!selectedGate && !!actionType}
+                      editable={
+                        !validating &&
+                        (!showGateAndAction || (!!selectedGate && !!actionType))
+                      }
                       textAlign="center"
                     />
                   ))}
@@ -739,11 +761,15 @@ export default function QRScanScreen({ navigation }: Props) {
                 <TouchableOpacity
                   style={[
                     styles.verifyButton,
-                    (!selectedGate || !actionType) &&
+                    showGateAndAction &&
+                      (!selectedGate || !actionType) &&
                       styles.verifyButtonDisabled,
                   ]}
                   onPress={handleUniqueIdValidation}
-                  disabled={validating || !selectedGate || !actionType}
+                  disabled={
+                    validating ||
+                    (showGateAndAction && (!selectedGate || !actionType))
+                  }
                 >
                   {validating ? (
                     <ActivityIndicator color="#FFFFFF" />
@@ -1018,7 +1044,7 @@ const styles = StyleSheet.create({
   },
   tab: {
     flex: 1,
-    paddingVertical: 8,
+    paddingVertical: 12,
     paddingHorizontal: 8,
     borderRadius: 8,
     backgroundColor: "#FFFFFF",
