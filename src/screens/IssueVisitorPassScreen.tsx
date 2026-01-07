@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import {
   View,
   Text,
@@ -9,21 +9,28 @@ import {
   Platform,
   ScrollView,
   Modal,
+  Alert,
+  ActivityIndicator,
 } from "react-native";
 import { Calendar } from "react-native-calendars";
 import { Ionicons } from "@expo/vector-icons";
+import * as ImagePicker from "expo-image-picker";
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { useFocusEffect } from "@react-navigation/native";
 import { RootStackParamList } from "@/types";
-import { api } from "@/services/api";
-import { Alert, ActivityIndicator } from "react-native";
-import VisitorPassIcon from "../../assets/visitorPass.svg";
+import {
+  api,
+  MainCategory,
+  PassTypeItem,
+  SubCategory,
+  Session,
+  Issuer,
+} from "@/services/api";
 import LogOutIcon from "../../assets/logOut.svg";
 import BackButtonIcon from "../../assets/backButton.svg";
 import ChevronDownIcon from "../../assets/chevronDown.svg";
 import CalendarIcon from "../../assets/calendar.svg";
 import { SafeAreaView } from "react-native-safe-area-context";
-import AssemblyIcon from "../../assets/assembly.svg";
 
 type IssueVisitorPassScreenNavigationProp = NativeStackNavigationProp<
   RootStackParamList,
@@ -32,112 +39,181 @@ type IssueVisitorPassScreenNavigationProp = NativeStackNavigationProp<
 
 type Props = {
   navigation: IssueVisitorPassScreenNavigationProp;
+  route: {
+    params?: {
+      userFullName?: string;
+      userId?: string;
+    };
+  };
 };
 
 const IDENTIFICATION_TYPES = [
   "Aadhaar",
-  "PAN",
   "Driving License",
+  "ID Card",
+  "Other",
+  "PAN Card",
   "Passport",
   "Voter ID",
 ];
-const PASS_TYPES = ["Daily", "Weekly", "Monthly", "Yearly"];
 
-export default function IssueVisitorPassScreen({ navigation }: Props) {
-  const [visitorName, setVisitorName] = useState("");
-  const [mobileNumber, setMobileNumber] = useState("");
-  const [identificationType, setIdentificationType] = useState("Aadhar");
-  const [identificationNumber, setIdentificationNumber] = useState("");
-  const [purpose, setPurpose] = useState("");
-  // Initialize date to tomorrow to ensure it's always in the future
-  const getTomorrow = () => {
-    const tomorrow = new Date();
-    tomorrow.setDate(tomorrow.getDate() + 1);
-    tomorrow.setHours(9, 0, 0, 0); // Set to 9:00 AM
-    return tomorrow;
-  };
-  const [date, setDate] = useState(() => {
-    const tomorrow = new Date();
-    tomorrow.setDate(tomorrow.getDate() + 1);
-    return tomorrow;
+export default function IssueVisitorPassScreen({ navigation, route }: Props) {
+  // Visitor Information
+  const [firstName, setFirstName] = useState("");
+  const [lastName, setLastName] = useState("");
+  const [email, setEmail] = useState("");
+  const [phone, setPhone] = useState("+91");
+  const [idType, setIdType] = useState("Aadhaar");
+  const [idNumber, setIdNumber] = useState("");
+  const [identificationPhoto, setIdentificationPhoto] = useState<string | null>(
+    null
+  );
+  const [identificationDocument, setIdentificationDocument] = useState<
+    string | null
+  >(null);
+
+  // Request Details
+  const [passCategory, setPassCategory] = useState("");
+  const [passType, setPassType] = useState("");
+  const [requestedBy, setRequestedBy] = useState(
+    route.params?.userFullName || "Legislature"
+  );
+  const [purpose, setPurpose] = useState("Instant Pass Issuance");
+  const [session, setSession] = useState("");
+  const [sessionId, setSessionId] = useState<string | null>(null);
+  const [validFrom, setValidFrom] = useState<Date>(() => {
+    const date = new Date();
+    date.setHours(8, 0, 0, 0);
+    return date;
   });
-  const [startTime, setStartTime] = useState(() => {
-    const time = new Date();
-    time.setHours(9, 0, 0, 0); // Default to 9:00 AM
-    return time;
+  const [validTo, setValidTo] = useState<Date | null>(() => {
+    const date = new Date();
+    date.setHours(17, 0, 0, 0);
+    return date;
   });
-  const [endTime, setEndTime] = useState(() => {
-    const time = new Date();
-    time.setHours(17, 0, 0, 0); // Default to 5:00 PM
-    return time;
-  });
-  const [numberOfVisitors, setNumberOfVisitors] = useState("1");
-  const [passType, setPassType] = useState("Daily");
+  const [comments, setComments] = useState("");
+
+  // Car Pass
+  const [carPass, setCarPass] = useState<boolean>(false);
+  const [carMake, setCarMake] = useState("");
+  const [carModel, setCarModel] = useState("");
+  const [carColor, setCarColor] = useState("");
+  const [carNumber, setCarNumber] = useState("");
+  const [carTag, setCarTag] = useState("");
+
+  // Car Pass Error states
+  const [carMakeError, setCarMakeError] = useState("");
+  const [carModelError, setCarModelError] = useState("");
+  const [carColorError, setCarColorError] = useState("");
+  const [carNumberError, setCarNumberError] = useState("");
+
+  // UI States
   const [showIdTypeModal, setShowIdTypeModal] = useState(false);
+  const [showPassCategoryModal, setShowPassCategoryModal] = useState(false);
   const [showPassTypeModal, setShowPassTypeModal] = useState(false);
-  const [showDatePicker, setShowDatePicker] = useState(false);
-  const [showStartTimePicker, setShowStartTimePicker] = useState(false);
-  const [showEndTimePicker, setShowEndTimePicker] = useState(false);
+  const [showSessionModal, setShowSessionModal] = useState(false);
+  const [showValidFromPicker, setShowValidFromPicker] = useState(false);
+  const [showValidToPicker, setShowValidToPicker] = useState(false);
   const [loading, setLoading] = useState(false);
 
   // Error states
-  const [visitorNameError, setVisitorNameError] = useState("");
-  const [mobileNumberError, setMobileNumberError] = useState("");
-  const [identificationNumberError, setIdentificationNumberError] =
-    useState("");
+  const [firstNameError, setFirstNameError] = useState("");
+  const [lastNameError, setLastNameError] = useState("");
+  const [emailError, setEmailError] = useState("");
+  const [phoneError, setPhoneError] = useState("");
+  const [idTypeError, setIdTypeError] = useState("");
+  const [idNumberError, setIdNumberError] = useState("");
+  const [passCategoryError, setPassCategoryError] = useState("");
+  const [passTypeError, setPassTypeError] = useState("");
   const [purposeError, setPurposeError] = useState("");
-  const [dateError, setDateError] = useState("");
-  const [startTimeError, setStartTimeError] = useState("");
-  const [endTimeError, setEndTimeError] = useState("");
-  const [numberOfVisitorsError, setNumberOfVisitorsError] = useState("");
+  const [sessionError, setSessionError] = useState("");
+  const [validFromError, setValidFromError] = useState("");
 
-  // Custom time picker states
-  const [tempStartHour, setTempStartHour] = useState(12);
-  const [tempStartMinute, setTempStartMinute] = useState(0);
-  const [tempStartAmPm, setTempStartAmPm] = useState<"AM" | "PM">("AM");
-  const [tempEndHour, setTempEndHour] = useState(12);
-  const [tempEndMinute, setTempEndMinute] = useState(0);
-  const [tempEndAmPm, setTempEndAmPm] = useState<"AM" | "PM">("AM");
+  // Pass categories (this would typically come from API)
+  const [passCategories, setPassCategories] = useState<string[]>([]);
+  const [passTypes, setPassTypes] = useState<string[]>([]);
+  const [categories, setCategories] = useState<MainCategory[]>([]);
+  const [loadingCategories, setLoadingCategories] = useState(false);
+  const [sessions, setSessions] = useState<Session[]>([]);
+  const [loadingSessions, setLoadingSessions] = useState(false);
+  const [selectedCategoryId, setSelectedCategoryId] = useState<string | null>(
+    null
+  );
+  const [selectedSubCategoryId, setSelectedSubCategoryId] = useState<
+    string | null
+  >(null);
+  const [selectedPassTypeId, setSelectedPassTypeId] = useState<string | null>(
+    null
+  );
+  const [selectedCategorySubCategories, setSelectedCategorySubCategories] =
+    useState<SubCategory[]>([]);
+  const [loadingPassTypes, setLoadingPassTypes] = useState(false);
+  const [allPassTypes, setAllPassTypes] = useState<PassTypeItem[]>([]);
+  const [issuers, setIssuers] = useState<Issuer[]>([]);
+  const [loadingIssuers, setLoadingIssuers] = useState(false);
 
-  // Reset all form fields when screen is focused
+  // Time picker states
+  const [tempValidFromDate, setTempValidFromDate] = useState<Date>(validFrom);
+  const [tempValidFromHour, setTempValidFromHour] = useState(8);
+  const [tempValidFromMinute, setTempValidFromMinute] = useState(0);
+  const [tempValidFromAmPm, setTempValidFromAmPm] = useState<"AM" | "PM">("AM");
+  const [tempValidToDate, setTempValidToDate] = useState<Date | null>(validTo);
+  const [tempValidToHour, setTempValidToHour] = useState(5);
+  const [tempValidToMinute, setTempValidToMinute] = useState(0);
+  const [tempValidToAmPm, setTempValidToAmPm] = useState<"AM" | "PM">("PM");
+
+  // Reset form
   const resetForm = () => {
-    setVisitorName("");
-    setMobileNumber("");
-    setIdentificationType("Aadhar");
-    setIdentificationNumber("");
-    setPurpose("");
-    // Reset date to tomorrow
-    const tomorrow = new Date();
-    tomorrow.setDate(tomorrow.getDate() + 1);
-    setDate(tomorrow);
-    // Reset times to default
-    const start = new Date();
-    start.setHours(10, 0, 0, 0);
-    setStartTime(start);
-    const end = new Date();
-    end.setHours(12, 0, 0, 0);
-    setEndTime(end);
-    setNumberOfVisitors("1");
-    setPassType("Daily");
-    // Clear all errors
-    setVisitorNameError("");
-    setMobileNumberError("");
-    setIdentificationNumberError("");
+    setFirstName("");
+    setLastName("");
+    setEmail("");
+    setPhone("+91");
+    setIdType("Aadhaar");
+    setIdNumber("");
+    setIdentificationPhoto(null);
+    setIdentificationDocument(null);
+    setPassCategory("");
+    setPassType("");
+    setSelectedCategoryId(null);
+    setSelectedSubCategoryId(null);
+    setSelectedPassTypeId(null);
+    setSelectedCategorySubCategories([]);
+    setPassTypes([]);
+    setAllPassTypes([]);
+    setRequestedBy(route.params?.userFullName || "Legislature");
+    setPurpose("Instant Pass Issuance");
+    setSession("");
+    setSessionId(null);
+    const date = new Date();
+    date.setHours(8, 0, 0, 0);
+    setValidFrom(date);
+    const toDate = new Date();
+    toDate.setHours(17, 0, 0, 0);
+    setValidTo(toDate);
+    setComments("");
+    setCarPass(false);
+    setCarMake("");
+    setCarModel("");
+    setCarColor("");
+    setCarNumber("");
+    setCarTag("");
+    // Clear errors
+    setFirstNameError("");
+    setLastNameError("");
+    setEmailError("");
+    setPhoneError("");
+    setIdTypeError("");
+    setIdNumberError("");
+    setPassCategoryError("");
+    setPassTypeError("");
     setPurposeError("");
-    setDateError("");
-    setStartTimeError("");
-    setEndTimeError("");
-    setNumberOfVisitorsError("");
-    // Close all modals
-    setShowIdTypeModal(false);
-    setShowPassTypeModal(false);
-    setShowDatePicker(false);
-    setShowStartTimePicker(false);
-    setShowEndTimePicker(false);
-    setLoading(false);
+    setValidFromError("");
+    setCarMakeError("");
+    setCarModelError("");
+    setCarColorError("");
+    setCarNumberError("");
   };
 
-  // Reset form when screen comes into focus (e.g., when navigating back from PreviewPassScreen)
   useFocusEffect(
     React.useCallback(() => {
       resetForm();
@@ -145,11 +221,25 @@ export default function IssueVisitorPassScreen({ navigation }: Props) {
   );
 
   const handleBack = () => {
-    navigation.replace("Login");
+    navigation.replace("LoginMethodSelection");
   };
 
   const handleLogout = () => {
-    navigation.replace("Login");
+    navigation.replace("LoginMethodSelection");
+  };
+
+  // Format date and time together
+  const formatDateTime = (date: Date): string => {
+    const month = String(date.getMonth() + 1).padStart(2, "0");
+    const day = String(date.getDate()).padStart(2, "0");
+    const year = date.getFullYear();
+    let hours = date.getHours();
+    const minutes = date.getMinutes();
+    const ampm = hours >= 12 ? "PM" : "AM";
+    hours = hours % 12;
+    hours = hours || 12;
+    const minutesStr = String(minutes).padStart(2, "0");
+    return `${month}/${day}/${year} ${hours}:${minutesStr} ${ampm}`;
   };
 
   const formatDate = (date: Date): string => {
@@ -159,238 +249,244 @@ export default function IssueVisitorPassScreen({ navigation }: Props) {
     return `${year}-${month}-${day}`;
   };
 
-  const formatTime = (date: Date): string => {
-    let hours = date.getHours();
-    const minutes = date.getMinutes();
-    const ampm = hours >= 12 ? "PM" : "AM";
-    hours = hours % 12;
-    hours = hours || 12;
-    const minutesStr = String(minutes).padStart(2, "0");
-    return `${hours}:${minutesStr} ${ampm}`;
-  };
-
-  const onDateSelect = (day: any) => {
-    const selectedDate = new Date(day.year, day.month - 1, day.day);
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    const selectedDateOnly = new Date(selectedDate);
-    selectedDateOnly.setHours(0, 0, 0, 0);
-
-    // Allow today and future dates
-    if (selectedDateOnly < today) {
-      setDateError("Please select today's date or a future date");
-      return;
-    }
-
-    setDate(selectedDate);
-    setDateError(""); // Clear error on valid selection
-
-    // If date is today, validate that start time is in the future
-    if (selectedDateOnly.getTime() === today.getTime()) {
-      const now = new Date();
-      const validFromDate = new Date(selectedDate);
-      validFromDate.setHours(
-        startTime.getHours(),
-        startTime.getMinutes(),
-        0,
-        0
-      );
-      if (validFromDate <= now) {
-        setStartTimeError("Start time must be in the future for today's date");
-      }
-    } else {
-      setStartTimeError(""); // Clear error if date is in the future
-    }
-
-    // Auto-close the calendar after selection
-    setShowDatePicker(false);
-  };
-
-  const handleDatePickerDone = () => {
-    setShowDatePicker(false);
-  };
-
-  const getMarkedDates = () => {
-    const dateString = formatDate(date);
-    return {
-      [dateString]: {
-        selected: true,
-        selectedColor: "#457E51",
-        selectedTextColor: "#FFFFFF",
-      },
-    };
-  };
-
-  // Initialize temp time values when opening picker
-  const openStartTimePicker = () => {
-    const hours = startTime.getHours();
-    const minutes = startTime.getMinutes();
-    setTempStartHour(hours % 12 || 12);
-    setTempStartMinute(minutes);
-    setTempStartAmPm(hours >= 12 ? "PM" : "AM");
-    setShowStartTimePicker(true);
-  };
-
-  const openEndTimePicker = () => {
-    const hours = endTime.getHours();
-    const minutes = endTime.getMinutes();
-    setTempEndHour(hours % 12 || 12);
-    setTempEndMinute(minutes);
-    setTempEndAmPm(hours >= 12 ? "PM" : "AM");
-    setShowEndTimePicker(true);
-  };
-
-  const handleStartTimeDone = () => {
-    const hours24 =
-      tempStartAmPm === "PM" && tempStartHour !== 12
-        ? tempStartHour + 12
-        : tempStartAmPm === "AM" && tempStartHour === 12
-        ? 0
-        : tempStartHour;
-    const newTime = new Date(startTime);
-    newTime.setHours(hours24, tempStartMinute, 0, 0);
-
-    // Validate that the selected date/time is valid
-    const validFromDate = new Date(date);
-    validFromDate.setHours(hours24, tempStartMinute, 0, 0);
-    const now = new Date();
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    const selectedDateOnly = new Date(date);
-    selectedDateOnly.setHours(0, 0, 0, 0);
-
-    // Check if date is in the past
-    if (selectedDateOnly < today) {
-      setDateError("Please select today's date or a future date");
-      setShowStartTimePicker(false);
-      return;
-    }
-
-    // If date is today, ensure time is in the future
-    if (selectedDateOnly.getTime() === today.getTime()) {
-      if (validFromDate <= now) {
-        setStartTimeError("Start time must be in the future for today's date");
-        setShowStartTimePicker(false);
+  // Handle identification photo upload
+  const handleIdentificationPhotoUpload = async () => {
+    try {
+      const { status } =
+        await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (status !== "granted") {
+        Alert.alert(
+          "Permission needed",
+          "Please grant camera roll permissions"
+        );
         return;
       }
-    }
 
-    setStartTime(newTime);
-    setStartTimeError(""); // Clear error on valid selection
-    setDateError(""); // Clear date error if time is valid
-    setShowStartTimePicker(false);
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        allowsEditing: true,
+        aspect: [4, 3],
+        quality: 0.8,
+      });
+
+      if (!result.canceled && result.assets[0]) {
+        setIdentificationPhoto(result.assets[0].uri);
+      }
+    } catch (error) {
+      Alert.alert("Error", "Failed to pick image");
+    }
   };
 
-  const handleEndTimeDone = () => {
+  // Handle identification document upload
+  const handleIdentificationDocumentUpload = async () => {
+    try {
+      const { status } =
+        await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (status !== "granted") {
+        Alert.alert(
+          "Permission needed",
+          "Please grant camera roll permissions"
+        );
+        return;
+      }
+
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        allowsEditing: false,
+        quality: 0.8,
+      });
+
+      if (!result.canceled && result.assets[0]) {
+        setIdentificationDocument(result.assets[0].uri);
+      }
+    } catch (error) {
+      Alert.alert("Error", "Failed to pick document");
+    }
+  };
+
+  // Handle pass category selection
+  const handlePassCategorySelect = async (categoryName: string) => {
+    setPassCategory(categoryName);
+    setPassType(""); // Reset pass type when category changes
+    setPassCategoryError("");
+    setShowPassCategoryModal(false);
+
+    // Find the selected category to get its ID
+    const selectedCategory = categories.find(
+      (cat) => cat.name === categoryName
+    );
+
+    if (selectedCategory) {
+      const categoryId = selectedCategory.id;
+      setSelectedCategoryId(categoryId);
+      // Store subcategories for later use
+      setSelectedCategorySubCategories(selectedCategory.sub_categories || []);
+      setLoadingPassTypes(true);
+
+      try {
+        // Call both APIs in parallel
+        const [categoryPassTypeIdsData, allPassTypesData] = await Promise.all([
+          api.getCategoryPassTypes(categoryId),
+          api.getAllPassTypes(),
+        ]);
+
+        // Store all pass types for future use
+        setAllPassTypes(allPassTypesData);
+
+        // Match IDs from category pass types with all pass types
+        const matchedPassTypes = allPassTypesData
+          .filter((passType) => categoryPassTypeIdsData.includes(passType.id))
+          .map((passType) => passType.name);
+
+        setPassTypes(matchedPassTypes);
+      } catch (error) {
+        Alert.alert("Error", "Failed to load pass types. Please try again.");
+        setPassTypes([]);
+      } finally {
+        setLoadingPassTypes(false);
+      }
+    } else {
+      setSelectedCategoryId(null);
+      setSelectedCategorySubCategories([]);
+      setPassTypes([]);
+    }
+  };
+
+  // Handle valid from date/time selection
+  const openValidFromPicker = () => {
+    setTempValidFromDate(new Date(validFrom));
+    const hours = validFrom.getHours();
+    const minutes = validFrom.getMinutes();
+    setTempValidFromHour(hours % 12 || 12);
+    setTempValidFromMinute(minutes);
+    setTempValidFromAmPm(hours >= 12 ? "PM" : "AM");
+    setShowValidFromPicker(true);
+  };
+
+  const handleValidFromDone = () => {
     const hours24 =
-      tempEndAmPm === "PM" && tempEndHour !== 12
-        ? tempEndHour + 12
-        : tempEndAmPm === "AM" && tempEndHour === 12
+      tempValidFromAmPm === "PM" && tempValidFromHour !== 12
+        ? tempValidFromHour + 12
+        : tempValidFromAmPm === "AM" && tempValidFromHour === 12
         ? 0
-        : tempEndHour;
-    const newTime = new Date(endTime);
-    newTime.setHours(hours24, tempEndMinute, 0, 0);
-
-    // Validate that end time is after start time
-    const validFromDate = new Date(date);
-    validFromDate.setHours(startTime.getHours(), startTime.getMinutes(), 0, 0);
-    const validUntilDate = new Date(date);
-    validUntilDate.setHours(hours24, tempEndMinute, 0, 0);
-
-    if (validUntilDate <= validFromDate) {
-      setEndTimeError("End time must be after start time");
-      setShowEndTimePicker(false);
-      return;
-    }
-
-    setEndTime(newTime);
-    setEndTimeError(""); // Clear error on valid selection
-    setShowEndTimePicker(false);
+        : tempValidFromHour;
+    const newDate = new Date(tempValidFromDate);
+    newDate.setHours(hours24, tempValidFromMinute, 0, 0);
+    setValidFrom(newDate);
+    setValidFromError("");
+    setShowValidFromPicker(false);
   };
 
-  const handleGenerate = async () => {
+  // Handle valid to date/time selection
+  const openValidToPicker = () => {
+    if (validTo) {
+      setTempValidToDate(new Date(validTo));
+      const hours = validTo.getHours();
+      const minutes = validTo.getMinutes();
+      setTempValidToHour(hours % 12 || 12);
+      setTempValidToMinute(minutes);
+      setTempValidToAmPm(hours >= 12 ? "PM" : "AM");
+    }
+    setShowValidToPicker(true);
+  };
+
+  const handleValidToDone = () => {
+    if (tempValidToDate) {
+      const hours24 =
+        tempValidToAmPm === "PM" && tempValidToHour !== 12
+          ? tempValidToHour + 12
+          : tempValidToAmPm === "AM" && tempValidToHour === 12
+          ? 0
+          : tempValidToHour;
+      const newDate = new Date(tempValidToDate);
+      newDate.setHours(hours24, tempValidToMinute, 0, 0);
+      setValidTo(newDate);
+      setShowValidToPicker(false);
+    }
+  };
+
+  const onValidFromDateSelect = (day: any) => {
+    const selectedDate = new Date(day.year, day.month - 1, day.day);
+    setTempValidFromDate(selectedDate);
+  };
+
+  const onValidToDateSelect = (day: any) => {
+    const selectedDate = new Date(day.year, day.month - 1, day.day);
+    setTempValidToDate(selectedDate);
+  };
+
+  // Handle issue pass
+  const handleIssuePass = async () => {
     // Clear previous errors
-    setVisitorNameError("");
-    setMobileNumberError("");
-    setIdentificationNumberError("");
+    setFirstNameError("");
+    setLastNameError("");
+    setEmailError("");
+    setPhoneError("");
+    setIdTypeError("");
+    setIdNumberError("");
+    setPassCategoryError("");
+    setPassTypeError("");
     setPurposeError("");
-    setDateError("");
-    setStartTimeError("");
-    setEndTimeError("");
-    setNumberOfVisitorsError("");
+    setValidFromError("");
 
     // Validate required fields
     let hasError = false;
 
-    if (!visitorName.trim()) {
-      setVisitorNameError("Visitor name is required");
-      hasError = true;
-    } else if (visitorName.trim().length < 2) {
-      setVisitorNameError("Visitor name must be at least 2 characters");
+    if (!firstName.trim()) {
+      setFirstNameError("First name is required");
       hasError = true;
     }
 
-    if (!mobileNumber.trim()) {
-      setMobileNumberError("Mobile number is required");
-      hasError = true;
-    } else if (mobileNumber.length !== 10 || !/^\d+$/.test(mobileNumber)) {
-      setMobileNumberError("Mobile number must be exactly 10 digits");
+    if (!lastName.trim()) {
+      setLastNameError("Last name is required");
       hasError = true;
     }
 
-    if (!identificationNumber.trim()) {
-      setIdentificationNumberError("Identification number is required");
+    if (!email.trim()) {
+      setEmailError("Email is required");
+      hasError = true;
+    } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) {
+      setEmailError("Please enter a valid email");
+      hasError = true;
+    }
+
+    if (!phone.trim() || phone === "+91") {
+      setPhoneError("Phone number is required");
+      hasError = true;
+    } else if (phone.replace(/[^0-9]/g, "").length < 10) {
+      setPhoneError("Please enter a valid phone number");
+      hasError = true;
+    }
+
+    if (!idType) {
+      setIdTypeError("ID type is required");
+      hasError = true;
+    }
+
+    if (!idNumber.trim()) {
+      setIdNumberError("ID number is required");
+      hasError = true;
+    }
+
+    if (!passCategory.trim()) {
+      setPassCategoryError("Pass category is required");
+      hasError = true;
+    }
+
+    if (!passType.trim()) {
+      setPassTypeError("Pass type is required");
       hasError = true;
     }
 
     if (!purpose.trim()) {
-      setPurposeError("Purpose of visit is required");
-      hasError = true;
-    } else if (purpose.trim().length < 10) {
-      setPurposeError("Purpose of visit must be at least 10 characters");
+      setPurposeError("Purpose is required");
       hasError = true;
     }
 
-    // Validate number of visitors (1-100)
-    const visitorCount = parseInt(numberOfVisitors);
-    if (!numberOfVisitors.trim()) {
-      setNumberOfVisitorsError("Number of visitors is required");
-      hasError = true;
-    } else if (isNaN(visitorCount) || visitorCount < 1 || visitorCount > 100) {
-      setNumberOfVisitorsError("Number of visitors must be between 1 and 100");
-      hasError = true;
-    }
-
-    // Validate date (must be today or future)
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    const selectedDateOnly = new Date(date);
-    selectedDateOnly.setHours(0, 0, 0, 0);
-
-    if (selectedDateOnly < today) {
-      setDateError("Please select today's date or a future date");
-      hasError = true;
-    }
-
-    // Validate start time (must be in the future if date is today)
-    const validFromDate = new Date(date);
-    validFromDate.setHours(startTime.getHours(), startTime.getMinutes(), 0, 0);
+    // Validate valid from date/time
     const now = new Date();
-
-    if (selectedDateOnly.getTime() === today.getTime()) {
-      // If date is today, time must be in the future
-      if (validFromDate <= now) {
-        setStartTimeError("Start time must be in the future for today's date");
-        hasError = true;
-      }
-    }
-
-    // Validate end time (must be after start time)
-    const validUntilDate = new Date(date);
-    validUntilDate.setHours(endTime.getHours(), endTime.getMinutes(), 0, 0);
-
-    if (validUntilDate <= validFromDate) {
-      setEndTimeError("End time must be after start time");
+    if (validFrom <= now) {
+      setValidFromError("Valid from date/time must be in the future");
       hasError = true;
     }
 
@@ -401,24 +497,7 @@ export default function IssueVisitorPassScreen({ navigation }: Props) {
     setLoading(true);
 
     try {
-      // Map pass type from UI to API format
-      const passTypeMap: Record<
-        string,
-        "daily" | "single" | "multiple" | "event"
-      > = {
-        Daily: "daily",
-        Weekly: "single", // Assuming Weekly maps to single
-        Monthly: "multiple", // Assuming Monthly maps to multiple
-        Yearly: "event", // Assuming Yearly maps to event
-      };
-
-      const apiPassType = passTypeMap[passType] || "daily";
-
-      // Determine entry type based on number of visitors
-      const entryType: "single" | "multiple" =
-        parseInt(numberOfVisitors) === 1 ? "single" : "multiple";
-
-      // Helper function to format date-time as ISO string in local time (no timezone conversion)
+      // Format dates for API
       const formatLocalISOString = (dateObj: Date): string => {
         const year = dateObj.getFullYear();
         const month = String(dateObj.getMonth() + 1).padStart(2, "0");
@@ -429,90 +508,304 @@ export default function IssueVisitorPassScreen({ navigation }: Props) {
         return `${year}-${month}-${day}T${hours}:${minutes}:${seconds}.000Z`;
       };
 
-      // Combine date and time into ISO date-time strings (treat as local time)
-      const validFromDate = new Date(date);
-      validFromDate.setHours(
-        startTime.getHours(),
-        startTime.getMinutes(),
-        0,
-        0
-      );
-      const validFrom = formatLocalISOString(validFromDate);
+      const validFromISO = formatLocalISOString(validFrom);
+      const validUntilISO = validTo ? formatLocalISOString(validTo) : null;
 
-      const validUntilDate = new Date(date);
-      validUntilDate.setHours(endTime.getHours(), endTime.getMinutes(), 0, 0);
-      // If end time is before start time, assume it's the next day
-      if (validUntilDate <= validFromDate) {
-        validUntilDate.setDate(validUntilDate.getDate() + 1);
-      }
-      const validUntil = formatLocalISOString(validUntilDate);
-
-      // Prepare form data according to API schema
-      const formData = {
-        full_name: visitorName.trim(),
-        phone: mobileNumber.trim(),
-        numberOfVisitors: parseInt(numberOfVisitors),
-        purposeOfVisit: purpose.trim(),
-        passType: apiPassType,
-        entryType: entryType,
-        validFrom: validFrom,
-        validUntil: validUntil,
-        identification_type: identificationType || null,
-        identification_number: identificationNumber.trim() || null,
-        email: null, // Optional field
-        organization: null, // Optional field
-        notes: null, // Optional field
+      // Map pass type
+      const passTypeMap: Record<
+        string,
+        "daily" | "single" | "multiple" | "event"
+      > = {
+        "Single Entry": "single",
+        "Multiple Entry": "multiple",
+        Daily: "daily",
+        Weekly: "single",
+        Monthly: "multiple",
+        Yearly: "event",
       };
 
-      // Call the API
-      await api.createPass(formData);
+      const apiPassType = passTypeMap[passType] || "daily";
+      const entryType: "single" | "multiple" = passType.includes("Single")
+        ? "single"
+        : "multiple";
+
+      // Pass creation API has been removed
+      // const formData = {
+      //   full_name: `${firstName.trim()} ${lastName.trim()}`,
+      //   email: email.trim(),
+      //   phone: phone.replace(/[^0-9]/g, ""),
+      //   numberOfVisitors: 1,
+      //   purposeOfVisit: purpose.trim(),
+      //   passType: apiPassType,
+      //   entryType: entryType,
+      //   validFrom: validFromISO,
+      //   validUntil: validUntilISO || validFromISO,
+      //   identification_type: idType || null,
+      //   identification_number: idNumber.trim() || null,
+      //   organization: null,
+      //   notes: comments.trim() || null,
+      // };
+
+      // Validate required IDs
+      if (!selectedCategoryId) {
+        Alert.alert("Error", "Please select a category");
+        setLoading(false);
+        return;
+      }
+
+      if (!selectedSubCategoryId) {
+        Alert.alert(
+          "Error",
+          `Please select a pass type. The selected pass type "${passType}" could not be matched to a subcategory.`
+        );
+        setLoading(false);
+        return;
+      }
+
+      // Build visitor object
+      const visitor: any = {
+        first_name: firstName.trim(),
+        last_name: lastName.trim(),
+        email: email.trim(),
+        phone: phone.replace(/[^0-9+]/g, ""),
+        identification_type: idType.toLowerCase(),
+        identification_number: idNumber.trim(),
+      };
+
+      // Add car passes if car pass is enabled
+      if (carPass) {
+        if (
+          !carMake.trim() ||
+          !carModel.trim() ||
+          !carColor.trim() ||
+          !carNumber.trim()
+        ) {
+          Alert.alert("Error", "Please fill all car details");
+          setLoading(false);
+          return;
+        }
+        visitor.car_passes = [
+          {
+            car_make: carMake.trim(),
+            car_model: carModel.trim(),
+            car_color: carColor.trim(),
+            car_number: carNumber.trim(),
+            ...(carTag.trim() && { car_tag: carTag.trim() }),
+          },
+        ];
+      } else {
+        visitor.car_passes = [];
+      }
+
+      // Create FormData
+      const formData = new FormData();
+
+      // Add text fields
+      // Find the issuer that matches the selected category
+      let passIssuerId: string | null = null;
+      if (selectedCategoryId) {
+        // Find issuer that has a category_weblink matching the selected category
+        const matchingIssuer = issuers.find((issuer) =>
+          issuer.category_weblinks.some(
+            (weblink) =>
+              weblink.category_id === selectedCategoryId && weblink.is_active
+          )
+        );
+
+        if (matchingIssuer) {
+          passIssuerId = matchingIssuer.id;
+        } else {
+          // Fallback to first active issuer if no match found
+          const firstActiveIssuer = issuers.find((issuer) => issuer.is_active);
+          if (firstActiveIssuer) {
+            passIssuerId = firstActiveIssuer.id;
+          }
+        }
+      }
+
+      // Add pass_issuer_id if found
+      if (passIssuerId) {
+        formData.append("pass_issuer_id", passIssuerId);
+      }
+      formData.append("main_category_id", selectedCategoryId);
+      formData.append("sub_category_id", selectedSubCategoryId);
+      formData.append("requested_by", requestedBy.trim());
+      formData.append("purpose", purpose.trim());
+      if (sessionId) {
+        formData.append("session_id", sessionId);
+      }
+      formData.append("valid_from", validFromISO);
+      formData.append("valid_to", validUntilISO || validFromISO);
+      formData.append("weblink", "legislative-mk2tc07d-laisqe"); // TODO: Generate or get from API
+      formData.append(
+        "comments",
+        comments.trim() || "Instant pass issued by Legislature"
+      );
+      formData.append("visitors", JSON.stringify([visitor]));
+
+      // Add visitor photo if available
+      if (identificationPhoto) {
+        const photoUri = identificationPhoto;
+        const filename = photoUri.split("/").pop() || "photo.jpg";
+        const match = /\.(\w+)$/.exec(filename);
+        const type = match ? `image/${match[1]}` : "image/jpeg";
+
+        formData.append("visitor_photos", {
+          uri: photoUri,
+          type: type,
+          name: filename,
+        } as any);
+      }
+
+      // Add visitor document if available
+      if (identificationDocument) {
+        const docUri = identificationDocument;
+        const filename = docUri.split("/").pop() || "document.jpg";
+        const match = /\.(\w+)$/.exec(filename);
+        const type = match ? `image/${match[1]}` : "image/jpeg";
+
+        formData.append("visitor_documents", {
+          uri: docUri,
+          type: type,
+          name: filename,
+        } as any);
+      }
+
+      // Submit the form
+      const submitResponse = await api.submitPassRequestWithFiles(formData);
+
+      // Extract request_id from response
+      const requestId = submitResponse?.request_id || submitResponse?.id;
+      if (!requestId) {
+        throw new Error("Request ID not found in response");
+      }
+
+      // Extract visitor_id from response (first visitor)
+      const visitorId =
+        submitResponse?.visitors?.[0]?.id ||
+        submitResponse?.visitor_id ||
+        submitResponse?.visitors?.[0]?.visitor_id;
+
+      if (!visitorId) {
+        throw new Error("Visitor ID not found in response");
+      }
+
+      // Get current user ID
+      const currentUserId = route.params?.userId;
+      if (!currentUserId) {
+        throw new Error("Current user ID not found");
+      }
+
+      // Get session name if selected
+      const selectedSessionName = session
+        ? sessions.find((s) => s.id === sessionId)?.name
+        : undefined;
+
+      // Step 1: Update pass request status
+      await api.updatePassRequestStatus(requestId, {
+        status: "approved",
+        comments: "Auto-approved for instant pass issuance",
+        current_user_id: currentUserId,
+        pass_category_id: selectedCategoryId, // Using main_category_id as pass_category_id
+        pass_sub_category_id: selectedSubCategoryId || undefined,
+        pass_type_id: selectedPassTypeId || undefined,
+        season: selectedSessionName,
+      });
+
+      // Step 2: Generate pass
+      await api.generatePass(requestId, {
+        visitor_id: visitorId,
+        pass_category_id: selectedCategoryId,
+        pass_sub_category_id: selectedSubCategoryId || undefined,
+        pass_type_id: selectedPassTypeId || undefined,
+        current_user_id: currentUserId,
+      });
+
+      // Step 3: Get pass request details
+      const passRequestData = await api.getPassRequest(requestId);
+
+      // Pass the entire response object along with category and pass type names to PreviewPassScreen
+      navigation.navigate("PreviewPass", {
+        passData: passRequestData,
+        categoryName: passCategory,
+        passTypeName: passType,
+      });
     } catch (error) {
       const errorMessage =
         error instanceof Error
           ? error.message
-          : "Failed to create pass. Please try again.";
+          : "Failed to issue pass. Please try again.";
 
-      // If authentication error, logout
-      if (
-        errorMessage.includes("Authentication") ||
-        errorMessage.includes("login")
-      ) {
-        Alert.alert("Session Expired", errorMessage, [
-          {
-            text: "OK",
-            onPress: async () => {
-              navigation.replace("Login");
-            },
-          },
-        ]);
-      } else {
-        // Parse API validation errors and show inline
-        if (errorMessage.includes("purposeOfVisit")) {
-          if (errorMessage.includes("at least 10 characters")) {
-            setPurposeError("Purpose of visit must be at least 10 characters");
-          }
-        }
-        if (
-          errorMessage.includes("validFrom") &&
-          errorMessage.includes("past")
-        ) {
-          setStartTimeError(
-            "Start time must be in the future for today's date"
-          );
-        }
-
-        // Show alert for other errors that aren't field-specific
-        if (
-          !errorMessage.includes("purposeOfVisit") &&
-          !errorMessage.includes("validFrom")
-        ) {
-          Alert.alert("Error", errorMessage);
-        }
-      }
+      Alert.alert("Error", errorMessage);
     } finally {
       setLoading(false);
     }
   };
+
+  // Load pass categories from API
+  useEffect(() => {
+    const fetchCategories = async () => {
+      setLoadingCategories(true);
+      try {
+        const fetchedCategories = await api.getMainCategories();
+        setCategories(fetchedCategories);
+
+        // Map category names to dropdown
+        const categoryNames = fetchedCategories.map((cat) => cat.name);
+        setPassCategories(categoryNames);
+      } catch (error) {
+        Alert.alert(
+          "Error",
+          "Failed to load categories. Please try again later."
+        );
+        // Fallback to empty array
+        setPassCategories([]);
+      } finally {
+        setLoadingCategories(false);
+      }
+    };
+
+    fetchCategories();
+  }, []);
+
+  // Load sessions from API
+  useEffect(() => {
+    const fetchSessions = async () => {
+      setLoadingSessions(true);
+      try {
+        const fetchedSessions = await api.getSessions();
+        setSessions(fetchedSessions);
+      } catch (error) {
+        Alert.alert(
+          "Error",
+          "Failed to load sessions. Please try again later."
+        );
+        setSessions([]);
+      } finally {
+        setLoadingSessions(false);
+      }
+    };
+
+    fetchSessions();
+  }, []);
+
+  // Load issuers from API
+  useEffect(() => {
+    const fetchIssuers = async () => {
+      setLoadingIssuers(true);
+      try {
+        const fetchedIssuers = await api.getIssuers();
+        setIssuers(fetchedIssuers);
+      } catch (error) {
+        Alert.alert("Error", "Failed to load issuers. Please try again later.");
+        setIssuers([]);
+      } finally {
+        setLoadingIssuers(false);
+      }
+    };
+
+    fetchIssuers();
+  }, []);
 
   return (
     <SafeAreaView style={styles.container}>
@@ -531,128 +824,278 @@ export default function IssueVisitorPassScreen({ navigation }: Props) {
           </TouchableOpacity>
         </View>
 
-        <View style={[styles.graphicContainer, { marginTop: 10 }]}>
-          <AssemblyIcon width={120} height={140} />
-        </View>
-
         <ScrollView
           contentContainerStyle={styles.scrollContent}
           showsVerticalScrollIndicator={false}
           keyboardShouldPersistTaps="handled"
         >
-          {/* Illustrative Graphic Section */}
-          <View style={styles.graphicContainer}>
-            <VisitorPassIcon width={200} height={125} />
+          {/* Visitor Information Section */}
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Visitor Information</Text>
+
+            {/* First Name */}
+            <Text style={styles.inputLabel}>
+              First Name<Text style={styles.required}>*</Text>
+            </Text>
+            <View
+              style={[
+                styles.inputContainer,
+                firstNameError && styles.inputContainerError,
+              ]}
+            >
+              <TextInput
+                style={styles.input}
+                placeholder="Enter first name"
+                placeholderTextColor="#ADAEBC"
+                value={firstName}
+                onChangeText={(text) => {
+                  setFirstName(text);
+                  if (firstNameError) setFirstNameError("");
+                }}
+              />
+            </View>
+            {firstNameError ? (
+              <Text style={styles.errorText}>{firstNameError}</Text>
+            ) : null}
+
+            {/* Last Name */}
+            <Text style={styles.inputLabel}>
+              Last Name<Text style={styles.required}>*</Text>
+            </Text>
+            <View
+              style={[
+                styles.inputContainer,
+                lastNameError && styles.inputContainerError,
+              ]}
+            >
+              <TextInput
+                style={styles.input}
+                placeholder="Enter last name"
+                placeholderTextColor="#ADAEBC"
+                value={lastName}
+                onChangeText={(text) => {
+                  setLastName(text);
+                  if (lastNameError) setLastNameError("");
+                }}
+              />
+            </View>
+            {lastNameError ? (
+              <Text style={styles.errorText}>{lastNameError}</Text>
+            ) : null}
+
+            {/* Email */}
+            <Text style={styles.inputLabel}>
+              Email<Text style={styles.required}>*</Text>
+            </Text>
+            <View
+              style={[
+                styles.inputContainer,
+                emailError && styles.inputContainerError,
+              ]}
+            >
+              <TextInput
+                style={styles.input}
+                placeholder="Enter email"
+                placeholderTextColor="#ADAEBC"
+                value={email}
+                onChangeText={(text) => {
+                  setEmail(text);
+                  if (emailError) setEmailError("");
+                }}
+                keyboardType="email-address"
+                autoCapitalize="none"
+              />
+            </View>
+            {emailError ? (
+              <Text style={styles.errorText}>{emailError}</Text>
+            ) : null}
+
+            {/* Phone */}
+            <Text style={styles.inputLabel}>
+              Phone<Text style={styles.required}>*</Text>
+            </Text>
+            <View
+              style={[
+                styles.inputContainer,
+                phoneError && styles.inputContainerError,
+              ]}
+            >
+              <TextInput
+                style={styles.input}
+                placeholder="Enter phone number"
+                placeholderTextColor="#ADAEBC"
+                value={phone}
+                onChangeText={(text) => {
+                  // Keep +91 prefix
+                  if (text.startsWith("+91")) {
+                    setPhone(text);
+                  } else if (text.length === 0) {
+                    setPhone("+91");
+                  } else if (!text.startsWith("+")) {
+                    setPhone("+91" + text.replace(/[^0-9]/g, ""));
+                  }
+                  if (phoneError) setPhoneError("");
+                }}
+                keyboardType="phone-pad"
+              />
+            </View>
+            {phoneError ? (
+              <Text style={styles.errorText}>{phoneError}</Text>
+            ) : null}
+
+            {/* ID Type */}
+            <Text style={styles.inputLabel}>
+              ID Type<Text style={styles.required}>*</Text>
+            </Text>
+            <TouchableOpacity
+              style={[
+                styles.inputContainer,
+                idTypeError && styles.inputContainerError,
+              ]}
+              onPress={() => setShowIdTypeModal(true)}
+            >
+              <Text style={[styles.input, !idType && styles.placeholderText]}>
+                {idType || "Select ID Type"}
+              </Text>
+              <ChevronDownIcon width={20} height={20} />
+            </TouchableOpacity>
+            {idTypeError ? (
+              <Text style={styles.errorText}>{idTypeError}</Text>
+            ) : null}
+
+            {/* ID Number */}
+            <Text style={styles.inputLabel}>
+              ID Number<Text style={styles.required}>*</Text>
+            </Text>
+            <View
+              style={[
+                styles.inputContainer,
+                idNumberError && styles.inputContainerError,
+              ]}
+            >
+              <TextInput
+                style={styles.input}
+                placeholder="Enter ID number"
+                placeholderTextColor="#ADAEBC"
+                value={idNumber}
+                onChangeText={(text) => {
+                  setIdNumber(text);
+                  if (idNumberError) setIdNumberError("");
+                }}
+              />
+            </View>
+            {idNumberError ? (
+              <Text style={styles.errorText}>{idNumberError}</Text>
+            ) : null}
+
+            {/* Identification Photo */}
+            <Text style={styles.inputLabel}>Identification Photo</Text>
+            <TouchableOpacity
+              style={styles.fileUploadButton}
+              onPress={handleIdentificationPhotoUpload}
+            >
+              <Text style={styles.fileUploadText}>
+                {identificationPhoto ? "File chosen" : "Choose File"}
+              </Text>
+              {!identificationPhoto && (
+                <Text style={styles.fileUploadSubtext}>No file chosen</Text>
+              )}
+            </TouchableOpacity>
+
+            {/* Identification Document */}
+            <Text style={styles.inputLabel}>Identification Document</Text>
+            <TouchableOpacity
+              style={styles.fileUploadButton}
+              onPress={handleIdentificationDocumentUpload}
+            >
+              <Text style={styles.fileUploadText}>
+                {identificationDocument ? "File chosen" : "Choose File"}
+              </Text>
+              {!identificationDocument && (
+                <Text style={styles.fileUploadSubtext}>No file chosen</Text>
+              )}
+            </TouchableOpacity>
           </View>
 
-          {/* Form Fields */}
-          <View style={styles.formContainer}>
-            {/* Visitor Name */}
-            <Text style={styles.inputLabel}>Visitor Name</Text>
-            <View
-              style={[
-                styles.inputContainer,
-                visitorNameError && styles.inputContainerError,
-              ]}
-            >
-              <TextInput
-                style={styles.input}
-                placeholder="Full Name"
-                placeholderTextColor="#ADAEBC"
-                value={visitorName}
-                onChangeText={(text) => {
-                  setVisitorName(text);
-                  if (visitorNameError) setVisitorNameError("");
-                }}
-              />
-            </View>
-            {visitorNameError ? (
-              <Text style={styles.errorText}>{visitorNameError}</Text>
-            ) : null}
+          {/* Request Details Section */}
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Request Details</Text>
 
-            {/* Mobile Number */}
-            <Text style={styles.inputLabel}>Mobile Number</Text>
-            <View
-              style={[
-                styles.inputContainer,
-                mobileNumberError && styles.inputContainerError,
-              ]}
-            >
-              <TextInput
-                style={styles.input}
-                placeholder="10-digit number"
-                placeholderTextColor="#ADAEBC"
-                value={mobileNumber}
-                onChangeText={(text) => {
-                  // Only allow digits
-                  const numericValue = text.replace(/[^0-9]/g, "");
-                  setMobileNumber(numericValue);
-                  if (mobileNumberError) setMobileNumberError("");
-                }}
-                keyboardType="numeric"
-                maxLength={10}
-              />
+            {/* Pass Category */}
+            <View style={styles.labelRow}>
+              <Text style={styles.inputLabel}>
+                Pass Category<Text style={styles.required}>*</Text>
+              </Text>
             </View>
-            {mobileNumberError ? (
-              <Text style={styles.errorText}>{mobileNumberError}</Text>
-            ) : null}
-
-            {/* Identification Type */}
-            <Text style={styles.inputLabel}>Identification Type</Text>
             <TouchableOpacity
-              style={styles.inputContainer}
-              onPress={() => setShowIdTypeModal(true)}
+              style={[
+                styles.inputContainer,
+                passCategoryError && styles.inputContainerError,
+              ]}
+              onPress={() => setShowPassCategoryModal(true)}
+            >
+              <Text
+                style={[styles.input, !passCategory && styles.placeholderText]}
+              >
+                {passCategory || "Select Pass Category"}
+              </Text>
+              <ChevronDownIcon width={20} height={20} />
+            </TouchableOpacity>
+            {passCategoryError ? (
+              <Text style={styles.errorText}>{passCategoryError}</Text>
+            ) : null}
+
+            {/* Pass Type */}
+            <Text style={styles.inputLabel}>
+              Pass Type<Text style={styles.required}>*</Text>
+            </Text>
+            <TouchableOpacity
+              style={[
+                styles.inputContainer,
+                passTypeError && styles.inputContainerError,
+                !passCategory && styles.inputContainerDisabled,
+              ]}
+              onPress={() => {
+                if (passCategory) {
+                  setShowPassTypeModal(true);
+                }
+              }}
+              disabled={!passCategory}
             >
               <Text
                 style={[
                   styles.input,
-                  !identificationType && styles.placeholderText,
+                  (!passType || !passCategory) && styles.placeholderText,
                 ]}
               >
-                {identificationType || "Select Identification Type"}
+                {!passCategory
+                  ? "Select Pass Category first"
+                  : passType || "Select Pass Type"}
               </Text>
               <ChevronDownIcon width={20} height={20} />
             </TouchableOpacity>
-
-            {/* Pass Type */}
-            <Text style={styles.inputLabel}>Pass Type</Text>
-            <TouchableOpacity
-              style={styles.inputContainer}
-              onPress={() => setShowPassTypeModal(true)}
-            >
-              <Text style={[styles.input, !passType && styles.placeholderText]}>
-                {passType || "Select Pass Type"}
-              </Text>
-              <ChevronDownIcon width={20} height={20} />
-            </TouchableOpacity>
-
-            {/* Identification Number */}
-            <Text style={styles.inputLabel}>Identification Number</Text>
-            <View
-              style={[
-                styles.inputContainer,
-                identificationNumberError && styles.inputContainerError,
-              ]}
-            >
-              <TextInput
-                style={styles.input}
-                placeholder="Enter Identification Number"
-                placeholderTextColor="#ADAEBC"
-                value={identificationNumber}
-                onChangeText={(text) => {
-                  setIdentificationNumber(text);
-                  if (identificationNumberError)
-                    setIdentificationNumberError("");
-                }}
-                keyboardType="default"
-              />
-            </View>
-            {identificationNumberError ? (
-              <Text style={styles.errorText}>{identificationNumberError}</Text>
+            {passTypeError ? (
+              <Text style={styles.errorText}>{passTypeError}</Text>
             ) : null}
 
-            {/* Purpose of Visit */}
-            <Text style={styles.inputLabel}>Purpose of Visit</Text>
+            {/* Requested By */}
+            <Text style={styles.inputLabel}>
+              Requested By<Text style={styles.required}>*</Text>
+            </Text>
+            <View style={styles.inputContainer}>
+              <TextInput
+                style={styles.input}
+                placeholder="Enter requested by"
+                placeholderTextColor="#ADAEBC"
+                value={requestedBy}
+                onChangeText={setRequestedBy}
+              />
+            </View>
+
+            {/* Purpose */}
+            <Text style={styles.inputLabel}>
+              Purpose<Text style={styles.required}>*</Text>
+            </Text>
             <View
               style={[
                 styles.inputContainer,
@@ -661,155 +1104,263 @@ export default function IssueVisitorPassScreen({ navigation }: Props) {
             >
               <TextInput
                 style={styles.input}
-                placeholder="Brief description of the purpose"
+                placeholder="Enter purpose"
                 placeholderTextColor="#ADAEBC"
                 value={purpose}
                 onChangeText={(text) => {
                   setPurpose(text);
                   if (purposeError) setPurposeError("");
                 }}
-                multiline
-                numberOfLines={3}
               />
             </View>
             {purposeError ? (
               <Text style={styles.errorText}>{purposeError}</Text>
             ) : null}
 
-            {/* Date */}
-            <Text style={styles.inputLabel}>Date</Text>
+            {/* Session */}
+            <Text style={styles.inputLabel}>Session</Text>
+            <TouchableOpacity
+              style={styles.inputContainer}
+              onPress={() => setShowSessionModal(true)}
+            >
+              <Text style={[styles.input, !session && styles.placeholderText]}>
+                {session || "Select Session"}
+              </Text>
+              <ChevronDownIcon width={20} height={20} />
+            </TouchableOpacity>
+
+            {/* Valid From */}
+            <Text style={styles.inputLabel}>
+              Valid From<Text style={styles.required}>*</Text>
+            </Text>
             <TouchableOpacity
               style={[
                 styles.inputContainer,
-                dateError && styles.inputContainerError,
+                validFromError && styles.inputContainerError,
               ]}
-              onPress={() => {
-                setShowDatePicker(true);
-                if (dateError) setDateError("");
-              }}
-              activeOpacity={0.7}
-              disabled={showDatePicker}
+              onPress={openValidFromPicker}
             >
-              <TextInput
-                style={styles.input}
-                placeholder="YYYY-MM-DD"
-                placeholderTextColor="#ADAEBC"
-                value={formatDate(date)}
-                editable={false}
-                pointerEvents="none"
-              />
+              <Text style={styles.input}>{formatDateTime(validFrom)}</Text>
               <CalendarIcon width={20} height={20} />
             </TouchableOpacity>
-            {dateError ? (
-              <Text style={styles.errorText}>{dateError}</Text>
+            {validFromError ? (
+              <Text style={styles.errorText}>{validFromError}</Text>
             ) : null}
 
-            {/* Time Row */}
-            <View style={styles.timeRow}>
-              {/* Start Time */}
-              <View style={styles.timeContainer}>
-                <Text style={styles.inputLabel}>Start Time</Text>
-                <TouchableOpacity
-                  style={[
-                    styles.inputContainer,
-                    startTimeError && styles.inputContainerError,
-                  ]}
-                  onPress={() => {
-                    openStartTimePicker();
-                    if (startTimeError) setStartTimeError("");
-                  }}
-                  activeOpacity={0.7}
-                  disabled={showStartTimePicker}
-                >
-                  <TextInput
-                    style={styles.input}
-                    placeholder="10:00 AM"
-                    placeholderTextColor="#ADAEBC"
-                    value={formatTime(startTime)}
-                    editable={false}
-                    pointerEvents="none"
-                  />
-                </TouchableOpacity>
-              </View>
-
-              {/* End Time */}
-              <View style={styles.timeContainer}>
-                <Text style={styles.inputLabel}>End Time</Text>
-                <TouchableOpacity
-                  style={styles.inputContainer}
-                  onPress={openEndTimePicker}
-                  activeOpacity={0.7}
-                  disabled={showEndTimePicker}
-                >
-                  <TextInput
-                    style={styles.input}
-                    placeholder="12:00 PM"
-                    placeholderTextColor="#ADAEBC"
-                    value={formatTime(endTime)}
-                    editable={false}
-                    pointerEvents="none"
-                  />
-                </TouchableOpacity>
-              </View>
-            </View>
-            {startTimeError ? (
-              <Text style={styles.errorText}>{startTimeError}</Text>
-            ) : null}
-            {endTimeError ? (
-              <Text style={styles.errorText}>{endTimeError}</Text>
-            ) : null}
-
-            {/* Number of Visitors */}
-            <Text style={styles.inputLabel}>Number of Visitors</Text>
-            <View
-              style={[
-                styles.inputContainer,
-                numberOfVisitorsError && styles.inputContainerError,
-              ]}
+            {/* Valid To (Optional) */}
+            <Text style={styles.inputLabel}>Valid To (Optional)</Text>
+            <TouchableOpacity
+              style={styles.inputContainer}
+              onPress={openValidToPicker}
             >
+              <Text style={styles.input}>
+                {validTo ? formatDateTime(validTo) : "Select date and time"}
+              </Text>
+              <CalendarIcon width={20} height={20} />
+            </TouchableOpacity>
+
+            {/* Comments */}
+            <Text style={styles.inputLabel}>Comments (Optional)</Text>
+            <View style={styles.textAreaContainer}>
               <TextInput
-                style={styles.input}
-                placeholder="Enter number (1-100)"
+                style={styles.textArea}
+                placeholder="Additional comments or notes..."
                 placeholderTextColor="#ADAEBC"
-                value={numberOfVisitors}
-                onChangeText={(text) => {
-                  // Only allow digits
-                  const numericValue = text.replace(/[^0-9]/g, "");
-                  // Limit to 3 digits (max 100)
-                  const limitedValue =
-                    numericValue.length > 3
-                      ? numericValue.slice(0, 3)
-                      : numericValue;
-                  setNumberOfVisitors(limitedValue);
-                  if (numberOfVisitorsError) setNumberOfVisitorsError("");
-                }}
-                keyboardType="numeric"
-                maxLength={3}
+                value={comments}
+                onChangeText={setComments}
+                multiline
+                numberOfLines={4}
+                textAlignVertical="top"
               />
             </View>
-            {numberOfVisitorsError ? (
-              <Text style={styles.errorText}>{numberOfVisitorsError}</Text>
-            ) : null}
           </View>
 
-          {/* Generate Button */}
-          <TouchableOpacity
-            style={[
-              styles.generateButton,
-              loading && styles.generateButtonDisabled,
-            ]}
-            onPress={handleGenerate}
-            disabled={loading}
-          >
-            {loading ? (
-              <ActivityIndicator color="#FFFFFF" />
+          {/* Car Pass Section */}
+          <View style={styles.section}>
+            <View style={styles.carPassHeader}>
+              <Text style={styles.sectionTitle}>Car Pass</Text>
+              {carPass && (
+                <TouchableOpacity
+                  onPress={() => {
+                    setCarPass(false);
+                    setCarMake("");
+                    setCarModel("");
+                    setCarColor("");
+                    setCarNumber("");
+                    setCarTag("");
+                    setCarMakeError("");
+                    setCarModelError("");
+                    setCarColorError("");
+                    setCarNumberError("");
+                  }}
+                  style={styles.removeCarPassButton}
+                >
+                  <Text style={styles.removeCarPassText}>Remove</Text>
+                </TouchableOpacity>
+              )}
+            </View>
+            <Text style={styles.carPassDescription}>
+              Add a car pass for the visitor (optional, maximum 1)
+            </Text>
+            {!carPass ? (
+              <>
+                <Text style={styles.carPassStatus}>
+                  No car pass added yet. Click "Add Car Pass" to add one.
+                </Text>
+                <TouchableOpacity
+                  style={styles.addCarPassButton}
+                  onPress={() => setCarPass(true)}
+                >
+                  <Text style={styles.addCarPassButtonText}>
+                    + Add Car Pass
+                  </Text>
+                </TouchableOpacity>
+              </>
             ) : (
-              <Text style={styles.generateButtonText}>Generate</Text>
+              <View style={styles.carPassFormContainer}>
+                {/* Car Maker */}
+                <Text style={styles.inputLabel}>
+                  Car Maker<Text style={styles.required}>*</Text>
+                </Text>
+                <View
+                  style={[
+                    styles.inputContainer,
+                    carMakeError && styles.inputContainerError,
+                  ]}
+                >
+                  <TextInput
+                    style={styles.input}
+                    placeholder="e.g., Toyota, Honda, BMW"
+                    placeholderTextColor="#ADAEBC"
+                    value={carMake}
+                    onChangeText={(text) => {
+                      setCarMake(text);
+                      if (carMakeError) setCarMakeError("");
+                    }}
+                  />
+                </View>
+                {carMakeError ? (
+                  <Text style={styles.errorText}>{carMakeError}</Text>
+                ) : null}
+
+                {/* Car Model */}
+                <Text style={styles.inputLabel}>
+                  Car Model<Text style={styles.required}>*</Text>
+                </Text>
+                <View
+                  style={[
+                    styles.inputContainer,
+                    carModelError && styles.inputContainerError,
+                  ]}
+                >
+                  <TextInput
+                    style={styles.input}
+                    placeholder="e.g., Camry, Civic, X5"
+                    placeholderTextColor="#ADAEBC"
+                    value={carModel}
+                    onChangeText={(text) => {
+                      setCarModel(text);
+                      if (carModelError) setCarModelError("");
+                    }}
+                  />
+                </View>
+                {carModelError ? (
+                  <Text style={styles.errorText}>{carModelError}</Text>
+                ) : null}
+
+                {/* Car Color */}
+                <Text style={styles.inputLabel}>
+                  Car Color<Text style={styles.required}>*</Text>
+                </Text>
+                <View
+                  style={[
+                    styles.inputContainer,
+                    carColorError && styles.inputContainerError,
+                  ]}
+                >
+                  <TextInput
+                    style={styles.input}
+                    placeholder="e.g., Red, Blue, White"
+                    placeholderTextColor="#ADAEBC"
+                    value={carColor}
+                    onChangeText={(text) => {
+                      setCarColor(text);
+                      if (carColorError) setCarColorError("");
+                    }}
+                  />
+                </View>
+                {carColorError ? (
+                  <Text style={styles.errorText}>{carColorError}</Text>
+                ) : null}
+
+                {/* Car Number */}
+                <Text style={styles.inputLabel}>
+                  Car Number (Registration)
+                  <Text style={styles.required}>*</Text>
+                </Text>
+                <View
+                  style={[
+                    styles.inputContainer,
+                    carNumberError && styles.inputContainerError,
+                  ]}
+                >
+                  <TextInput
+                    style={styles.input}
+                    placeholder="e.g., AP39AB1234"
+                    placeholderTextColor="#ADAEBC"
+                    value={carNumber}
+                    onChangeText={(text) => {
+                      setCarNumber(text);
+                      if (carNumberError) setCarNumberError("");
+                    }}
+                    autoCapitalize="characters"
+                  />
+                </View>
+                {carNumberError ? (
+                  <Text style={styles.errorText}>{carNumberError}</Text>
+                ) : null}
+
+                {/* Car Tag (Optional) */}
+                <Text style={styles.inputLabel}>Car Tag (Optional)</Text>
+                <View style={styles.inputContainer}>
+                  <TextInput
+                    style={styles.input}
+                    placeholder="Optional tag or label for this car pass"
+                    placeholderTextColor="#ADAEBC"
+                    value={carTag}
+                    onChangeText={setCarTag}
+                  />
+                </View>
+              </View>
             )}
-          </TouchableOpacity>
+          </View>
+
+          {/* Action Buttons */}
+          <View style={styles.actionButtons}>
+            <TouchableOpacity style={styles.resetButton} onPress={resetForm}>
+              <Text style={styles.resetButtonText}>Reset</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[
+                styles.issueButton,
+                loading && styles.issueButtonDisabled,
+              ]}
+              onPress={handleIssuePass}
+              disabled={loading}
+            >
+              {loading ? (
+                <ActivityIndicator color="#FFFFFF" />
+              ) : (
+                <>
+                  <Ionicons name="flash" size={20} color="#FFFFFF" />
+                  <Text style={styles.issueButtonText}>Issue Instant Pass</Text>
+                </>
+              )}
+            </TouchableOpacity>
+          </View>
         </ScrollView>
 
-        {/* Identification Type Modal */}
+        {/* ID Type Modal */}
         <Modal
           visible={showIdTypeModal}
           transparent={true}
@@ -819,9 +1370,7 @@ export default function IssueVisitorPassScreen({ navigation }: Props) {
           <View style={styles.modalOverlay}>
             <View style={styles.modalContent}>
               <View style={styles.modalHeader}>
-                <Text style={styles.modalTitle}>
-                  Select Identification Type
-                </Text>
+                <Text style={styles.modalTitle}>Select ID Type</Text>
                 <TouchableOpacity onPress={() => setShowIdTypeModal(false)}>
                   <Ionicons name="close" size={24} color="#111827" />
                 </TouchableOpacity>
@@ -832,16 +1381,67 @@ export default function IssueVisitorPassScreen({ navigation }: Props) {
                     key={type}
                     style={styles.modalItem}
                     onPress={() => {
-                      setIdentificationType(type);
+                      setIdType(type);
+                      setIdTypeError("");
                       setShowIdTypeModal(false);
                     }}
                   >
                     <Text style={styles.modalItemText}>{type}</Text>
-                    {identificationType === type && (
+                    {idType === type && (
                       <Ionicons name="checkmark" size={20} color="#457E51" />
                     )}
                   </TouchableOpacity>
                 ))}
+              </ScrollView>
+            </View>
+          </View>
+        </Modal>
+
+        {/* Pass Category Modal */}
+        <Modal
+          visible={showPassCategoryModal}
+          transparent={true}
+          animationType="slide"
+          onRequestClose={() => setShowPassCategoryModal(false)}
+        >
+          <View style={styles.modalOverlay}>
+            <View style={styles.modalContent}>
+              <View style={styles.modalHeader}>
+                <Text style={styles.modalTitle}>Select Pass Category</Text>
+                <TouchableOpacity
+                  onPress={() => setShowPassCategoryModal(false)}
+                >
+                  <Ionicons name="close" size={24} color="#111827" />
+                </TouchableOpacity>
+              </View>
+              <ScrollView>
+                {loadingCategories ? (
+                  <View style={styles.modalLoadingContainer}>
+                    <ActivityIndicator size="large" color="#457E51" />
+                    <Text style={styles.modalLoadingText}>
+                      Loading categories...
+                    </Text>
+                  </View>
+                ) : passCategories.length === 0 ? (
+                  <View style={styles.modalLoadingContainer}>
+                    <Text style={styles.modalLoadingText}>
+                      No categories available
+                    </Text>
+                  </View>
+                ) : (
+                  passCategories.map((category) => (
+                    <TouchableOpacity
+                      key={category}
+                      style={styles.modalItem}
+                      onPress={() => handlePassCategorySelect(category)}
+                    >
+                      <Text style={styles.modalItemText}>{category}</Text>
+                      {passCategory === category && (
+                        <Ionicons name="checkmark" size={20} color="#457E51" />
+                      )}
+                    </TouchableOpacity>
+                  ))
+                )}
               </ScrollView>
             </View>
           </View>
@@ -863,38 +1463,149 @@ export default function IssueVisitorPassScreen({ navigation }: Props) {
                 </TouchableOpacity>
               </View>
               <ScrollView>
-                {PASS_TYPES.map((type) => (
-                  <TouchableOpacity
-                    key={type}
-                    style={styles.modalItem}
-                    onPress={() => {
-                      setPassType(type);
-                      setShowPassTypeModal(false);
-                    }}
-                  >
-                    <Text style={styles.modalItemText}>{type}</Text>
-                    {passType === type && (
-                      <Ionicons name="checkmark" size={20} color="#457E51" />
-                    )}
-                  </TouchableOpacity>
-                ))}
+                {loadingPassTypes ? (
+                  <View style={styles.modalLoadingContainer}>
+                    <ActivityIndicator size="large" color="#1F2937" />
+                    <Text style={styles.modalLoadingText}>
+                      Loading pass types...
+                    </Text>
+                  </View>
+                ) : passTypes.length === 0 ? (
+                  <View style={styles.modalEmptyContainer}>
+                    <Text style={styles.modalEmptyText}>
+                      No pass types available
+                    </Text>
+                  </View>
+                ) : (
+                  passTypes.map((type) => {
+                    // Find the pass type object to get its ID
+                    const passTypeItem = allPassTypes.find(
+                      (pt) => pt.name === type
+                    );
+                    // Find subcategory by matching pass_type_id with pass type ID
+                    const subCategory = selectedCategorySubCategories.find(
+                      (subCat) => subCat.pass_type_id === passTypeItem?.id
+                    );
+                    return (
+                      <TouchableOpacity
+                        key={type}
+                        style={styles.modalItem}
+                        onPress={() => {
+                          setPassType(type);
+                          // Store pass type ID
+                          setSelectedPassTypeId(passTypeItem?.id || null);
+
+                          // Use subcategory ID if found, otherwise try to find by name as fallback
+                          let subCatId =
+                            subCategory?.id ||
+                            selectedCategorySubCategories.find(
+                              (subCat) => subCat.name === type
+                            )?.id ||
+                            null;
+
+                          // If still not found, use the first active subcategory as fallback
+                          if (
+                            !subCatId &&
+                            selectedCategorySubCategories.length > 0
+                          ) {
+                            const firstActiveSubCategory =
+                              selectedCategorySubCategories.find(
+                                (subCat) => subCat.is_active
+                              ) || selectedCategorySubCategories[0];
+                            subCatId = firstActiveSubCategory.id;
+                          }
+
+                          if (!subCatId) {
+                          }
+
+                          setSelectedSubCategoryId(subCatId);
+                          setPassTypeError("");
+                          setShowPassTypeModal(false);
+                        }}
+                      >
+                        <Text style={styles.modalItemText}>{type}</Text>
+                        {passType === type && (
+                          <Ionicons
+                            name="checkmark"
+                            size={20}
+                            color="#457E51"
+                          />
+                        )}
+                      </TouchableOpacity>
+                    );
+                  })
+                )}
               </ScrollView>
             </View>
           </View>
         </Modal>
 
-        {/* Date Picker */}
-        {showDatePicker && (
+        {/* Session Modal */}
+        <Modal
+          visible={showSessionModal}
+          transparent={true}
+          animationType="slide"
+          onRequestClose={() => setShowSessionModal(false)}
+        >
+          <View style={styles.modalOverlay}>
+            <View style={styles.modalContent}>
+              <View style={styles.modalHeader}>
+                <Text style={styles.modalTitle}>Select Session</Text>
+                <TouchableOpacity onPress={() => setShowSessionModal(false)}>
+                  <Ionicons name="close" size={24} color="#111827" />
+                </TouchableOpacity>
+              </View>
+              <ScrollView style={styles.modalScrollView}>
+                {loadingSessions ? (
+                  <View style={styles.modalLoadingContainer}>
+                    <ActivityIndicator size="large" color="#1F2937" />
+                    <Text style={styles.modalLoadingText}>
+                      Loading sessions...
+                    </Text>
+                  </View>
+                ) : sessions.length === 0 ? (
+                  <View style={styles.modalEmptyContainer}>
+                    <Text style={styles.modalEmptyText}>
+                      No sessions available
+                    </Text>
+                  </View>
+                ) : (
+                  sessions.map((sessionItem) => (
+                    <TouchableOpacity
+                      key={sessionItem.id}
+                      style={styles.modalItem}
+                      onPress={() => {
+                        setSession(sessionItem.name);
+                        setSessionId(sessionItem.id);
+                        setShowSessionModal(false);
+                      }}
+                    >
+                      <Text style={styles.modalItemText}>
+                        {sessionItem.name}
+                      </Text>
+                      {session === sessionItem.name && (
+                        <Ionicons name="checkmark" size={20} color="#457E51" />
+                      )}
+                    </TouchableOpacity>
+                  ))
+                )}
+              </ScrollView>
+            </View>
+          </View>
+        </Modal>
+
+        {/* Valid From Date/Time Picker */}
+        {showValidFromPicker && (
           <Modal
             transparent={true}
             animationType="slide"
-            visible={showDatePicker}
-            onRequestClose={() => setShowDatePicker(false)}
+            visible={showValidFromPicker}
+            onRequestClose={() => setShowValidFromPicker(false)}
           >
             <TouchableOpacity
               style={styles.datePickerModalOverlay}
               activeOpacity={1}
-              onPress={() => setShowDatePicker(false)}
+              onPress={() => setShowValidFromPicker(false)}
             >
               <TouchableOpacity
                 activeOpacity={1}
@@ -903,23 +1614,31 @@ export default function IssueVisitorPassScreen({ navigation }: Props) {
                 <View style={styles.datePickerModalContent}>
                   <View style={styles.datePickerModalHeader}>
                     <TouchableOpacity
-                      onPress={() => setShowDatePicker(false)}
+                      onPress={() => setShowValidFromPicker(false)}
                       style={styles.datePickerCancelButton}
                     >
                       <Text style={styles.datePickerCancelText}>Cancel</Text>
                     </TouchableOpacity>
-                    <Text style={styles.datePickerModalTitle}>Select Date</Text>
+                    <Text style={styles.datePickerModalTitle}>
+                      Select Valid From
+                    </Text>
                     <TouchableOpacity
-                      onPress={handleDatePickerDone}
+                      onPress={handleValidFromDone}
                       style={styles.datePickerDoneButton}
                     >
                       <Text style={styles.datePickerDoneText}>Done</Text>
                     </TouchableOpacity>
                   </View>
                   <Calendar
-                    current={formatDate(date)}
-                    onDayPress={onDateSelect}
-                    markedDates={getMarkedDates()}
+                    current={formatDate(tempValidFromDate)}
+                    onDayPress={onValidFromDateSelect}
+                    markedDates={{
+                      [formatDate(tempValidFromDate)]: {
+                        selected: true,
+                        selectedColor: "#457E51",
+                        selectedTextColor: "#FFFFFF",
+                      },
+                    }}
                     minDate={formatDate(new Date())}
                     theme={{
                       backgroundColor: "#FFFFFF",
@@ -944,47 +1663,6 @@ export default function IssueVisitorPassScreen({ navigation }: Props) {
                     }}
                     enableSwipeMonths={true}
                   />
-                </View>
-              </TouchableOpacity>
-            </TouchableOpacity>
-          </Modal>
-        )}
-
-        {/* Start Time Picker */}
-        {showStartTimePicker && (
-          <Modal
-            transparent={true}
-            animationType="slide"
-            visible={showStartTimePicker}
-            onRequestClose={() => setShowStartTimePicker(false)}
-          >
-            <TouchableOpacity
-              style={styles.datePickerModalOverlay}
-              activeOpacity={1}
-              onPress={() => setShowStartTimePicker(false)}
-            >
-              <TouchableOpacity
-                activeOpacity={1}
-                onPress={(e) => e.stopPropagation()}
-              >
-                <View style={styles.datePickerModalContent}>
-                  <View style={styles.datePickerModalHeader}>
-                    <TouchableOpacity
-                      onPress={() => setShowStartTimePicker(false)}
-                      style={styles.datePickerCancelButton}
-                    >
-                      <Text style={styles.datePickerCancelText}>Cancel</Text>
-                    </TouchableOpacity>
-                    <Text style={styles.datePickerModalTitle}>
-                      Select Start Time
-                    </Text>
-                    <TouchableOpacity
-                      onPress={handleStartTimeDone}
-                      style={styles.datePickerDoneButton}
-                    >
-                      <Text style={styles.datePickerDoneText}>Done</Text>
-                    </TouchableOpacity>
-                  </View>
                   <View style={styles.timePickerContainer}>
                     <View style={styles.customTimePicker}>
                       {/* Hours */}
@@ -992,8 +1670,6 @@ export default function IssueVisitorPassScreen({ navigation }: Props) {
                         <ScrollView
                           style={styles.timePickerScroll}
                           showsVerticalScrollIndicator={false}
-                          snapToInterval={50}
-                          decelerationRate="fast"
                         >
                           {Array.from({ length: 12 }, (_, i) => i + 1).map(
                             (hour) => (
@@ -1001,15 +1677,15 @@ export default function IssueVisitorPassScreen({ navigation }: Props) {
                                 key={hour}
                                 style={[
                                   styles.timePickerItem,
-                                  tempStartHour === hour &&
+                                  tempValidFromHour === hour &&
                                     styles.timePickerItemSelected,
                                 ]}
-                                onPress={() => setTempStartHour(hour)}
+                                onPress={() => setTempValidFromHour(hour)}
                               >
                                 <Text
                                   style={[
                                     styles.timePickerText,
-                                    tempStartHour === hour &&
+                                    tempValidFromHour === hour &&
                                       styles.timePickerTextSelected,
                                   ]}
                                 >
@@ -1026,8 +1702,6 @@ export default function IssueVisitorPassScreen({ navigation }: Props) {
                         <ScrollView
                           style={styles.timePickerScroll}
                           showsVerticalScrollIndicator={false}
-                          snapToInterval={50}
-                          decelerationRate="fast"
                         >
                           {Array.from({ length: 60 }, (_, i) => i).map(
                             (minute) => (
@@ -1035,15 +1709,15 @@ export default function IssueVisitorPassScreen({ navigation }: Props) {
                                 key={minute}
                                 style={[
                                   styles.timePickerItem,
-                                  tempStartMinute === minute &&
+                                  tempValidFromMinute === minute &&
                                     styles.timePickerItemSelected,
                                 ]}
-                                onPress={() => setTempStartMinute(minute)}
+                                onPress={() => setTempValidFromMinute(minute)}
                               >
                                 <Text
                                   style={[
                                     styles.timePickerText,
-                                    tempStartMinute === minute &&
+                                    tempValidFromMinute === minute &&
                                       styles.timePickerTextSelected,
                                   ]}
                                 >
@@ -1060,25 +1734,23 @@ export default function IssueVisitorPassScreen({ navigation }: Props) {
                         <ScrollView
                           style={styles.timePickerScroll}
                           showsVerticalScrollIndicator={false}
-                          snapToInterval={50}
-                          decelerationRate="fast"
                         >
                           {["AM", "PM"].map((amPm) => (
                             <TouchableOpacity
                               key={amPm}
                               style={[
                                 styles.timePickerItem,
-                                tempStartAmPm === amPm &&
+                                tempValidFromAmPm === amPm &&
                                   styles.timePickerItemSelected,
                               ]}
                               onPress={() =>
-                                setTempStartAmPm(amPm as "AM" | "PM")
+                                setTempValidFromAmPm(amPm as "AM" | "PM")
                               }
                             >
                               <Text
                                 style={[
                                   styles.timePickerText,
-                                  tempStartAmPm === amPm &&
+                                  tempValidFromAmPm === amPm &&
                                     styles.timePickerTextSelected,
                                 ]}
                               >
@@ -1096,18 +1768,18 @@ export default function IssueVisitorPassScreen({ navigation }: Props) {
           </Modal>
         )}
 
-        {/* End Time Picker */}
-        {showEndTimePicker && (
+        {/* Valid To Date/Time Picker */}
+        {showValidToPicker && (
           <Modal
             transparent={true}
             animationType="slide"
-            visible={showEndTimePicker}
-            onRequestClose={() => setShowEndTimePicker(false)}
+            visible={showValidToPicker}
+            onRequestClose={() => setShowValidToPicker(false)}
           >
             <TouchableOpacity
               style={styles.datePickerModalOverlay}
               activeOpacity={1}
-              onPress={() => setShowEndTimePicker(false)}
+              onPress={() => setShowValidToPicker(false)}
             >
               <TouchableOpacity
                 activeOpacity={1}
@@ -1116,126 +1788,158 @@ export default function IssueVisitorPassScreen({ navigation }: Props) {
                 <View style={styles.datePickerModalContent}>
                   <View style={styles.datePickerModalHeader}>
                     <TouchableOpacity
-                      onPress={() => setShowEndTimePicker(false)}
+                      onPress={() => setShowValidToPicker(false)}
                       style={styles.datePickerCancelButton}
                     >
                       <Text style={styles.datePickerCancelText}>Cancel</Text>
                     </TouchableOpacity>
                     <Text style={styles.datePickerModalTitle}>
-                      Select End Time
+                      Select Valid To
                     </Text>
                     <TouchableOpacity
-                      onPress={handleEndTimeDone}
+                      onPress={handleValidToDone}
                       style={styles.datePickerDoneButton}
                     >
                       <Text style={styles.datePickerDoneText}>Done</Text>
                     </TouchableOpacity>
                   </View>
-                  <View style={styles.timePickerContainer}>
-                    <View style={styles.customTimePicker}>
-                      {/* Hours */}
-                      <View style={styles.timePickerColumn}>
-                        <ScrollView
-                          style={styles.timePickerScroll}
-                          showsVerticalScrollIndicator={false}
-                          snapToInterval={50}
-                          decelerationRate="fast"
-                        >
-                          {Array.from({ length: 12 }, (_, i) => i + 1).map(
-                            (hour) => (
-                              <TouchableOpacity
-                                key={hour}
-                                style={[
-                                  styles.timePickerItem,
-                                  tempEndHour === hour &&
-                                    styles.timePickerItemSelected,
-                                ]}
-                                onPress={() => setTempEndHour(hour)}
-                              >
-                                <Text
-                                  style={[
-                                    styles.timePickerText,
-                                    tempEndHour === hour &&
-                                      styles.timePickerTextSelected,
-                                  ]}
-                                >
-                                  {hour.toString().padStart(2, "0")}
-                                </Text>
-                              </TouchableOpacity>
-                            )
-                          )}
-                        </ScrollView>
-                      </View>
-
-                      {/* Minutes */}
-                      <View style={styles.timePickerColumn}>
-                        <ScrollView
-                          style={styles.timePickerScroll}
-                          showsVerticalScrollIndicator={false}
-                          snapToInterval={50}
-                          decelerationRate="fast"
-                        >
-                          {Array.from({ length: 60 }, (_, i) => i).map(
-                            (minute) => (
-                              <TouchableOpacity
-                                key={minute}
-                                style={[
-                                  styles.timePickerItem,
-                                  tempEndMinute === minute &&
-                                    styles.timePickerItemSelected,
-                                ]}
-                                onPress={() => setTempEndMinute(minute)}
-                              >
-                                <Text
-                                  style={[
-                                    styles.timePickerText,
-                                    tempEndMinute === minute &&
-                                      styles.timePickerTextSelected,
-                                  ]}
-                                >
-                                  {minute.toString().padStart(2, "0")}
-                                </Text>
-                              </TouchableOpacity>
-                            )
-                          )}
-                        </ScrollView>
-                      </View>
-
-                      {/* AM/PM */}
-                      <View style={styles.timePickerColumn}>
-                        <ScrollView
-                          style={styles.timePickerScroll}
-                          showsVerticalScrollIndicator={false}
-                          snapToInterval={50}
-                          decelerationRate="fast"
-                        >
-                          {["AM", "PM"].map((amPm) => (
-                            <TouchableOpacity
-                              key={amPm}
-                              style={[
-                                styles.timePickerItem,
-                                tempEndAmPm === amPm &&
-                                  styles.timePickerItemSelected,
-                              ]}
-                              onPress={() =>
-                                setTempEndAmPm(amPm as "AM" | "PM")
-                              }
+                  {tempValidToDate && (
+                    <>
+                      <Calendar
+                        current={formatDate(tempValidToDate)}
+                        onDayPress={onValidToDateSelect}
+                        markedDates={{
+                          [formatDate(tempValidToDate)]: {
+                            selected: true,
+                            selectedColor: "#457E51",
+                            selectedTextColor: "#FFFFFF",
+                          },
+                        }}
+                        minDate={formatDate(new Date())}
+                        theme={{
+                          backgroundColor: "#FFFFFF",
+                          calendarBackground: "#FFFFFF",
+                          textSectionTitleColor: "#111827",
+                          selectedDayBackgroundColor: "#457E51",
+                          selectedDayTextColor: "#FFFFFF",
+                          todayTextColor: "#457E51",
+                          dayTextColor: "#111827",
+                          textDisabledColor: "#D1D5DB",
+                          dotColor: "#457E51",
+                          selectedDotColor: "#FFFFFF",
+                          arrowColor: "#457E51",
+                          monthTextColor: "#111827",
+                          indicatorColor: "#457E51",
+                          textDayFontWeight: "500",
+                          textMonthFontWeight: "bold",
+                          textDayHeaderFontWeight: "600",
+                          textDayFontSize: 16,
+                          textMonthFontSize: 18,
+                          textDayHeaderFontSize: 14,
+                        }}
+                        enableSwipeMonths={true}
+                      />
+                      <View style={styles.timePickerContainer}>
+                        <View style={styles.customTimePicker}>
+                          {/* Hours */}
+                          <View style={styles.timePickerColumn}>
+                            <ScrollView
+                              style={styles.timePickerScroll}
+                              showsVerticalScrollIndicator={false}
                             >
-                              <Text
-                                style={[
-                                  styles.timePickerText,
-                                  tempEndAmPm === amPm &&
-                                    styles.timePickerTextSelected,
-                                ]}
-                              >
-                                {amPm}
-                              </Text>
-                            </TouchableOpacity>
-                          ))}
-                        </ScrollView>
+                              {Array.from({ length: 12 }, (_, i) => i + 1).map(
+                                (hour) => (
+                                  <TouchableOpacity
+                                    key={hour}
+                                    style={[
+                                      styles.timePickerItem,
+                                      tempValidToHour === hour &&
+                                        styles.timePickerItemSelected,
+                                    ]}
+                                    onPress={() => setTempValidToHour(hour)}
+                                  >
+                                    <Text
+                                      style={[
+                                        styles.timePickerText,
+                                        tempValidToHour === hour &&
+                                          styles.timePickerTextSelected,
+                                      ]}
+                                    >
+                                      {hour.toString().padStart(2, "0")}
+                                    </Text>
+                                  </TouchableOpacity>
+                                )
+                              )}
+                            </ScrollView>
+                          </View>
+
+                          {/* Minutes */}
+                          <View style={styles.timePickerColumn}>
+                            <ScrollView
+                              style={styles.timePickerScroll}
+                              showsVerticalScrollIndicator={false}
+                            >
+                              {Array.from({ length: 60 }, (_, i) => i).map(
+                                (minute) => (
+                                  <TouchableOpacity
+                                    key={minute}
+                                    style={[
+                                      styles.timePickerItem,
+                                      tempValidToMinute === minute &&
+                                        styles.timePickerItemSelected,
+                                    ]}
+                                    onPress={() => setTempValidToMinute(minute)}
+                                  >
+                                    <Text
+                                      style={[
+                                        styles.timePickerText,
+                                        tempValidToMinute === minute &&
+                                          styles.timePickerTextSelected,
+                                      ]}
+                                    >
+                                      {minute.toString().padStart(2, "0")}
+                                    </Text>
+                                  </TouchableOpacity>
+                                )
+                              )}
+                            </ScrollView>
+                          </View>
+
+                          {/* AM/PM */}
+                          <View style={styles.timePickerColumn}>
+                            <ScrollView
+                              style={styles.timePickerScroll}
+                              showsVerticalScrollIndicator={false}
+                            >
+                              {["AM", "PM"].map((amPm) => (
+                                <TouchableOpacity
+                                  key={amPm}
+                                  style={[
+                                    styles.timePickerItem,
+                                    tempValidToAmPm === amPm &&
+                                      styles.timePickerItemSelected,
+                                  ]}
+                                  onPress={() =>
+                                    setTempValidToAmPm(amPm as "AM" | "PM")
+                                  }
+                                >
+                                  <Text
+                                    style={[
+                                      styles.timePickerText,
+                                      tempValidToAmPm === amPm &&
+                                        styles.timePickerTextSelected,
+                                    ]}
+                                  >
+                                    {amPm}
+                                  </Text>
+                                </TouchableOpacity>
+                              ))}
+                            </ScrollView>
+                          </View>
+                        </View>
                       </View>
-                    </View>
-                  </View>
+                    </>
+                  )}
                 </View>
               </TouchableOpacity>
             </TouchableOpacity>
@@ -1256,6 +1960,7 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     alignItems: "center",
     paddingHorizontal: 15,
+    paddingVertical: 10,
   },
   headerButton: {
     justifyContent: "center",
@@ -1269,46 +1974,64 @@ const styles = StyleSheet.create({
   scrollContent: {
     padding: 20,
     paddingBottom: 40,
+  },
+  section: {
     backgroundColor: "#FFFFFF",
-    margin: 20,
     borderRadius: 10,
-  },
-  graphicContainer: {
-    alignItems: "center",
-  },
-  formContainer: {
+    padding: 20,
     marginBottom: 20,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
   },
-  timeRow: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    gap: 15,
-    marginBottom: 15,
-  },
-  timeContainer: {
-    flex: 1,
+  sectionTitle: {
+    fontSize: 18,
+    fontWeight: "bold",
+    color: "#111827",
+    marginBottom: 20,
   },
   inputLabel: {
     fontSize: 14,
     fontWeight: "500",
     color: "#111827",
     marginBottom: 8,
-    marginTop: 5,
+    marginTop: 10,
+  },
+  labelRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 8,
+    marginTop: 10,
+  },
+  enterTextLink: {
+    fontSize: 14,
+    color: "#1E40AF",
+    fontWeight: "500",
+  },
+  required: {
+    color: "#EF4444",
   },
   inputContainer: {
     flexDirection: "row",
     alignItems: "center",
     borderWidth: 1,
     borderColor: "#ddd",
-    borderRadius: 10,
+    borderRadius: 8,
     paddingHorizontal: 15,
     marginBottom: 5,
     backgroundColor: "#FFFFFF",
-    minHeight: 50,
+    minHeight: 45,
   },
   inputContainerError: {
     borderColor: "#EF4444",
     borderWidth: 1.5,
+  },
+  inputContainerDisabled: {
+    backgroundColor: "#F3F4F6",
+    opacity: 0.6,
   },
   input: {
     flex: 1,
@@ -1319,25 +2042,145 @@ const styles = StyleSheet.create({
   placeholderText: {
     color: "#ADAEBC",
   },
-  generateButton: {
+  fileUploadButton: {
+    borderWidth: 1,
+    borderColor: "#ddd",
+    borderRadius: 8,
+    padding: 12,
+    marginBottom: 10,
+    backgroundColor: "#F9FAFB",
+  },
+  fileUploadText: {
+    fontSize: 14,
+    color: "#1E40AF",
+    fontWeight: "500",
+  },
+  fileUploadSubtext: {
+    fontSize: 12,
+    color: "#6B7280",
+    marginTop: 4,
+  },
+  textAreaContainer: {
+    borderWidth: 1,
+    borderColor: "#ddd",
+    borderRadius: 8,
+    paddingHorizontal: 15,
+    paddingVertical: 12,
+    marginBottom: 5,
+    backgroundColor: "#FFFFFF",
+    minHeight: 100,
+  },
+  textArea: {
+    fontSize: 16,
+    color: "#333",
+    minHeight: 80,
+  },
+  carPassDescription: {
+    fontSize: 14,
+    color: "#6B7280",
+    marginBottom: 10,
+  },
+  carPassStatus: {
+    fontSize: 14,
+    color: "#6B7280",
+    marginBottom: 15,
+    fontStyle: "italic",
+  },
+  addCarPassButton: {
     backgroundColor: "#457E51",
-    borderRadius: 10,
+    borderRadius: 8,
+    padding: 12,
+    alignItems: "center",
+  },
+  addCarPassButtonText: {
+    color: "#FFFFFF",
+    fontSize: 14,
+    fontWeight: "600",
+  },
+  carPassHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 10,
+  },
+  carPassFormContainer: {
+    borderWidth: 1,
+    borderColor: "#E5E7EB",
+    borderRadius: 8,
+    padding: 15,
+    backgroundColor: "#F9FAFB",
+    marginTop: 10,
+  },
+  carPassRow: {
+    flexDirection: "row",
+    gap: 15,
+    marginBottom: 15,
+  },
+  carPassColumn: {
+    flex: 1,
+  },
+  carPassInfo: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    padding: 12,
+    backgroundColor: "#F3F4F6",
+    borderRadius: 8,
+  },
+  carPassInfoText: {
+    fontSize: 14,
+    color: "#111827",
+  },
+  removeCarPassButton: {
+    padding: 5,
+  },
+  removeCarPassText: {
+    color: "#EF4444",
+    fontSize: 14,
+    fontWeight: "500",
+  },
+  actionButtons: {
+    flexDirection: "row",
+    gap: 15,
+    marginTop: 10,
+  },
+  resetButton: {
+    flex: 1,
+    backgroundColor: "#FFFFFF",
+    borderWidth: 1,
+    borderColor: "#457E51",
+    borderRadius: 8,
     padding: 15,
     alignItems: "center",
-
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.2,
-    shadowRadius: 4,
-    elevation: 4,
   },
-  generateButtonText: {
+  resetButtonText: {
+    color: "#457E51",
+    fontSize: 16,
+    fontWeight: "600",
+  },
+  issueButton: {
+    flex: 2,
+    backgroundColor: "#457E51",
+    borderRadius: 8,
+    padding: 15,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+  },
+  issueButtonDisabled: {
+    opacity: 0.6,
+  },
+  issueButtonText: {
     color: "#FFFFFF",
     fontSize: 16,
-    fontWeight: "bold",
+    fontWeight: "600",
   },
-  generateButtonDisabled: {
-    opacity: 0.6,
+  errorText: {
+    color: "#EF4444",
+    fontSize: 12,
+    marginBottom: 10,
+    marginLeft: 5,
   },
   modalOverlay: {
     flex: 1,
@@ -1375,6 +2218,31 @@ const styles = StyleSheet.create({
   modalItemText: {
     fontSize: 16,
     color: "#111827",
+  },
+  modalScrollView: {
+    maxHeight: 400,
+  },
+  modalInputContainer: {
+    padding: 20,
+  },
+  modalInput: {
+    borderWidth: 1,
+    borderColor: "#ddd",
+    borderRadius: 8,
+    padding: 12,
+    fontSize: 16,
+    marginBottom: 15,
+  },
+  modalSubmitButton: {
+    backgroundColor: "#457E51",
+    borderRadius: 8,
+    padding: 12,
+    alignItems: "center",
+  },
+  modalSubmitButtonText: {
+    color: "#FFFFFF",
+    fontSize: 16,
+    fontWeight: "600",
   },
   datePickerModalOverlay: {
     flex: 1,
@@ -1422,10 +2290,6 @@ const styles = StyleSheet.create({
     minHeight: 220,
     alignItems: "center",
     justifyContent: "center",
-    width: "100%",
-    borderRadius: 10,
-    marginHorizontal: 20,
-    marginVertical: 10,
   },
   customTimePicker: {
     flexDirection: "row",
@@ -1462,10 +2326,23 @@ const styles = StyleSheet.create({
     fontWeight: "600",
     fontSize: 24,
   },
-  errorText: {
-    color: "#EF4444",
-    fontSize: 12,
-    marginBottom: 10,
-    marginLeft: 5,
+  modalLoadingContainer: {
+    padding: 40,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  modalLoadingText: {
+    marginTop: 10,
+    fontSize: 16,
+    color: "#6B7280",
+  },
+  modalEmptyContainer: {
+    padding: 40,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  modalEmptyText: {
+    fontSize: 16,
+    color: "#6B7280",
   },
 });
