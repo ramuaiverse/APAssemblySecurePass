@@ -82,7 +82,10 @@ APAssemblySecurePass/
     ├── navigation/                  # Navigation setup
     │   └── index.tsx                # Navigation configuration with stack navigator
     ├── screens/                     # Screen components
-    │   ├── LoginScreen.tsx          # Authentication screen
+    │   ├── LoginMethodSelectionScreen.tsx  # Login method selection screen
+    │   ├── LoginScreen.tsx          # Username/password authentication screen
+    │   ├── UsernameOTPLoginScreen.tsx  # Username/OTP authentication screen
+    │   ├── PreCheckScreen.tsx       # Pre-check screen for security users
     │   ├── QRScanScreen.tsx         # QR code scanner screen with gate/action selection
     │   ├── ValidPassScreen.tsx      # Display valid pass details
     │   ├── InvalidPassScreen.tsx    # Display invalid pass alert
@@ -98,22 +101,53 @@ APAssemblySecurePass/
 
 The app integrates with backend APIs for authentication and pass management:
 
-- **Validation API Base URL**: `https://category-service-714903368119.us-central1.run.app`
-- **Backend API Base URL**: `https://smart-gate-backend-714903368119.us-central1.run.app`
-- **Authentication**: Username and password-based authentication
-- **Endpoints**:
-  - `POST /api/v1/pass-requests/auth/login` - User authentication (admin/security roles)
-  - `GET /api/v1/pass-requests/validate-qr/{qrCodeId}` - QR code validation (public)
-  - `GET /api/v1/pass-requests/validate/{passNumber}` - Pass number validation (public)
-  - `POST /api/v1/passes` - Create new visitor pass
+- **API Base URL**: `https://category-service-714903368119.us-central1.run.app`
+
+### Authentication Endpoints
+
+- `POST /api/v1/pass-requests/auth/login` - Username and password authentication (admin/security roles)
+- `POST /api/v1/pass-requests/auth/otp/generate` - Generate OTP for username-based login
+- `POST /api/v1/pass-requests/auth/otp/verify` - Verify OTP and complete login
+
+### Validation Endpoints (Public)
+
+- `GET /api/v1/pass-requests/validate-qr/{qrCodeId}` - Validate QR code (public, no authentication required)
+  - Query parameters: `gate` (optional), `gate_action` (optional: "entry" | "exit")
+- `GET /api/v1/pass-requests/validate-pass-number/{passNumber}` - Validate pass number (public, no authentication required)
+  - Query parameters: `auto_record_scan` (default: true), `scanned_by` (optional), `gate_location` (optional), `gate_action` (optional: "entry" | "exit")
+
+### Category Endpoints
+
+- `GET /api/v1/categories/main` - Get all main categories
+- `GET /api/v1/categories/main/{categoryId}/pass-types` - Get pass type IDs for a specific category
+- `GET /api/v1/categories/pass-types?active_only=true` - Get all active pass types
+- `GET /api/v1/categories/sessions?limit=1000&active_only=true` - Get all active sessions
+
+### Pass Request Endpoints
+
+- `POST /api/v1/pass-requests/submit-with-files` - Submit pass request with visitor photos and documents (multipart/form-data)
+- `PATCH /api/v1/pass-requests/{requestId}/status` - Update pass request status (approve/reject)
+- `POST /api/v1/pass-requests/{requestId}/generate-pass` - Generate pass for a pass request
+- `GET /api/v1/pass-requests/{requestId}` - Get pass request details
+
+### Issuer Endpoints
+
+- `GET /api/v1/issuers?limit=100&is_active=true` - Get all active pass issuers
+
+### Visitor Endpoints
+
+- `POST /api/v1/pass-requests/visitors/{visitorId}/suspend` - Suspend a visitor pass
 
 ## Authentication & Security
 
-- **Login System**: Username and password authentication
+- **Login Methods**:
+  - Username and password authentication
+  - Username and OTP (One-Time Password) authentication
 - **Role-Based Access**: Separate login flows for admin and security roles
 - **Admin Access**: Full access to issue visitor passes
 - **Security Access**: Access to QR scanning and pass validation
 - **Session Management**: Simple session-based navigation (no persistent storage)
+- **OTP System**: OTP is sent to registered email/phone for username-based login
 
 ## Technologies Used
 
@@ -181,11 +215,36 @@ The app validates QR codes by sending the `qr_code_id` to the backend API. The Q
   - iOS: Configured in `app.json` infoPlist
   - Android: Configured in `app.json` permissions
 
+## Features & Functionality
+
+### Pass Issuance Flow
+
+1. **Category Selection**: Select main category (e.g., Media, Department, etc.)
+2. **Sub-Category & Pass Type**: Automatically filtered based on selected category
+3. **Visitor Information**: Enter visitor details (name, email, phone, identification)
+4. **Session Selection**: Optional session selection for the pass
+5. **Date & Time**: Default valid from (8 AM) and valid to (5 PM) on current date
+6. **File Uploads**: Support for visitor photos and identification documents
+7. **Auto-Approval**: Passes are automatically approved and generated upon submission
+8. **Pass Preview**: Preview generated pass with QR code before sharing
+
+### Validation Flow
+
+1. **Mode Selection**: Choose between "Gate Entry/Exit" or "Verify Visitor" mode
+2. **Gate Selection**: Select gate location (Gate 1, 2, 3, 4, or Gallery) - required for entry/exit mode
+3. **Action Selection**: Select action type (Entry or Exit) - required for entry/exit mode
+4. **QR Scanning**: Scan QR code or enter 5-digit pass number
+5. **Validation**: Pass is validated against backend system
+6. **Result Display**: Show valid pass details or invalid pass alert
+
 ## Notes
 
 - The app uses role-based authentication (admin/security)
+- Two login methods available: Username/Password and Username/OTP
 - Admin users can issue visitor passes
 - Security users can scan and validate passes
-- Gate selection (Gate 1, 2, 3, 4, or Gallery) is required for validation
+- Gate selection (Gate 1, 2, 3, 4, or Gallery) is required for entry/exit validation mode
 - Entry and exit actions can be tracked during validation
 - The app supports various pass types including daily, single, multiple, and event passes
+- Passes are automatically approved and generated upon submission for instant issuance
+- All logout actions navigate to the login method selection screen

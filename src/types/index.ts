@@ -1,5 +1,7 @@
 export type RootStackParamList = {
+  LoginMethodSelection: undefined;
   Login: undefined;
+  UsernameOTPLogin: undefined;
   PreCheck: undefined;
   QRScan: {
     mode?: "gateEntryExit" | "verifyVisitor";
@@ -87,31 +89,13 @@ export type RootStackParamList = {
       message?: string;
     };
   };
-  IssueVisitorPass: undefined;
+  IssueVisitorPass: {
+    userFullName?: string;
+    userId?: string;
+  };
   PreviewPass: {
-    passData: {
-      id: string;
-      qr_code_id: string;
-      qr_code_url: string;
-      full_name: string;
-      email: string | null;
-      phone: string;
-      organization: string | null;
-      number_of_visitors: number;
-      purpose_of_visit: string;
-      pass_type: string;
-      entry_type: string;
-      valid_from: string;
-      valid_until: string;
-      status: string;
-      designation: string | null;
-      identification_type: string | null;
-      identification_number: string | null;
-      created_by: string | null;
-      requested_by: string | null;
-      session_category: string | null;
-      notes: string | null;
-      created_at: string;
-    };
+    passData: any; // Full API response from /api/v1/pass-requests/{request_id}
+    categoryName?: string; // Category name
+    passTypeName?: string; // Pass type name
   };
 };

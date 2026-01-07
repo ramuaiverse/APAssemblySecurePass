@@ -1,8 +1,3 @@
-// For web development, you may need to use a proxy or test on native devices
-// CORS only affects web browsers, not native iOS/Android apps
-const API_BASE_URL =
-  "https://smart-gate-backend-714903368119.us-central1.run.app";
-
 // Base URL for pass-requests validation APIs (no authentication required)
 const VALIDATION_API_BASE_URL =
   "https://category-service-714903368119.us-central1.run.app";
@@ -88,7 +83,7 @@ export interface QRValidationResponse {
 }
 
 // PassType enum from Swagger
-export type PassType = "daily" | "single" | "multiple" | "event";
+export type PassTypeEnum = "daily" | "single" | "multiple" | "event";
 
 // EntryType enum from Swagger
 export type EntryType = "single" | "multiple";
@@ -101,13 +96,107 @@ export interface VisitorFormData {
   organization?: string | null;
   numberOfVisitors: number;
   purposeOfVisit: string;
-  passType: PassType;
+  passType: PassTypeEnum;
   entryType: EntryType;
   validFrom: string; // ISO date-time string
   validUntil: string; // ISO date-time string
   notes?: string | null;
   identification_type?: string | null;
   identification_number?: string | null;
+}
+
+// SubCategory schema from category API
+export interface SubCategory {
+  name: string;
+  color: string | null;
+  hex_code: string | null;
+  description: string;
+  is_active: boolean;
+  daily_limit: number | null;
+  monthly_limit: number | null;
+  pass_type_id: string | null;
+  id: string;
+  main_category_id: string;
+  created_at: string;
+  updated_at: string;
+  restrictions: any[];
+  pass_type: string | null;
+}
+
+// MainCategory schema from category API
+export interface MainCategory {
+  type: string;
+  name: string;
+  color: string | null;
+  hex_code: string | null;
+  is_active: boolean;
+  created_by: string;
+  pass_type_id: string | null;
+  daily_limit: number | null;
+  id: string;
+  created_at: string;
+  updated_at: string;
+  sub_categories: SubCategory[];
+  pass_type: string | null;
+}
+
+// PassTypeItem schema from pass-types API
+export interface PassTypeItem {
+  id: string;
+  name: string;
+  description: string;
+  color: string;
+  is_active: boolean;
+  created_by: string;
+  created_at: string;
+  updated_at: string;
+}
+
+// Session schema from sessions API
+export interface Session {
+  id: string;
+  name: string;
+  description: string;
+  is_active: boolean;
+  created_by: string;
+  created_at: string;
+  updated_at: string;
+}
+
+// CategoryWeblink schema from issuers API
+export interface CategoryWeblink {
+  category_id: string;
+  category_name: string;
+  category_type: string;
+  weblink: string;
+  is_active: boolean;
+  id: string;
+  pass_issuer_id: string;
+  created_at: string;
+  updated_at: string;
+}
+
+// Issuer schema from issuers API
+export interface Issuer {
+  name: string;
+  type: string;
+  weblink: string;
+  is_active: boolean;
+  department_type: string | null;
+  mla_mlc_number: string | null;
+  constituency: string | null;
+  media_agency: string | null;
+  media_pass_type: string | null;
+  issuer_role: string | null;
+  institution_type: string | null;
+  contact_person: string | null;
+  contact_email: string | null;
+  contact_phone: string | null;
+  notes: string | null;
+  id: string;
+  created_at: string;
+  updated_at: string;
+  category_weblinks: CategoryWeblink[];
 }
 
 export const api = {
@@ -226,78 +315,6 @@ export const api = {
       }
 
       return loginData;
-    } catch (error) {
-      if (error instanceof Error) {
-        throw error;
-      }
-      throw new Error("Network error. Please check your connection.");
-    }
-  },
-
-  createPass: async (formData: VisitorFormData): Promise<PassResponse> => {
-    try {
-      const response = await fetch(`${API_BASE_URL}/api/v1/passes`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Accept: "application/json",
-        },
-        body: JSON.stringify(formData),
-      });
-
-      let data;
-      const contentType = response.headers.get("content-type");
-
-      if (contentType && contentType.includes("application/json")) {
-        data = await response.json();
-      } else {
-        const text = await response.text();
-        throw new Error(`Server error: ${text || `Status ${response.status}`}`);
-      }
-
-      if (!response.ok) {
-        // Handle 422 validation errors
-        if (response.status === 422) {
-          let errorMessage = "Validation Error: ";
-
-          if (Array.isArray(data?.detail)) {
-            const validationErrors = data.detail
-              .map((err: any) => {
-                const field =
-                  err.loc && Array.isArray(err.loc)
-                    ? err.loc.slice(1).join(".")
-                    : "field";
-                const msg = err.msg || err.message || "Invalid value";
-                return `${field}: ${msg}`;
-              })
-              .join("\n");
-            errorMessage += validationErrors;
-          } else if (typeof data?.detail === "string") {
-            errorMessage += data.detail;
-          } else {
-            errorMessage += "Invalid request format. Please check your input.";
-          }
-
-          throw new Error(errorMessage);
-        }
-
-        // Handle other errors
-        const errorMessage =
-          (Array.isArray(data?.detail)
-            ? data.detail
-                .map((e: any) => e.msg || e.message || JSON.stringify(e))
-                .join(", ")
-            : typeof data?.detail === "string"
-            ? data.detail
-            : data?.message || data?.error) ||
-          (typeof data === "string"
-            ? data
-            : `Failed to create pass: ${response.statusText}`);
-
-        throw new Error(errorMessage);
-      }
-
-      return data;
     } catch (error) {
       if (error instanceof Error) {
         throw error;
@@ -647,6 +664,670 @@ export const api = {
       }
 
       return responseData;
+    } catch (error) {
+      if (error instanceof Error) {
+        throw error;
+      }
+      throw new Error("Network error. Please check your connection.");
+    }
+  },
+
+  // Get main categories
+  getMainCategories: async (): Promise<MainCategory[]> => {
+    try {
+      const response = await fetch(
+        `${VALIDATION_API_BASE_URL}/api/v1/categories/main`,
+        {
+          method: "GET",
+          headers: {
+            "Content-Type": "application/json",
+            Accept: "application/json",
+          },
+        }
+      );
+
+      let data;
+      const contentType = response.headers.get("content-type");
+
+      if (contentType && contentType.includes("application/json")) {
+        data = await response.json();
+      } else {
+        const text = await response.text();
+        throw new Error(`Server error: ${text || `Status ${response.status}`}`);
+      }
+
+      if (!response.ok) {
+        const errorMessage =
+          (Array.isArray(data?.detail)
+            ? data.detail
+                .map((e: any) => e.msg || e.message || JSON.stringify(e))
+                .join(", ")
+            : typeof data?.detail === "string"
+            ? data.detail
+            : data?.message || data?.error) ||
+          (typeof data === "string"
+            ? data
+            : `Failed to fetch categories: ${response.statusText}`);
+
+        throw new Error(errorMessage);
+      }
+
+      // Filter only active categories
+      const activeCategories = (data as MainCategory[]).filter(
+        (category) => category.is_active
+      );
+
+      return activeCategories;
+    } catch (error) {
+      if (error instanceof Error) {
+        throw error;
+      }
+      throw new Error("Network error. Please check your connection.");
+    }
+  },
+
+  // Get pass types for a specific category
+  getCategoryPassTypes: async (categoryId: string): Promise<string[]> => {
+    try {
+      const response = await fetch(
+        `${VALIDATION_API_BASE_URL}/api/v1/categories/main/${categoryId}/pass-types`,
+        {
+          method: "GET",
+          headers: {
+            "Content-Type": "application/json",
+            Accept: "application/json",
+          },
+        }
+      );
+
+      let data;
+      const contentType = response.headers.get("content-type");
+
+      if (contentType && contentType.includes("application/json")) {
+        data = await response.json();
+      } else {
+        const text = await response.text();
+        throw new Error(`Server error: ${text || `Status ${response.status}`}`);
+      }
+
+      if (!response.ok) {
+        const errorMessage =
+          (Array.isArray(data?.detail)
+            ? data.detail
+                .map((e: any) => e.msg || e.message || JSON.stringify(e))
+                .join(", ")
+            : typeof data?.detail === "string"
+            ? data.detail
+            : data?.message || data?.error) ||
+          (typeof data === "string"
+            ? data
+            : `Failed to fetch category pass types: ${response.statusText}`);
+
+        throw new Error(errorMessage);
+      }
+
+      // Return array of string IDs
+      return Array.isArray(data) ? data : [];
+    } catch (error) {
+      if (error instanceof Error) {
+        throw error;
+      }
+      throw new Error("Network error. Please check your connection.");
+    }
+  },
+
+  // Get all pass types
+  getAllPassTypes: async (): Promise<PassTypeItem[]> => {
+    try {
+      const response = await fetch(
+        `${VALIDATION_API_BASE_URL}/api/v1/categories/pass-types?active_only=true`,
+        {
+          method: "GET",
+          headers: {
+            "Content-Type": "application/json",
+            Accept: "application/json",
+          },
+        }
+      );
+
+      let data;
+      const contentType = response.headers.get("content-type");
+
+      if (contentType && contentType.includes("application/json")) {
+        data = await response.json();
+      } else {
+        const text = await response.text();
+        throw new Error(`Server error: ${text || `Status ${response.status}`}`);
+      }
+
+      if (!response.ok) {
+        const errorMessage =
+          (Array.isArray(data?.detail)
+            ? data.detail
+                .map((e: any) => e.msg || e.message || JSON.stringify(e))
+                .join(", ")
+            : typeof data?.detail === "string"
+            ? data.detail
+            : data?.message || data?.error) ||
+          (typeof data === "string"
+            ? data
+            : `Failed to fetch pass types: ${response.statusText}`);
+
+        throw new Error(errorMessage);
+      }
+
+      // Return array of pass types
+      return Array.isArray(data) ? data : [];
+    } catch (error) {
+      if (error instanceof Error) {
+        throw error;
+      }
+      throw new Error("Network error. Please check your connection.");
+    }
+  },
+
+  // Submit pass request with files
+  submitPassRequestWithFiles: async (formData: FormData): Promise<any> => {
+    const url = `${VALIDATION_API_BASE_URL}/api/v1/pass-requests/submit-with-files`;
+
+    try {
+      const response = await fetch(url, {
+        method: "POST",
+        headers: {
+          Accept: "application/json",
+          // Don't set Content-Type - let fetch set it with boundary for FormData
+        },
+        body: formData,
+      });
+
+      let data;
+      const contentType = response.headers.get("content-type");
+
+      if (contentType && contentType.includes("application/json")) {
+        data = await response.json();
+      } else {
+        const text = await response.text();
+        throw new Error(`Server error: ${text || `Status ${response.status}`}`);
+      }
+
+      if (!response.ok) {
+        // Handle 422 validation errors
+        if (response.status === 422) {
+          let errorMessage = "Validation Error: ";
+
+          if (Array.isArray(data?.detail)) {
+            const validationErrors = data.detail
+              .map((err: any) => {
+                const field =
+                  err.loc && Array.isArray(err.loc)
+                    ? err.loc.slice(1).join(".")
+                    : "field";
+                const msg = err.msg || err.message || "Invalid value";
+                return `${field}: ${msg}`;
+              })
+              .join("\n");
+            errorMessage += validationErrors;
+          } else if (typeof data?.detail === "string") {
+            errorMessage += data.detail;
+          } else {
+            errorMessage += "Invalid request format. Please check your input.";
+          }
+
+          throw new Error(errorMessage);
+        }
+
+        // Handle other errors
+        const errorMessage =
+          (Array.isArray(data?.detail)
+            ? data.detail
+                .map((e: any) => e.msg || e.message || JSON.stringify(e))
+                .join(", ")
+            : typeof data?.detail === "string"
+            ? data.detail
+            : data?.message || data?.error) ||
+          (typeof data === "string"
+            ? data
+            : `Failed to submit pass request: ${response.statusText}`);
+
+        throw new Error(errorMessage);
+      }
+
+      return data;
+    } catch (error) {
+      if (error instanceof Error) {
+        throw error;
+      }
+      throw new Error("Network error. Please check your connection.");
+    }
+  },
+
+  // Get sessions
+  getSessions: async (): Promise<Session[]> => {
+    try {
+      const response = await fetch(
+        `${VALIDATION_API_BASE_URL}/api/v1/categories/sessions?limit=1000&active_only=true`,
+        {
+          method: "GET",
+          headers: {
+            "Content-Type": "application/json",
+            Accept: "application/json",
+          },
+        }
+      );
+
+      let data;
+      const contentType = response.headers.get("content-type");
+
+      if (contentType && contentType.includes("application/json")) {
+        data = await response.json();
+      } else {
+        const text = await response.text();
+        throw new Error(`Server error: ${text || `Status ${response.status}`}`);
+      }
+
+      if (!response.ok) {
+        const errorMessage =
+          (Array.isArray(data?.detail)
+            ? data.detail
+                .map((e: any) => e.msg || e.message || JSON.stringify(e))
+                .join(", ")
+            : typeof data?.detail === "string"
+            ? data.detail
+            : data?.message || data?.error) ||
+          (typeof data === "string"
+            ? data
+            : `Failed to fetch sessions: ${response.statusText}`);
+
+        throw new Error(errorMessage);
+      }
+
+      // Return array of sessions
+      return Array.isArray(data) ? data : [];
+    } catch (error) {
+      if (error instanceof Error) {
+        throw error;
+      }
+      throw new Error("Network error. Please check your connection.");
+    }
+  },
+
+  // Update pass request status
+  updatePassRequestStatus: async (
+    requestId: string,
+    statusData: {
+      status: string;
+      comments?: string;
+      current_user_id: string;
+      pass_category_id?: string;
+      pass_sub_category_id?: string;
+      pass_type_id?: string;
+      season?: string;
+    }
+  ): Promise<any> => {
+    const url = `${VALIDATION_API_BASE_URL}/api/v1/pass-requests/${requestId}/status`;
+
+    try {
+      const formData = new FormData();
+      formData.append("status", statusData.status);
+      if (statusData.comments) {
+        formData.append("comments", statusData.comments);
+      }
+      formData.append("current_user_id", statusData.current_user_id);
+      if (statusData.pass_category_id) {
+        formData.append("pass_category_id", statusData.pass_category_id);
+      }
+      if (statusData.pass_sub_category_id) {
+        formData.append(
+          "pass_sub_category_id",
+          statusData.pass_sub_category_id
+        );
+      }
+      if (statusData.pass_type_id) {
+        formData.append("pass_type_id", statusData.pass_type_id);
+      }
+      if (statusData.season) {
+        formData.append("season", statusData.season);
+      }
+
+      const response = await fetch(url, {
+        method: "PATCH",
+        headers: {
+          Accept: "application/json",
+        },
+        body: formData,
+      });
+
+      let data;
+      const contentType = response.headers.get("content-type");
+
+      if (contentType && contentType.includes("application/json")) {
+        data = await response.json();
+      } else {
+        const text = await response.text();
+        if (!response.ok) {
+          throw new Error(
+            `Server error: ${text || `Status ${response.status}`}`
+          );
+        }
+      }
+
+      if (!response.ok) {
+        const errorMessage =
+          (Array.isArray(data?.detail)
+            ? data.detail
+                .map((e: any) => e.msg || e.message || JSON.stringify(e))
+                .join(", ")
+            : typeof data?.detail === "string"
+            ? data.detail
+            : data?.message || data?.error) ||
+          (typeof data === "string"
+            ? data
+            : `Failed to update pass request status: ${response.statusText}`);
+
+        throw new Error(errorMessage);
+      }
+
+      return data;
+    } catch (error) {
+      if (error instanceof Error) {
+        throw error;
+      }
+      throw new Error("Network error. Please check your connection.");
+    }
+  },
+
+  // Generate pass for a request
+  generatePass: async (
+    requestId: string,
+    generateData: {
+      visitor_id: string;
+      pass_category_id?: string;
+      pass_sub_category_id?: string;
+      pass_type_id?: string;
+      current_user_id: string;
+    }
+  ): Promise<any> => {
+    const url = `${VALIDATION_API_BASE_URL}/api/v1/pass-requests/${requestId}/generate-pass`;
+
+    try {
+      const formData = new FormData();
+      formData.append("visitor_id", generateData.visitor_id);
+      formData.append("current_user_id", generateData.current_user_id);
+      if (generateData.pass_category_id) {
+        formData.append("pass_category_id", generateData.pass_category_id);
+      }
+      if (generateData.pass_sub_category_id) {
+        formData.append(
+          "pass_sub_category_id",
+          generateData.pass_sub_category_id
+        );
+      }
+      if (generateData.pass_type_id) {
+        formData.append("pass_type_id", generateData.pass_type_id);
+      }
+
+      const response = await fetch(url, {
+        method: "POST",
+        headers: {
+          Accept: "application/json",
+        },
+        body: formData,
+      });
+
+      let data;
+      const contentType = response.headers.get("content-type");
+
+      if (contentType && contentType.includes("application/json")) {
+        data = await response.json();
+      } else {
+        const text = await response.text();
+        if (!response.ok) {
+          throw new Error(
+            `Server error: ${text || `Status ${response.status}`}`
+          );
+        }
+      }
+
+      if (!response.ok) {
+        const errorMessage =
+          (Array.isArray(data?.detail)
+            ? data.detail
+                .map((e: any) => e.msg || e.message || JSON.stringify(e))
+                .join(", ")
+            : typeof data?.detail === "string"
+            ? data.detail
+            : data?.message || data?.error) ||
+          (typeof data === "string"
+            ? data
+            : `Failed to generate pass: ${response.statusText}`);
+
+        throw new Error(errorMessage);
+      }
+
+      return data;
+    } catch (error) {
+      if (error instanceof Error) {
+        throw error;
+      }
+      throw new Error("Network error. Please check your connection.");
+    }
+  },
+
+  // Get pass request details
+  getPassRequest: async (requestId: string): Promise<any> => {
+    const url = `${VALIDATION_API_BASE_URL}/api/v1/pass-requests/${requestId}`;
+
+    try {
+      const response = await fetch(url, {
+        method: "GET",
+        headers: {
+          "Content-Type": "application/json",
+          Accept: "application/json",
+        },
+      });
+
+      let data;
+      const contentType = response.headers.get("content-type");
+
+      if (contentType && contentType.includes("application/json")) {
+        data = await response.json();
+      } else {
+        const text = await response.text();
+        throw new Error(`Server error: ${text || `Status ${response.status}`}`);
+      }
+
+      if (!response.ok) {
+        const errorMessage =
+          (Array.isArray(data?.detail)
+            ? data.detail
+                .map((e: any) => e.msg || e.message || JSON.stringify(e))
+                .join(", ")
+            : typeof data?.detail === "string"
+            ? data.detail
+            : data?.message || data?.error) ||
+          (typeof data === "string"
+            ? data
+            : `Failed to get pass request: ${response.statusText}`);
+
+        throw new Error(errorMessage);
+      }
+
+      return data;
+    } catch (error) {
+      if (error instanceof Error) {
+        throw error;
+      }
+      throw new Error("Network error. Please check your connection.");
+    }
+  },
+
+  // Get all active issuers
+  getIssuers: async (): Promise<Issuer[]> => {
+    const url = `${VALIDATION_API_BASE_URL}/api/v1/issuers?limit=100&is_active=true`;
+
+    try {
+      const response = await fetch(url, {
+        method: "GET",
+        headers: {
+          "Content-Type": "application/json",
+          Accept: "application/json",
+        },
+      });
+
+      let data;
+      const contentType = response.headers.get("content-type");
+
+      if (contentType && contentType.includes("application/json")) {
+        data = await response.json();
+      } else {
+        const text = await response.text();
+        throw new Error(`Server error: ${text || `Status ${response.status}`}`);
+      }
+
+      if (!response.ok) {
+        const errorMessage =
+          (Array.isArray(data?.detail)
+            ? data.detail
+                .map((e: any) => e.msg || e.message || JSON.stringify(e))
+                .join(", ")
+            : typeof data?.detail === "string"
+            ? data.detail
+            : data?.message || data?.error) ||
+          (typeof data === "string"
+            ? data
+            : `Failed to get issuers: ${response.statusText}`);
+
+        throw new Error(errorMessage);
+      }
+
+      return Array.isArray(data) ? data : [];
+    } catch (error) {
+      if (error instanceof Error) {
+        throw error;
+      }
+      throw new Error("Network error. Please check your connection.");
+    }
+  },
+
+  // Generate OTP for username
+  generateOTP: async (username: string): Promise<any> => {
+    const url = `${VALIDATION_API_BASE_URL}/api/v1/pass-requests/auth/otp/generate`;
+
+    try {
+      // Format as application/x-www-form-urlencoded
+      const formData = new URLSearchParams();
+      formData.append("username", username);
+      formData.append("expected_role", "");
+
+      const response = await fetch(url, {
+        method: "POST",
+        headers: {
+          Accept: "application/json",
+          "Content-Type": "application/x-www-form-urlencoded",
+        },
+        body: formData.toString(),
+      });
+
+      let data;
+      const contentType = response.headers.get("content-type");
+
+      if (contentType && contentType.includes("application/json")) {
+        data = await response.json();
+      } else {
+        const text = await response.text();
+        if (!response.ok) {
+          throw new Error(
+            `Server error: ${text || `Status ${response.status}`}`
+          );
+        }
+      }
+
+      if (!response.ok) {
+        const errorMessage =
+          (Array.isArray(data?.detail)
+            ? data.detail
+                .map((e: any) => e.msg || e.message || JSON.stringify(e))
+                .join(", ")
+            : typeof data?.detail === "string"
+            ? data.detail
+            : data?.message || data?.error) ||
+          (typeof data === "string"
+            ? data
+            : `Failed to generate OTP: ${response.statusText}`);
+
+        throw new Error(errorMessage);
+      }
+
+      return data;
+    } catch (error) {
+      if (error instanceof Error) {
+        throw error;
+      }
+      throw new Error("Network error. Please check your connection.");
+    }
+  },
+
+  // Verify OTP and login
+  verifyOTP: async (
+    username: string,
+    otpCode: string
+  ): Promise<LoginResponse> => {
+    const url = `${VALIDATION_API_BASE_URL}/api/v1/pass-requests/auth/otp/verify`;
+
+    try {
+      // Format as application/x-www-form-urlencoded
+      const formData = new URLSearchParams();
+      formData.append("username", username);
+      formData.append("otp_code", otpCode);
+      formData.append("expected_role", "");
+
+      const response = await fetch(url, {
+        method: "POST",
+        headers: {
+          Accept: "application/json",
+          "Content-Type": "application/x-www-form-urlencoded",
+        },
+        body: formData.toString(),
+      });
+
+      let data;
+      const contentType = response.headers.get("content-type");
+
+      if (contentType && contentType.includes("application/json")) {
+        data = await response.json();
+      } else {
+        const text = await response.text();
+        throw new Error(`Server error: ${text || `Status ${response.status}`}`);
+      }
+
+      if (!response.ok) {
+        const errorMessage =
+          (Array.isArray(data?.detail)
+            ? data.detail
+                .map((e: any) => e.msg || e.message || JSON.stringify(e))
+                .join(", ")
+            : typeof data?.detail === "string"
+            ? data.detail
+            : data?.message || data?.error) ||
+          (typeof data === "string"
+            ? data
+            : `Failed to verify OTP: ${response.statusText}`);
+
+        // Check if this is an invalid OTP error
+        const errorLower = errorMessage.toLowerCase();
+        const isInvalidOTP =
+          errorLower.includes("invalid") ||
+          errorLower.includes("incorrect") ||
+          errorLower.includes("wrong") ||
+          errorLower.includes("otp") ||
+          errorLower.includes("expired");
+
+        const otpError = new Error(errorMessage);
+        (otpError as any).isInvalidOTP = isInvalidOTP;
+        throw otpError;
+      }
+
+      return data as LoginResponse;
     } catch (error) {
       if (error instanceof Error) {
         throw error;

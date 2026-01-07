@@ -32,18 +32,16 @@ type Props = {
   route: PreviewPassScreenRouteProp;
 };
 
-// QR Code Component - generates QR code from qr_code_id
+// QR Code Component - generates QR code from pass_qr_string
 const QRCodeDisplay = ({
-  qrCodeId,
-  qrCodeUrl,
+  qrCodeString,
   qrCodeViewRef,
 }: {
-  qrCodeId?: string;
-  qrCodeUrl?: string | null;
+  qrCodeString?: string;
   qrCodeViewRef?: React.RefObject<View | null>;
 }) => {
-  // Use qr_code_id to generate QR code, fallback to URL if ID not available
-  const qrData = qrCodeId || qrCodeUrl || "";
+  // Use pass_qr_string to generate QR code
+  const qrData = qrCodeString || "";
 
   if (!qrData) {
     return (
@@ -73,17 +71,30 @@ const QRCodeDisplay = ({
 export default function PreviewPassScreen({ navigation, route }: Props) {
   // Ref for QR code view to capture as image
   const qrCodeViewRef = useRef<View>(null);
+  // Ref for entire card container to capture as image
+  const cardContainerRef = useRef<View>(null);
 
-  // Get pass data from route params
-  const passData = route.params?.passData;
+  // Get pass data from route params (full API response)
+  const passRequestData = route.params?.passData;
+  const categoryName = route.params?.categoryName || null;
+  const passTypeName = route.params?.passTypeName || null;
 
-  // Extract data from passData or use fallback
-  const visitorName = passData?.full_name || "N/A";
-  const mobileNumber = passData?.phone || "N/A";
-  const purpose = passData?.purpose_of_visit || "N/A";
-  const numberOfVisitors = passData?.number_of_visitors?.toString() || "1";
-  const qrCodeUrl = passData?.qr_code_url || null;
-  const qrCodeId = passData?.qr_code_id || "";
+  // Extract first visitor from visitors array
+  const firstVisitor = passRequestData?.visitors?.[0];
+
+  // Extract data from API response
+  const visitorName =
+    firstVisitor?.first_name && firstVisitor?.last_name
+      ? `${firstVisitor.first_name} ${firstVisitor.last_name}`.trim()
+      : "N/A";
+  const purpose = passRequestData?.purpose || "N/A";
+  const numberOfVisitors = passRequestData?.visitors?.length?.toString() || "1";
+  const qrCodeString = firstVisitor?.pass_qr_string || "";
+  const passNumber = firstVisitor?.pass_number || null;
+  const identificationType = firstVisitor?.identification_type || null;
+  const identificationNumber = firstVisitor?.identification_number || null;
+  const requestedBy = passRequestData?.requested_by || null;
+  const season = passRequestData?.season || null;
 
   // Format dates from ISO strings
   const formatDateFromISO = (isoString: string) => {
@@ -114,14 +125,14 @@ export default function PreviewPassScreen({ navigation, route }: Props) {
     }
   };
 
-  const date = passData?.valid_from
-    ? formatDateFromISO(passData.valid_from)
+  const date = passRequestData?.valid_from
+    ? formatDateFromISO(passRequestData.valid_from)
     : "N/A";
-  const startTime = passData?.valid_from
-    ? formatTimeFromISO(passData.valid_from)
+  const startTime = passRequestData?.valid_from
+    ? formatTimeFromISO(passRequestData.valid_from)
     : "N/A";
-  const endTime = passData?.valid_until
-    ? formatTimeFromISO(passData.valid_until)
+  const endTime = passRequestData?.valid_to
+    ? formatTimeFromISO(passRequestData.valid_to)
     : "N/A";
 
   // Format phone number to show only digits
@@ -140,25 +151,33 @@ export default function PreviewPassScreen({ navigation, route }: Props) {
 
   const handleShare = async () => {
     try {
-      const shareMessage = `Visitor Pass - Assembly Session
+      const shareMessage = `Visitor Pass${season ? ` - ${season}` : ""}
 
 Name: ${visitorName}
-Phone: ${formatPhoneNumber(mobileNumber)}
+${passNumber ? `Pass Number: ${passNumber}` : ""}
 Date: ${date}
 Time Slot: ${startTime} - ${endTime}
 Purpose: ${purpose}
+${
+  identificationType && identificationNumber
+    ? `${
+        identificationType.charAt(0).toUpperCase() + identificationType.slice(1)
+      }: ${identificationNumber}`
+    : ""
+}
+${requestedBy ? `Requested By: ${requestedBy}` : ""}
 Visitors: ${numberOfVisitors} Person${parseInt(numberOfVisitors) > 1 ? "s" : ""}
-${qrCodeId ? `QR Code ID: ${qrCodeId}` : ""}
+${qrCodeString ? `QR Code: ${qrCodeString}` : ""}
 
 This pass is authorized for entry.`;
 
       let imageUri: string | null = null;
 
-      // Try to capture QR code as image
+      // Try to capture entire card container as image (includes all details)
       try {
-        if (qrCodeViewRef.current) {
-          // Capture the QR code view as an image
-          const uri = await captureRef(qrCodeViewRef, {
+        if (cardContainerRef.current) {
+          // Capture the entire card container as an image
+          const uri = await captureRef(cardContainerRef, {
             format: "png",
             quality: 1.0,
             result: "tmpfile",
@@ -166,8 +185,8 @@ This pass is authorized for entry.`;
 
           imageUri = uri;
         }
-      } catch (qrError) {
-        // Continue with text-only share if QR capture fails
+      } catch (captureError) {
+        // Continue with text-only share if capture fails
       }
 
       const shareOptions: any = {
@@ -184,9 +203,11 @@ This pass is authorized for entry.`;
             ? `file://${imageUri}`
             : imageUri;
         shareOptions.url = fileUri;
-      } else if (qrCodeUrl) {
-        // Fallback to QR code URL if image capture failed
-        shareOptions.url = qrCodeUrl;
+
+        // On Android, also include the message in the share
+        if (Platform.OS === "android") {
+          shareOptions.message = `${shareMessage}\n\n[Image attached]`;
+        }
       }
 
       const result = await Share.share(shareOptions);
@@ -220,69 +241,93 @@ This pass is authorized for entry.`;
         showsVerticalScrollIndicator={false}
       >
         {/* White Card Container */}
-        <View style={styles.cardContainer}>
-          <Text style={styles.cardTitle}>Assembly session</Text>
+        <View
+          ref={cardContainerRef}
+          style={styles.cardContainer}
+          collapsable={false}
+        >
+          {/* Session Title */}
+          {season && <Text style={styles.sessionTitle}>{season}</Text>}
+
           {/* QR Code */}
           <QRCodeDisplay
-            qrCodeId={qrCodeId}
-            qrCodeUrl={qrCodeUrl}
+            qrCodeString={qrCodeString}
             qrCodeViewRef={qrCodeViewRef}
           />
 
-          {/* Name and Phone Number */}
+          {/* Visitor Name */}
           <View style={styles.nameSection}>
             <Text style={styles.visitorName}>{visitorName}</Text>
-            <Text style={styles.phoneNumber}>
-              {formatPhoneNumber(mobileNumber)}
+          </View>
+
+          {/* Pass Details - Simple Text Format */}
+          <View style={styles.detailsContainer}>
+            {passNumber && (
+              <Text style={styles.detailText}>
+                <Text style={styles.detailLabel}>Pass No: </Text>
+                <Text>{passNumber}</Text>
+              </Text>
+            )}
+            <Text style={styles.detailText}>
+              <Text style={styles.detailLabel}>Date: </Text>
+              <Text>{date}</Text>
+            </Text>
+            <Text style={styles.detailText}>
+              <Text style={styles.detailLabel}>Time Slot: </Text>
+              <Text>
+                {startTime} - {endTime}
+              </Text>
+            </Text>
+            <Text style={styles.detailText}>
+              <Text style={styles.detailLabel}>Purpose: </Text>
+              <Text>{purpose}</Text>
+            </Text>
+            {identificationType && identificationNumber && (
+              <Text style={styles.detailText}>
+                <Text style={styles.detailLabel}>
+                  {identificationType.charAt(0).toUpperCase() +
+                    identificationType.slice(1)}
+                  :{" "}
+                </Text>
+                <Text>{identificationNumber}</Text>
+              </Text>
+            )}
+            {requestedBy && (
+              <Text style={styles.detailText}>
+                <Text style={styles.detailLabel}>Requested By: </Text>
+                <Text>{requestedBy}</Text>
+              </Text>
+            )}
+            {categoryName && (
+              <Text style={styles.detailText}>
+                <Text style={styles.detailLabel}>Category: </Text>
+                <Text>{categoryName}</Text>
+              </Text>
+            )}
+            {passTypeName && (
+              <Text style={styles.detailText}>
+                <Text style={styles.detailLabel}>Pass Type: </Text>
+                <Text>{passTypeName}</Text>
+              </Text>
+            )}
+            <Text style={styles.detailText}>
+              <Text style={styles.detailLabel}>Visitors: </Text>
+              <Text>
+                {numberOfVisitors} Person
+                {parseInt(numberOfVisitors) > 1 ? "s" : ""}
+              </Text>
             </Text>
           </View>
 
-          {/* Date and Time Slot Row */}
-          <View style={styles.dateTimeRow}>
-            <View style={styles.dateTimeItem}>
-              <Text style={styles.fieldLabel}>Date</Text>
-              <Text style={styles.fieldValue}>{date}</Text>
-            </View>
-            <View style={styles.dateTimeItem}>
-              <Text style={styles.fieldLabel}>Time Slot</Text>
-              <Text style={styles.fieldValue}>
-                {startTime} - {endTime}
-              </Text>
-            </View>
-          </View>
-
-          {/* Purpose */}
-          <View style={styles.purposeSection}>
-            <Text style={styles.fieldLabel}>Purpose</Text>
-            <Text style={styles.fieldValue}>{purpose}</Text>
-          </View>
-
-          {/* Visitors and Authorized Badge Row */}
-          <View style={styles.visitorsRow}>
-            <View style={styles.visitorsItem}>
-              <Text style={styles.fieldLabel}>Visitors</Text>
-              <Text style={styles.fieldValue}>
-                {numberOfVisitors} Person
-                {parseInt(numberOfVisitors) > 1 ? "(s)" : ""}
-              </Text>
-            </View>
-            <View style={styles.authorizedBadge}>
-              <View style={styles.authorizedBadgeInner}>
-                <Text style={styles.authorizedText}>AUTHORIZED</Text>
-              </View>
+          {/* Authorized Badge */}
+          <View style={styles.authorizedBadge}>
+            <View style={styles.authorizedBadgeInner}>
+              <Text style={styles.authorizedText}>AUTHORIZED</Text>
             </View>
           </View>
 
           {/* Action Buttons */}
           <View style={styles.actionButtons}>
-            {/* <TouchableOpacity style={styles.actionButton} onPress={handlePrint}>
-              <PrintIcon width={14} height={14} />
-              <Text style={styles.actionButtonText}>Print</Text>
-            </TouchableOpacity>
-            <TouchableOpacity style={styles.actionButton} onPress={handlePDF}>
-              <DownloadIcon width={14} height={14} />
-              <Text style={styles.actionButtonText}>PDF</Text>
-            </TouchableOpacity> */}
             <TouchableOpacity style={styles.shareButton} onPress={handleShare}>
               <ShareIcon width={14} height={14} />
               <Text style={styles.shareButtonText}>Share</Text>
@@ -327,12 +372,6 @@ const styles = StyleSheet.create({
     paddingBottom: 40,
     alignItems: "center",
   },
-  cardTitle: {
-    fontSize: 18,
-    fontWeight: "bold",
-    color: "#111827",
-    marginBottom: 12,
-  },
   cardContainer: {
     width: "100%",
     maxWidth: 400,
@@ -350,6 +389,13 @@ const styles = StyleSheet.create({
     elevation: 8,
     zIndex: 1,
     position: "relative",
+  },
+  sessionTitle: {
+    fontSize: 18,
+    fontWeight: "bold",
+    color: "#111827",
+    marginBottom: 20,
+    textAlign: "center",
   },
   qrCodeContainer: {
     marginBottom: 20,
@@ -374,67 +420,32 @@ const styles = StyleSheet.create({
     marginBottom: 24,
   },
   visitorName: {
-    fontSize: 18,
+    fontSize: 20,
     fontWeight: "bold",
     color: "#111827",
     marginBottom: 6,
   },
-  phoneNumber: {
-    fontSize: 14,
-    color: "#6B7280",
-  },
-  dateTimeRow: {
-    flexDirection: "row",
+  detailsContainer: {
     width: "100%",
-    marginBottom: 20,
-    gap: 16,
-  },
-  dateTimeItem: {
-    flex: 1,
-    backgroundColor: "#F9FAFB",
-    borderWidth: 1,
-    borderColor: "#E5E7EB",
-    borderRadius: 8,
-    padding: 12,
-  },
-  purposeSection: {
-    width: "100%",
-    marginBottom: 20,
-    backgroundColor: "#F9FAFB",
-    borderWidth: 1,
-    borderColor: "#E5E7EB",
-    borderRadius: 8,
-    padding: 12,
-  },
-  visitorsRow: {
-    flexDirection: "row",
-    width: "100%",
-    alignItems: "flex-end",
+    alignItems: "flex-start",
     marginBottom: 24,
   },
-  visitorsItem: {
-    flex: 1,
-    backgroundColor: "#F9FAFB",
-    borderWidth: 1,
-    borderColor: "#E5E7EB",
-    borderRadius: 8,
-    padding: 12,
-  },
-  fieldLabel: {
-    fontSize: 12,
-    color: "#9CA3AF",
-    marginBottom: 6,
-  },
-  fieldValue: {
+  detailText: {
     fontSize: 14,
     color: "#111827",
-    fontWeight: "500",
+    marginBottom: 12,
+    lineHeight: 20,
+  },
+  detailLabel: {
+    fontWeight: "bold",
   },
   authorizedBadge: {
     backgroundColor: "#E3F7E8",
     padding: 4,
     borderRadius: 16,
-    marginLeft: 12,
+    marginBottom: 24,
+    alignSelf: "center",
+    marginTop: 8,
   },
   authorizedBadgeInner: {
     backgroundColor: "#DCFCE7",
@@ -452,8 +463,6 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     width: "100%",
     paddingTop: 20,
-    borderTopWidth: 1,
-    borderTopColor: "#F3F4F6",
   },
   shareButton: {
     width: "60%",

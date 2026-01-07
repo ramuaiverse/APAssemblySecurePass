@@ -24,11 +24,11 @@ type Props = {
 
 export default function PreCheckScreen({ navigation }: Props) {
   const handleBack = () => {
-    navigation.replace("Login");
+    navigation.replace("LoginMethodSelection");
   };
 
   const handleLogout = () => {
-    navigation.replace("Login");
+    navigation.replace("LoginMethodSelection");
   };
 
   const handleGateEntryExit = () => {

@@ -41,8 +41,7 @@
       }
     },
     "web": {
-      "favicon": "./assets/icon.png",
-      "proxy": "https://smart-gate-backend-714903368119.us-central1.run.app"
+      "favicon": "./assets/icon.png"
     },
     "plugins": [
       [

@@ -16,62 +16,89 @@ import { RootStackParamList } from "@/types";
 import { api } from "@/services/api";
 import Assembly from "../../assets/assembly.svg";
 import DigitalPass from "../../assets/digitalPass.svg";
-import UserNameIcon from "../../assets/userName.svg";
-import PasswordIcon from "../../assets/password.svg";
 import QuestionMarkIcon from "../../assets/questionMark.svg";
-import EyeIcon from "../../assets/eye.svg";
 import LoginIcon from "../../assets/login.svg";
 
-type LoginScreenNavigationProp = NativeStackNavigationProp<
+type UsernameOTPLoginScreenNavigationProp = NativeStackNavigationProp<
   RootStackParamList,
-  "Login"
+  "UsernameOTPLogin"
 >;
 
 type Props = {
-  navigation: LoginScreenNavigationProp;
+  navigation: UsernameOTPLoginScreenNavigationProp;
 };
 
-export default function LoginScreen({ navigation }: Props) {
+export default function UsernameOTPLoginScreen({ navigation }: Props) {
   const [username, setUsername] = useState("");
-  const [password, setPassword] = useState("");
-  const [showPassword, setShowPassword] = useState(false);
+  const [otp, setOtp] = useState("");
+  const [otpSent, setOtpSent] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [sendingOtp, setSendingOtp] = useState(false);
   const [usernameError, setUsernameError] = useState("");
-  const [passwordError, setPasswordError] = useState("");
+  const [otpError, setOtpError] = useState("");
   const [activeTab, setActiveTab] = useState<"admin" | "security">("admin");
+
+  const handleSendOTP = async () => {
+    // Clear previous errors
+    setUsernameError("");
+
+    // Validate username
+    if (!username.trim()) {
+      setUsernameError("Username is required");
+      return;
+    }
+
+    // Basic username validation (alphanumeric and underscore, 3-30 characters)
+    const usernameRegex = /^[a-zA-Z0-9_]{3,30}$/;
+    if (!usernameRegex.test(username.trim())) {
+      setUsernameError(
+        "Please enter a valid username (3-30 characters, alphanumeric and underscore only)"
+      );
+      return;
+    }
+
+    setSendingOtp(true);
+    try {
+      await api.generateOTP(username.trim());
+
+      setOtpSent(true);
+      Alert.alert(
+        "OTP Sent",
+        "Please check your registered email/phone for the OTP code."
+      );
+    } catch (error) {
+      const errorMessage =
+        error instanceof Error
+          ? error.message
+          : "Failed to send OTP. Please try again.";
+      Alert.alert("Error", errorMessage);
+    } finally {
+      setSendingOtp(false);
+    }
+  };
 
   const handleLogin = async () => {
     // Clear previous errors
-    setUsernameError("");
-    setPasswordError("");
+    setOtpError("");
 
-    // Validate fields
-    let hasError = false;
-    if (!username.trim()) {
-      setUsernameError("Username is required");
-      hasError = true;
-    }
-    if (!password.trim()) {
-      setPasswordError("Password is required");
-      hasError = true;
+    // Validate OTP
+    if (!otp.trim()) {
+      setOtpError("OTP is required");
+      return;
     }
 
-    if (hasError) {
+    if (otp.length !== 6) {
+      setOtpError("OTP must be 6 digits");
       return;
     }
 
     setLoading(true);
     try {
-      const response = await api.login({
-        username: username.trim(),
-        password: password,
-        // expected_role: activeTab === "admin" ? "admin" : "security",
-      });
+      const response = await api.verifyOTP(username.trim(), otp.trim());
 
       // Check if user is active and login is successful
       if (response.id && response.is_active) {
-        // Navigate based on selected login mode
-        // Admin login navigation - commented out for now
+        // Navigate based on selected login mode (same as LoginScreen)
         if (activeTab === "admin") {
           navigation.replace("IssueVisitorPass", {
             userFullName: response.full_name,
@@ -80,8 +107,6 @@ export default function LoginScreen({ navigation }: Props) {
         } else {
           navigation.replace("PreCheck");
         }
-        // Security login navigation - navigate to PreCheck screen first
-        // navigation.replace("PreCheck");
       } else {
         // If user is not active or no ID, show an error
         Alert.alert(
@@ -97,47 +122,20 @@ export default function LoginScreen({ navigation }: Props) {
           ? error.message
           : "An error occurred during login.";
 
-      // Check if this is a credentials error (401 status)
-      const isCredentialsError = (error as any)?.isCredentialsError || false;
-
-      // Parse error message to extract field-specific errors
+      // Check if this is an invalid OTP error
+      const isInvalidOTP = (error as any)?.isInvalidOTP || false;
       const errorLower = errorMessage.toLowerCase();
-
-      // Check for common authentication error patterns
-      const isInvalidCredentials =
-        isCredentialsError ||
+      const isOTPError =
+        isInvalidOTP ||
         errorLower.includes("invalid") ||
         errorLower.includes("incorrect") ||
         errorLower.includes("wrong") ||
-        errorLower.includes("authentication failed") ||
-        errorLower.includes("unauthorized") ||
-        errorLower.includes("credentials");
+        errorLower.includes("otp") ||
+        errorLower.includes("expired");
 
-      // Handle "Incorrect username or password" or similar messages
-      if (
-        isInvalidCredentials &&
-        (errorLower.includes("username") || errorLower.includes("password"))
-      ) {
-        // If error mentions both username and password, show error on both fields
-        if (
-          errorLower.includes("username") &&
-          errorLower.includes("password")
-        ) {
-          setUsernameError("Username is invalid");
-          setPasswordError("Password is invalid");
-        } else if (errorLower.includes("username")) {
-          // Only username mentioned
-          setUsernameError("Username is invalid");
-        } else if (errorLower.includes("password")) {
-          // Only password mentioned
-          setPasswordError("Password is invalid");
-        }
-      } else if (isInvalidCredentials) {
-        // General invalid credentials error - show on both fields
-        setUsernameError("Username is invalid");
-        setPasswordError("Password is invalid");
+      if (isOTPError) {
+        setOtpError("Invalid OTP. Please try again.");
       } else {
-        // For other errors that don't match credentials pattern, show alert
         Alert.alert("Login Failed", errorMessage);
       }
     } finally {
@@ -146,18 +144,22 @@ export default function LoginScreen({ navigation }: Props) {
   };
 
   const handleUsernameChange = (text: string) => {
-    setUsername(text);
+    // Allow alphanumeric and underscore only
+    const cleaned = text.replace(/[^a-zA-Z0-9_]/g, "");
+    setUsername(cleaned);
     // Clear error when user starts typing
     if (usernameError) {
       setUsernameError("");
     }
   };
 
-  const handlePasswordChange = (text: string) => {
-    setPassword(text);
+  const handleOtpChange = (text: string) => {
+    // Only allow numeric input and limit to 6 digits
+    const cleaned = text.replace(/[^0-9]/g, "").slice(0, 6);
+    setOtp(cleaned);
     // Clear error when user starts typing
-    if (passwordError) {
-      setPasswordError("");
+    if (otpError) {
+      setOtpError("");
     }
   };
 
@@ -180,7 +182,7 @@ export default function LoginScreen({ navigation }: Props) {
 
         {/* Login Card */}
         <View style={styles.loginCard}>
-          {/* Tab Selection - Commented out for now */}
+          {/* Tab Selection */}
           <View style={styles.tabWrapper}>
             <View style={styles.tabContainer}>
               <TouchableOpacity
@@ -228,7 +230,7 @@ export default function LoginScreen({ navigation }: Props) {
             {activeTab === "admin" ? "Admin Login" : "Security Login"}
           </Text>
           <Text style={styles.cardSubtitle}>
-            Enter your credentials to access the system.
+            Enter your username to receive an OTP code.
           </Text>
 
           {/* Username Field */}
@@ -239,72 +241,95 @@ export default function LoginScreen({ navigation }: Props) {
               usernameError && styles.inputContainerError,
             ]}
           >
-            <View style={styles.inputIcon}>
-              <UserNameIcon width={13} height={14} />
-            </View>
             <TextInput
               style={styles.input}
               placeholder="Enter username"
               placeholderTextColor="#ADAEBC"
               value={username}
               onChangeText={handleUsernameChange}
+              keyboardType="default"
               autoCapitalize="none"
+              autoCorrect={false}
+              editable={!otpSent}
             />
           </View>
           {usernameError ? (
             <Text style={styles.errorText}>{usernameError}</Text>
           ) : null}
 
-          {/* Password Field */}
-          <Text style={styles.inputLabel}>Password</Text>
-          <View
-            style={[
-              styles.inputContainer,
-              passwordError && styles.inputContainerError,
-            ]}
-          >
-            <View style={styles.inputIcon}>
-              <PasswordIcon width={13} height={14} />
-            </View>
-            <TextInput
-              style={styles.input}
-              placeholder="Enter password"
-              placeholderTextColor="#ADAEBC"
-              value={password}
-              onChangeText={handlePasswordChange}
-              secureTextEntry={!showPassword}
-            />
+          {/* Send OTP Button */}
+          {!otpSent && (
             <TouchableOpacity
-              onPress={() => setShowPassword(!showPassword)}
-              style={styles.eyeIcon}
+              style={[
+                styles.sendOtpButton,
+                sendingOtp && styles.sendOtpButtonDisabled,
+              ]}
+              onPress={handleSendOTP}
+              disabled={sendingOtp}
             >
-              <EyeIcon width={16} height={13} />
+              {sendingOtp ? (
+                <ActivityIndicator color="#FFFFFF" />
+              ) : (
+                <Text style={styles.sendOtpButtonText}>Send OTP</Text>
+              )}
             </TouchableOpacity>
-          </View>
-          {passwordError ? (
-            <Text style={styles.errorText}>{passwordError}</Text>
-          ) : null}
+          )}
 
-          {/* Login Button */}
-          <TouchableOpacity
-            style={[styles.loginButton, loading && styles.loginButtonDisabled]}
-            onPress={handleLogin}
-            disabled={loading}
-          >
-            {loading ? (
-              <ActivityIndicator color="#FFFFFF" />
-            ) : (
-              <>
-                <Text style={styles.loginButtonText}>Login</Text>
-                <LoginIcon width={16} height={14} />
-              </>
-            )}
-          </TouchableOpacity>
+          {/* OTP Field */}
+          {otpSent && (
+            <>
+              <Text style={styles.inputLabel}>Enter OTP</Text>
+              <View
+                style={[
+                  styles.inputContainer,
+                  otpError && styles.inputContainerError,
+                ]}
+              >
+                <TextInput
+                  style={styles.input}
+                  placeholder="Enter 6-digit OTP"
+                  placeholderTextColor="#ADAEBC"
+                  value={otp}
+                  onChangeText={handleOtpChange}
+                  keyboardType="number-pad"
+                  maxLength={6}
+                />
+              </View>
+              {otpError ? (
+                <Text style={styles.errorText}>{otpError}</Text>
+              ) : null}
 
-          {/* Forgot Password */}
-          <TouchableOpacity style={styles.forgotPassword}>
-            <Text style={styles.forgotPasswordText}>Forgot Password?</Text>
-          </TouchableOpacity>
+              {/* Resend OTP */}
+              <TouchableOpacity
+                style={styles.resendOtpButton}
+                onPress={handleSendOTP}
+                disabled={sendingOtp}
+              >
+                <Text style={styles.resendOtpText}>
+                  {sendingOtp ? "Sending..." : "Resend OTP"}
+                </Text>
+              </TouchableOpacity>
+
+              {/* Login Button */}
+              <TouchableOpacity
+                style={[
+                  styles.loginButton,
+                  loading && styles.loginButtonDisabled,
+                ]}
+                onPress={handleLogin}
+                disabled={loading}
+              >
+                {loading ? (
+                  <ActivityIndicator color="#FFFFFF" />
+                ) : (
+                  <>
+                    <Text style={styles.loginButtonText}>Login</Text>
+                    <LoginIcon width={16} height={14} />
+                  </>
+                )}
+              </TouchableOpacity>
+            </>
+          )}
         </View>
 
         {/* Footer */}
@@ -365,8 +390,6 @@ const styles = StyleSheet.create({
     color: "#64748B",
     marginBottom: 25,
     textAlign: "center",
-    justifyContent: "center",
-    alignItems: "center",
   },
   inputLabel: {
     fontSize: 14,
@@ -388,19 +411,37 @@ const styles = StyleSheet.create({
     borderColor: "#EF4444",
     borderWidth: 1.5,
   },
-  inputIcon: {
-    marginRight: 10,
-  },
   input: {
     flex: 1,
     height: 50,
     fontSize: 16,
     color: "#333",
   },
-  eyeIcon: {
-    padding: 5,
-    justifyContent: "center",
+  sendOtpButton: {
+    backgroundColor: "#457E51",
+    borderRadius: 10,
+    padding: 15,
     alignItems: "center",
+    marginTop: 10,
+    marginBottom: 15,
+  },
+  sendOtpButtonDisabled: {
+    opacity: 0.6,
+  },
+  sendOtpButtonText: {
+    color: "#FFFFFF",
+    fontSize: 14,
+    fontWeight: "600",
+  },
+  resendOtpButton: {
+    alignItems: "center",
+    marginTop: 10,
+    marginBottom: 15,
+  },
+  resendOtpText: {
+    color: "#1E40AF",
+    fontSize: 14,
+    fontWeight: "500",
   },
   loginButton: {
     backgroundColor: "#457E51",
@@ -419,14 +460,6 @@ const styles = StyleSheet.create({
     color: "#FFFFFF",
     fontSize: 14,
     marginRight: 8,
-  },
-  forgotPassword: {
-    alignItems: "center",
-  },
-  forgotPasswordText: {
-    color: "#1E40AF",
-    fontSize: 14,
-    fontWeight: "500",
   },
   footer: {
     marginTop: 30,

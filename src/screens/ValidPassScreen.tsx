@@ -61,7 +61,6 @@ const formatDate = (dateString: string | null | undefined): string => {
 export default function ValidPassScreen({ navigation, route }: Props) {
   // Get validation response from route params
   const validationResponse = route.params?.validationResponse;
-  console.log("Validation Response:", validationResponse);
   const visitor = validationResponse?.visitor;
   const pass = validationResponse?.pass;
 
@@ -194,7 +193,7 @@ export default function ValidPassScreen({ navigation, route }: Props) {
   };
 
   const handleLogout = () => {
-    navigation.replace("Login");
+    navigation.replace("LoginMethodSelection");
   };
 
   const handleTakePhoto = async () => {

@@ -88,7 +88,7 @@ export default function QRScanScreen({ navigation, route }: Props) {
   };
 
   const handleLogout = async () => {
-    navigation.replace("Login");
+    navigation.replace("LoginMethodSelection");
   };
 
   const handleUniqueIdValidation = async () => {
@@ -167,7 +167,7 @@ export default function QRScanScreen({ navigation, route }: Props) {
             text: "OK",
             onPress: async () => {
               isProcessingRef.current = false;
-              navigation.replace("Login");
+              navigation.replace("LoginMethodSelection");
             },
           },
         ]);
@@ -370,7 +370,7 @@ export default function QRScanScreen({ navigation, route }: Props) {
             text: "OK",
             onPress: async () => {
               isProcessingRef.current = false;
-              navigation.replace("Login");
+              navigation.replace("LoginMethodSelection");
             },
           },
         ]);

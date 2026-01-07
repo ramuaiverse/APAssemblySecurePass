@@ -46,7 +46,7 @@ export default function InvalidPassScreen({ navigation, route }: Props) {
   };
 
   const handleLogout = () => {
-    navigation.replace("Login");
+    navigation.replace("LoginMethodSelection");
   };
 
   return (
