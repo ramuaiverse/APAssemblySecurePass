@@ -220,10 +220,6 @@ export default function IssueVisitorPassScreen({ navigation, route }: Props) {
     }, [])
   );
 
-  const handleBack = () => {
-    navigation.replace("LoginMethodSelection");
-  };
-
   const handleLogout = () => {
     navigation.replace("LoginMethodSelection");
   };
@@ -815,9 +811,7 @@ export default function IssueVisitorPassScreen({ navigation, route }: Props) {
       >
         {/* Header */}
         <View style={styles.header}>
-          <TouchableOpacity onPress={handleBack} style={styles.headerButton}>
-            <BackButtonIcon width={10} height={24} />
-          </TouchableOpacity>
+          <View style={styles.headerButton} />
           <Text style={styles.headerTitle}>Issue Visitor Pass</Text>
           <TouchableOpacity onPress={handleLogout} style={styles.headerButton}>
             <LogOutIcon width={24} height={24} />
@@ -1965,11 +1959,14 @@ const styles = StyleSheet.create({
   headerButton: {
     justifyContent: "center",
     alignItems: "center",
+    width: 24,
   },
   headerTitle: {
     fontSize: 18,
     fontWeight: "bold",
     color: "#111827",
+    flex: 1,
+    textAlign: "center",
   },
   scrollContent: {
     padding: 20,

@@ -2,6 +2,14 @@ export type RootStackParamList = {
   LoginMethodSelection: undefined;
   Login: undefined;
   UsernameOTPLogin: undefined;
+  SetPassword: {
+    username: string;
+  };
+  ForgotPassword: undefined;
+  ResetPassword: {
+    username: string;
+    mobileMasked: string;
+  };
   PreCheck: undefined;
   QRScan: {
     mode?: "gateEntryExit" | "verifyVisitor";

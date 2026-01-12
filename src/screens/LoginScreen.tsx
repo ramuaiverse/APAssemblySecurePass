@@ -14,6 +14,7 @@ import {
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { RootStackParamList } from "@/types";
 import { api } from "@/services/api";
+import { SafeAreaView } from "react-native-safe-area-context";
 import Assembly from "../../assets/assembly.svg";
 import DigitalPass from "../../assets/digitalPass.svg";
 import UserNameIcon from "../../assets/userName.svg";
@@ -21,6 +22,7 @@ import PasswordIcon from "../../assets/password.svg";
 import QuestionMarkIcon from "../../assets/questionMark.svg";
 import EyeIcon from "../../assets/eye.svg";
 import LoginIcon from "../../assets/login.svg";
+import BackButtonIcon from "../../assets/backButton.svg";
 
 type LoginScreenNavigationProp = NativeStackNavigationProp<
   RootStackParamList,
@@ -45,14 +47,10 @@ export default function LoginScreen({ navigation }: Props) {
     setUsernameError("");
     setPasswordError("");
 
-    // Validate fields
+    // Validate fields - password is now optional
     let hasError = false;
     if (!username.trim()) {
       setUsernameError("Username is required");
-      hasError = true;
-    }
-    if (!password.trim()) {
-      setPasswordError("Password is required");
       hasError = true;
     }
 
@@ -64,9 +62,19 @@ export default function LoginScreen({ navigation }: Props) {
     try {
       const response = await api.login({
         username: username.trim(),
-        password: password,
+        password: password || "", // Password is optional
         // expected_role: activeTab === "admin" ? "admin" : "security",
       });
+
+      // Check if this is first-time login
+      if (response.is_first_time_login === true) {
+        // Navigate to set password screen
+        navigation.replace("SetPassword", {
+          username: username.trim(),
+        });
+        setLoading(false);
+        return;
+      }
 
       // Check if user is active and login is successful
       if (response.id && response.is_active) {
@@ -162,171 +170,190 @@ export default function LoginScreen({ navigation }: Props) {
   };
 
   return (
-    <KeyboardAvoidingView
-      behavior={Platform.OS === "ios" ? "padding" : "height"}
-      style={styles.keyboardView}
-    >
-      <ScrollView
-        contentContainerStyle={styles.scrollContent}
-        keyboardShouldPersistTaps="handled"
+    <SafeAreaView style={styles.container} edges={["top"]}>
+      <KeyboardAvoidingView
+        behavior={Platform.OS === "ios" ? "padding" : "height"}
+        style={styles.keyboardView}
       >
-        {/* Header */}
-        <View style={styles.header}>
-          <View style={styles.logoContainer}>
-            <DigitalPass width={110} height={150} />
-            <Assembly width={110} height={150} />
-          </View>
-        </View>
-
-        {/* Login Card */}
-        <View style={styles.loginCard}>
-          {/* Tab Selection - Commented out for now */}
-          <View style={styles.tabWrapper}>
-            <View style={styles.tabContainer}>
-              <TouchableOpacity
-                style={[
-                  styles.tab,
-                  activeTab === "admin" ? styles.tabActive : styles.tabInactive,
-                ]}
-                onPress={() => setActiveTab("admin")}
-              >
-                <Text
-                  style={[
-                    styles.tabText,
-                    activeTab === "admin"
-                      ? styles.tabTextActive
-                      : styles.tabTextInactive,
-                  ]}
-                >
-                  Admin Login
-                </Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={[
-                  styles.tab,
-                  activeTab === "security"
-                    ? styles.tabActive
-                    : styles.tabInactive,
-                ]}
-                onPress={() => setActiveTab("security")}
-              >
-                <Text
-                  style={[
-                    styles.tabText,
-                    activeTab === "security"
-                      ? styles.tabTextActive
-                      : styles.tabTextInactive,
-                  ]}
-                >
-                  Security Login
-                </Text>
-              </TouchableOpacity>
-            </View>
-          </View>
-
-          <Text style={styles.cardTitle}>
-            {activeTab === "admin" ? "Admin Login" : "Security Login"}
-          </Text>
-          <Text style={styles.cardSubtitle}>
-            Enter your credentials to access the system.
-          </Text>
-
-          {/* Username Field */}
-          <Text style={styles.inputLabel}>Username</Text>
-          <View
-            style={[
-              styles.inputContainer,
-              usernameError && styles.inputContainerError,
-            ]}
-          >
-            <View style={styles.inputIcon}>
-              <UserNameIcon width={13} height={14} />
-            </View>
-            <TextInput
-              style={styles.input}
-              placeholder="Enter username"
-              placeholderTextColor="#ADAEBC"
-              value={username}
-              onChangeText={handleUsernameChange}
-              autoCapitalize="none"
-            />
-          </View>
-          {usernameError ? (
-            <Text style={styles.errorText}>{usernameError}</Text>
-          ) : null}
-
-          {/* Password Field */}
-          <Text style={styles.inputLabel}>Password</Text>
-          <View
-            style={[
-              styles.inputContainer,
-              passwordError && styles.inputContainerError,
-            ]}
-          >
-            <View style={styles.inputIcon}>
-              <PasswordIcon width={13} height={14} />
-            </View>
-            <TextInput
-              style={styles.input}
-              placeholder="Enter password"
-              placeholderTextColor="#ADAEBC"
-              value={password}
-              onChangeText={handlePasswordChange}
-              secureTextEntry={!showPassword}
-            />
+        <ScrollView
+          contentContainerStyle={styles.scrollContent}
+          keyboardShouldPersistTaps="handled"
+        >
+          {/* Header */}
+          <View style={styles.header}>
             <TouchableOpacity
-              onPress={() => setShowPassword(!showPassword)}
-              style={styles.eyeIcon}
+              onPress={() => navigation.goBack()}
+              style={styles.backButton}
             >
-              <EyeIcon width={16} height={13} />
+              <BackButtonIcon width={20} height={20} />
+            </TouchableOpacity>
+            <View style={styles.logoContainer}>
+              <DigitalPass width={110} height={150} />
+              <Assembly width={110} height={150} />
+            </View>
+          </View>
+
+          {/* Login Card */}
+          <View style={styles.loginCard}>
+            {/* Tab Selection - Commented out for now */}
+            <View style={styles.tabWrapper}>
+              <View style={styles.tabContainer}>
+                <TouchableOpacity
+                  style={[
+                    styles.tab,
+                    activeTab === "admin"
+                      ? styles.tabActive
+                      : styles.tabInactive,
+                  ]}
+                  onPress={() => setActiveTab("admin")}
+                >
+                  <Text
+                    style={[
+                      styles.tabText,
+                      activeTab === "admin"
+                        ? styles.tabTextActive
+                        : styles.tabTextInactive,
+                    ]}
+                  >
+                    Admin Login
+                  </Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[
+                    styles.tab,
+                    activeTab === "security"
+                      ? styles.tabActive
+                      : styles.tabInactive,
+                  ]}
+                  onPress={() => setActiveTab("security")}
+                >
+                  <Text
+                    style={[
+                      styles.tabText,
+                      activeTab === "security"
+                        ? styles.tabTextActive
+                        : styles.tabTextInactive,
+                    ]}
+                  >
+                    Security Login
+                  </Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+
+            <Text style={styles.cardTitle}>
+              {activeTab === "admin" ? "Admin Login" : "Security Login"}
+            </Text>
+            <Text style={styles.cardSubtitle}>
+              Enter your credentials to access the system.
+            </Text>
+
+            {/* Username Field */}
+            <Text style={styles.inputLabel}>Username</Text>
+            <View
+              style={[
+                styles.inputContainer,
+                usernameError && styles.inputContainerError,
+              ]}
+            >
+              <View style={styles.inputIcon}>
+                <UserNameIcon width={13} height={14} />
+              </View>
+              <TextInput
+                style={styles.input}
+                placeholder="Enter username"
+                placeholderTextColor="#ADAEBC"
+                value={username}
+                onChangeText={handleUsernameChange}
+                autoCapitalize="none"
+              />
+            </View>
+            {usernameError ? (
+              <Text style={styles.errorText}>{usernameError}</Text>
+            ) : null}
+
+            {/* Password Field - Optional */}
+            <Text style={styles.inputLabel}>Password</Text>
+            <View
+              style={[
+                styles.inputContainer,
+                passwordError && styles.inputContainerError,
+              ]}
+            >
+              <View style={styles.inputIcon}>
+                <PasswordIcon width={13} height={14} />
+              </View>
+              <TextInput
+                style={styles.input}
+                placeholder="Enter password"
+                placeholderTextColor="#ADAEBC"
+                value={password}
+                onChangeText={handlePasswordChange}
+                secureTextEntry={!showPassword}
+              />
+              <TouchableOpacity
+                onPress={() => setShowPassword(!showPassword)}
+                style={styles.eyeIcon}
+              >
+                <EyeIcon width={16} height={13} />
+              </TouchableOpacity>
+            </View>
+            {passwordError ? (
+              <Text style={styles.errorText}>{passwordError}</Text>
+            ) : null}
+
+            {/* Login Button */}
+            <TouchableOpacity
+              style={[
+                styles.loginButton,
+                loading && styles.loginButtonDisabled,
+              ]}
+              onPress={handleLogin}
+              disabled={loading}
+            >
+              {loading ? (
+                <ActivityIndicator color="#FFFFFF" />
+              ) : (
+                <>
+                  <Text style={styles.loginButtonText}>Login</Text>
+                  <LoginIcon width={16} height={14} />
+                </>
+              )}
+            </TouchableOpacity>
+
+            {/* Forgot Password */}
+            <TouchableOpacity
+              style={styles.forgotPassword}
+              onPress={() => navigation.navigate("ForgotPassword")}
+            >
+              <Text style={styles.forgotPasswordText}>Forgot Password?</Text>
             </TouchableOpacity>
           </View>
-          {passwordError ? (
-            <Text style={styles.errorText}>{passwordError}</Text>
-          ) : null}
 
-          {/* Login Button */}
-          <TouchableOpacity
-            style={[styles.loginButton, loading && styles.loginButtonDisabled]}
-            onPress={handleLogin}
-            disabled={loading}
-          >
-            {loading ? (
-              <ActivityIndicator color="#FFFFFF" />
-            ) : (
-              <>
-                <Text style={styles.loginButtonText}>Login</Text>
-                <LoginIcon width={16} height={14} />
-              </>
-            )}
-          </TouchableOpacity>
-
-          {/* Forgot Password */}
-          <TouchableOpacity style={styles.forgotPassword}>
-            <Text style={styles.forgotPasswordText}>Forgot Password?</Text>
-          </TouchableOpacity>
-        </View>
-
-        {/* Footer */}
-        <View style={styles.footer}>
-          <View style={styles.footerTextContainer}>
-            <QuestionMarkIcon width={14} height={14} />
-            <Text style={styles.footerText}>Authorized Personnel Only</Text>
+          {/* Footer */}
+          <View style={styles.footer}>
+            <View style={styles.footerTextContainer}>
+              <QuestionMarkIcon width={14} height={14} />
+              <Text style={styles.footerText}>Authorized Personnel Only</Text>
+            </View>
+            <Text style={styles.footerSubtext}>
+              This system is for official use only. All activities are monitored
+              and logged.
+            </Text>
           </View>
-          <Text style={styles.footerSubtext}>
-            This system is for official use only. All activities are monitored
-            and logged.
-          </Text>
-        </View>
-      </ScrollView>
-    </KeyboardAvoidingView>
+        </ScrollView>
+      </KeyboardAvoidingView>
+    </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  keyboardView: {
+  container: {
     flex: 1,
     backgroundColor: "#E3F7E8",
+  },
+  keyboardView: {
+    flex: 1,
   },
   scrollContent: {
     flexGrow: 1,
@@ -335,12 +362,19 @@ const styles = StyleSheet.create({
   header: {
     alignItems: "center",
   },
+  backButton: {
+    position: "absolute",
+    top: 0,
+    left: 0,
+    justifyContent: "center",
+    alignItems: "center",
+    zIndex: 1,
+  },
   logoContainer: {
-    paddingVertical: 20,
+    paddingVertical: 10,
     flexDirection: "row",
     justifyContent: "center",
     gap: 60,
-    marginTop: 20,
   },
   loginCard: {
     backgroundColor: "#fff",
@@ -363,7 +397,7 @@ const styles = StyleSheet.create({
   cardSubtitle: {
     fontSize: 14,
     color: "#64748B",
-    marginBottom: 25,
+    marginBottom: 10,
     textAlign: "center",
     justifyContent: "center",
     alignItems: "center",
@@ -371,7 +405,7 @@ const styles = StyleSheet.create({
   inputLabel: {
     fontSize: 14,
     color: "#111827",
-    marginBottom: 10,
+    marginVertical: 10,
     textAlign: "left",
   },
   inputContainer: {

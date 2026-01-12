@@ -85,6 +85,9 @@ APAssemblySecurePass/
     │   ├── LoginMethodSelectionScreen.tsx  # Login method selection screen
     │   ├── LoginScreen.tsx          # Username/password authentication screen
     │   ├── UsernameOTPLoginScreen.tsx  # Username/OTP authentication screen
+    │   ├── SetPasswordScreen.tsx   # Set password screen for first-time login
+    │   ├── ForgotPasswordScreen.tsx  # Forgot password screen (step 1: enter username)
+    │   ├── ResetPasswordScreen.tsx  # Reset password screen (step 2: enter OTP and new password)
     │   ├── PreCheckScreen.tsx       # Pre-check screen for security users
     │   ├── QRScanScreen.tsx         # QR code scanner screen with gate/action selection
     │   ├── ValidPassScreen.tsx      # Display valid pass details
@@ -106,8 +109,12 @@ The app integrates with backend APIs for authentication and pass management:
 ### Authentication Endpoints
 
 - `POST /api/v1/pass-requests/auth/login` - Username and password authentication (admin/security roles)
-- `POST /api/v1/pass-requests/auth/otp/generate` - Generate OTP for username-based login
-- `POST /api/v1/pass-requests/auth/otp/verify` - Verify OTP and complete login
+- `POST /api/v1/pass-requests/auth/otp/generate` - Generate OTP for username-based login or forgot password flow
+  - Form fields: `username`, `expected_role` (empty string)
+- `POST /api/v1/pass-requests/auth/otp/verify` - Verify OTP and complete login or reset password
+  - Form fields: `username`, `otp_code`, `expected_role` (empty string)
+- `POST /api/v1/pass-requests/auth/set-password` - Set password for first-time login (multipart/form-data)
+  - Form fields: `username`, `password` (minimum 12 characters)
 
 ### Validation Endpoints (Public)
 
@@ -143,11 +150,19 @@ The app integrates with backend APIs for authentication and pass management:
 - **Login Methods**:
   - Username and password authentication
   - Username and OTP (One-Time Password) authentication
+- **First-Time Login**: Users with `is_first_time_login: true` are redirected to set password screen
+- **Forgot Password Flow**:
+  1. User clicks "Forgot Password?" on login screen
+  2. Enter username to receive OTP
+  3. OTP is sent to registered email/phone
+  4. Enter OTP and set new password
+  5. User is automatically logged out after successful password reset
+- **Password Requirements**: Minimum 12 characters for new passwords
 - **Role-Based Access**: Separate login flows for admin and security roles
 - **Admin Access**: Full access to issue visitor passes
 - **Security Access**: Access to QR scanning and pass validation
 - **Session Management**: Simple session-based navigation (no persistent storage)
-- **OTP System**: OTP is sent to registered email/phone for username-based login
+- **OTP System**: OTP is sent to registered email/phone for username-based login and password reset
 
 ## Technologies Used
 

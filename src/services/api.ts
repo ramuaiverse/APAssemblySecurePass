@@ -5,7 +5,7 @@ const VALIDATION_API_BASE_URL =
 // UserLoginRequest schema from new API
 export interface LoginRequest {
   username: string;
-  password: string;
+  password?: string; // Optional for first-time login
   expected_role?: string;
 }
 
@@ -201,15 +201,15 @@ export interface Issuer {
 
 export const api = {
   login: async (credentials: LoginRequest): Promise<LoginResponse> => {
-    // Validate required fields
-    if (!credentials.username || !credentials.password) {
-      throw new Error("Username and password are required");
+    // Validate required fields - password is now optional
+    if (!credentials.username) {
+      throw new Error("Username is required");
     }
 
     // Build request body - ensure all fields are strings
     const requestBody: LoginRequest = {
       username: String(credentials.username).trim(),
-      password: String(credentials.password),
+      password: credentials.password ? String(credentials.password) : "",
     };
 
     // Add expected_role if provided
@@ -225,7 +225,9 @@ export const api = {
     // The API expects form-encoded data
     const formData = new URLSearchParams();
     formData.append("username", requestBody.username);
-    formData.append("password", requestBody.password);
+    if (requestBody.password) {
+      formData.append("password", requestBody.password);
+    }
     formData.append("expected_role", requestBody.expected_role || "");
 
     try {
@@ -1328,6 +1330,75 @@ export const api = {
       }
 
       return data as LoginResponse;
+    } catch (error) {
+      if (error instanceof Error) {
+        throw error;
+      }
+      throw new Error("Network error. Please check your connection.");
+    }
+  },
+
+  // Set password for first-time login
+  setPassword: async (credentials: {
+    username: string;
+    password: string;
+  }): Promise<LoginResponse> => {
+    const url = `${VALIDATION_API_BASE_URL}/api/v1/pass-requests/auth/set-password`;
+
+    try {
+      const formData = new FormData();
+      formData.append("username", credentials.username);
+      formData.append("password", credentials.password);
+
+      const response = await fetch(url, {
+        method: "POST",
+        headers: {
+          Accept: "*/*",
+        },
+        body: formData,
+      });
+
+      let data;
+      const contentType = response.headers.get("content-type");
+
+      if (contentType && contentType.includes("application/json")) {
+        data = await response.json();
+      } else {
+        const text = await response.text();
+        if (!response.ok) {
+          throw new Error(
+            `Server error: ${text || `Status ${response.status}`}`
+          );
+        }
+      }
+
+      if (!response.ok) {
+        const errorMessage =
+          (Array.isArray(data?.detail)
+            ? data.detail
+                .map((e: any) => e.msg || e.message || JSON.stringify(e))
+                .join(", ")
+            : typeof data?.detail === "string"
+            ? data.detail
+            : data?.message || data?.error) ||
+          (typeof data === "string"
+            ? data
+            : `Failed to set password: ${response.statusText}`);
+
+        throw new Error(errorMessage);
+      }
+
+      // Handle successful response - check if data is nested
+      let setPasswordData: LoginResponse;
+      if (data.data && typeof data.data === "object") {
+        setPasswordData = data.data as LoginResponse;
+      } else if (data.user && typeof data.user === "object") {
+        setPasswordData = data.user as LoginResponse;
+      } else {
+        setPasswordData = data as LoginResponse;
+      }
+
+      return setPasswordData;
     } catch (error) {
       if (error instanceof Error) {
         throw error;
