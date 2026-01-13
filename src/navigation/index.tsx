@@ -27,7 +27,7 @@ export const setUpNavigation = (
   return (
     <NavigationContainer ref={navigationRef || undefined}>
       <Stack.Navigator
-        initialRouteName="IssueVisitorPass"
+        initialRouteName="LoginMethodSelection"
         screenOptions={{
           headerShown: false,
         }}
