@@ -1277,16 +1277,21 @@ export const api = {
     const url = `${VALIDATION_API_BASE_URL}/api/v1/pass-requests/auth/otp/verify`;
 
     try {
-      // Format as application/x-www-form-urlencoded
+      // Format as application/x-www-form-urlencoded - match exact curl format
+      // Ensure values are properly trimmed and encoded
+      const trimmedUsername = String(username).trim();
+      const trimmedOtpCode = String(otpCode).trim();
+
+      // Use URLSearchParams for proper encoding
       const formData = new URLSearchParams();
-      formData.append("username", username);
-      formData.append("otp_code", otpCode);
+      formData.append("username", trimmedUsername);
+      formData.append("otp_code", trimmedOtpCode);
       formData.append("expected_role", "");
 
       const response = await fetch(url, {
         method: "POST",
         headers: {
-          Accept: "application/json",
+          accept: "application/json",
           "Content-Type": "application/x-www-form-urlencoded",
         },
         body: formData.toString(),
@@ -1329,7 +1334,21 @@ export const api = {
         throw otpError;
       }
 
-      return data as LoginResponse;
+      // Handle nested response structure: { success: true, message: "...", user: {...} }
+      let loginResponse: LoginResponse;
+      if (data.user && typeof data.user === "object") {
+        // Response has nested user object
+        loginResponse = data.user as LoginResponse;
+      } else if (data.id && data.username) {
+        // Response is already the user object
+        loginResponse = data as LoginResponse;
+      } else {
+        throw new Error(
+          "Unexpected response structure from OTP verification API"
+        );
+      }
+
+      return loginResponse;
     } catch (error) {
       if (error instanceof Error) {
         throw error;
@@ -1399,6 +1418,66 @@ export const api = {
       }
 
       return setPasswordData;
+    } catch (error) {
+      if (error instanceof Error) {
+        throw error;
+      }
+      throw new Error("Network error. Please check your connection.");
+    }
+  },
+
+  // Resend WhatsApp for visitor pass
+  resendWhatsApp: async (
+    requestId: string,
+    visitorId: string
+  ): Promise<any> => {
+    // Validate IDs
+    if (!requestId || !requestId.trim()) {
+      throw new Error("requestId is required");
+    }
+    if (!visitorId || !visitorId.trim()) {
+      throw new Error("visitorId is required");
+    }
+
+    const url = `${VALIDATION_API_BASE_URL}/api/v1/pass-requests/${requestId}/visitor/${visitorId}/resend-whatsapp`;
+
+    try {
+      const response = await fetch(url, {
+        method: "POST",
+        headers: {
+          Accept: "application/json",
+        },
+      });
+
+      let responseData;
+      const contentType = response.headers.get("content-type");
+
+      if (contentType && contentType.includes("application/json")) {
+        responseData = await response.json();
+      } else {
+        const text = await response.text();
+        throw new Error(`Server error: ${text || `Status ${response.status}`}`);
+      }
+
+      if (!response.ok) {
+        const errorMessage =
+          (Array.isArray(responseData?.detail)
+            ? responseData.detail
+                .map((e: any) => e.msg || e.message || JSON.stringify(e))
+                .join(", ")
+            : typeof responseData?.detail === "string"
+            ? responseData.detail
+            : responseData?.message || responseData?.error) ||
+          (typeof responseData === "string"
+            ? responseData
+            : `Resend WhatsApp failed: ${
+                response.statusText || `Status ${response.status}`
+              }`);
+
+        throw new Error(errorMessage);
+      }
+
+      return responseData;
     } catch (error) {
       if (error instanceof Error) {
         throw error;

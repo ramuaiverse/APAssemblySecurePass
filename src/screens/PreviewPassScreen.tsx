@@ -1,4 +1,4 @@
-import React, { useRef } from "react";
+import React, { useRef, useState, useEffect } from "react";
 import {
   View,
   Text,
@@ -8,6 +8,7 @@ import {
   Share,
   Alert,
   Platform,
+  Image,
 } from "react-native";
 import * as FileSystem from "expo-file-system";
 import { captureRef } from "react-native-view-shot";
@@ -17,8 +18,10 @@ import { RootStackParamList } from "@/types";
 import QRCode from "react-native-qrcode-svg";
 import CloseIcon from "../../assets/close.svg";
 import { SafeAreaView } from "react-native-safe-area-context";
-import BackGroundIcon from "../../assets/backGround.svg";
+import AssemblyIcon from "../../assets/assembly.svg";
+import AssemblyIconBG from "../../assets/assemblyIcon.svg";
 import ShareIcon from "../../assets/share.svg";
+import { api } from "@/services/api";
 
 type PreviewPassScreenNavigationProp = NativeStackNavigationProp<
   RootStackParamList,
@@ -40,8 +43,19 @@ const QRCodeDisplay = ({
   qrCodeString?: string;
   qrCodeViewRef?: React.RefObject<View | null>;
 }) => {
-  // Use pass_qr_string to generate QR code
   const qrData = qrCodeString || "";
+
+  // Extract the last QR code ID from the string
+  const getLastQrCodeId = (qrString: string) => {
+    if (!qrString) return "";
+    // Split on commas or slashes (not hyphens, as they're part of UUID format)
+    // This handles cases like "id1,id2,id3" or "path/to/id" or "prefix-id1,prefix-id2"
+    const segments = qrString.split(/[,\/\\]/);
+    const lastSegment = segments[segments.length - 1]?.trim() || qrString;
+    return lastSegment;
+  };
+
+  const lastQrCodeId = getLastQrCodeId(qrData);
 
   if (!qrData) {
     return (
@@ -52,174 +66,218 @@ const QRCodeDisplay = ({
   }
 
   return (
-    <View
-      ref={qrCodeViewRef}
-      style={styles.qrCodeContainer}
-      collapsable={false}
-    >
-      <QRCode
-        value={qrData}
-        size={150}
-        color="#000000"
-        backgroundColor="#FFFFFF"
-        logo={undefined}
-      />
+    <View ref={qrCodeViewRef} style={styles.qrCodeWrapper} collapsable={false}>
+      <View style={styles.qrCodeBorder}>
+        <QRCode
+          value={qrData}
+          size={180}
+          color="#000000"
+          backgroundColor="#FFFFFF"
+          logo={undefined}
+        />
+      </View>
+      {lastQrCodeId && <Text style={styles.qrCodeId}>{lastQrCodeId}</Text>}
     </View>
   );
 };
 
 export default function PreviewPassScreen({ navigation, route }: Props) {
-  // Ref for QR code view to capture as image
   const qrCodeViewRef = useRef<View>(null);
-  // Ref for entire card container to capture as image
   const cardContainerRef = useRef<View>(null);
 
-  // Get pass data from route params (full API response)
   const passRequestData = route.params?.passData;
+
   const categoryName = route.params?.categoryName || null;
   const passTypeName = route.params?.passTypeName || null;
 
-  // Extract first visitor from visitors array
-  const firstVisitor = passRequestData?.visitors?.[0];
+  // State for pass type color
+  const [passTypeColor, setPassTypeColor] = useState<string>("#3B82F6"); // Default blue color
 
-  // Extract data from API response
+  // Fetch pass types and get color for current pass type
+  useEffect(() => {
+    const fetchPassTypeColor = async () => {
+      if (!passTypeName) return;
+
+      try {
+        const passTypes = await api.getAllPassTypes();
+        const matchedPassType = passTypes.find(
+          (pt) => pt.name.toLowerCase() === passTypeName.toLowerCase()
+        );
+        if (matchedPassType?.color) {
+          setPassTypeColor(matchedPassType.color);
+        }
+      } catch (error) {
+        console.error("Failed to fetch pass types:", error);
+        // Keep default color on error
+      }
+    };
+
+    fetchPassTypeColor();
+  }, [passTypeName]);
+
+  const firstVisitor = passRequestData?.visitors?.[0];
+  const carPasses = firstVisitor?.car_passes || [];
+
   const visitorName =
     firstVisitor?.first_name && firstVisitor?.last_name
       ? `${firstVisitor.first_name} ${firstVisitor.last_name}`.trim()
       : "N/A";
-  const purpose = passRequestData?.purpose || "N/A";
-  const numberOfVisitors = passRequestData?.visitors?.length?.toString() || "1";
-  const qrCodeString = firstVisitor?.pass_qr_string || "";
   const passNumber = firstVisitor?.pass_number || null;
   const identificationType = firstVisitor?.identification_type || null;
   const identificationNumber = firstVisitor?.identification_number || null;
+  const identificationPhotoUrl = firstVisitor?.identification_photo_url || null;
   const requestedBy = passRequestData?.requested_by || null;
   const season = passRequestData?.season || null;
+  const qrCodeString = firstVisitor?.pass_qr_string || "";
 
-  // Format dates from ISO strings
-  const formatDateFromISO = (isoString: string) => {
-    try {
-      const date = new Date(isoString);
-      return date.toLocaleDateString("en-IN", {
-        day: "2-digit",
-        month: "short",
-        year: "numeric",
-      });
-    } catch {
-      return isoString;
+  // Get visitor initial for avatar
+  const getVisitorInitial = () => {
+    if (firstVisitor?.first_name) {
+      return firstVisitor.first_name.charAt(0).toUpperCase();
     }
+    return "V";
   };
 
-  const formatTimeFromISO = (isoString: string) => {
+  // Format dates in DD/MM/YYYY HH:MM format
+  const formatDateTime = (isoString: string) => {
     try {
       const date = new Date(isoString);
+      const day = String(date.getDate()).padStart(2, "0");
+      const month = String(date.getMonth() + 1).padStart(2, "0");
+      const year = date.getFullYear();
       let hours = date.getHours();
-      const minutes = date.getMinutes();
-      const ampm = hours >= 12 ? "PM" : "AM";
-      hours = hours % 12;
-      hours = hours || 12;
-      const minutesStr = String(minutes).padStart(2, "0");
-      return `${hours}:${minutesStr} ${ampm}`;
+      const minutes = String(date.getMinutes()).padStart(2, "0");
+      return `${day}/${month}/${year} ${hours}:${minutes}`;
     } catch {
-      return isoString;
+      return "N/A";
     }
   };
 
-  const date = passRequestData?.valid_from
-    ? formatDateFromISO(passRequestData.valid_from)
+  const validFrom = passRequestData?.valid_from
+    ? formatDateTime(passRequestData.valid_from)
     : "N/A";
-  const startTime = passRequestData?.valid_from
-    ? formatTimeFromISO(passRequestData.valid_from)
-    : "N/A";
-  const endTime = passRequestData?.valid_to
-    ? formatTimeFromISO(passRequestData.valid_to)
+  const validTo = passRequestData?.valid_to
+    ? formatDateTime(passRequestData.valid_to)
     : "N/A";
 
-  // Format phone number to show only digits
-  const formatPhoneNumber = (phone: string) => {
-    return phone.replace(/\D/g, "");
+  // Format vehicle details
+  const formatVehicleDetails = () => {
+    if (carPasses.length === 0) return null;
+    const car = carPasses[0];
+    const vehicleNumber = car?.car_number || "";
+    const make = car?.car_make || "";
+    const model = car?.car_model || "";
+    const color = car?.car_color || "";
+    const tag = car?.tag || null;
+    return {
+      number: vehicleNumber,
+      details: `${make}${make && model ? ", " : ""}${model}${
+        (make || model) && color ? ", " : ""
+      }${color}`,
+      tag: tag,
+    };
   };
 
-  // Format time to remove AM/PM
-  const formatTime = (time: string) => {
-    return time.replace(/\s*(AM|PM|am|pm)/gi, "").trim();
-  };
+  const vehicleDetails = formatVehicleDetails();
+
+  // Get visitor type (category - pass type)
+  const visitorType =
+    categoryName && passTypeName
+      ? `${categoryName} - ${passTypeName}`
+      : categoryName || passTypeName || "General visitors";
 
   const handleClose = () => {
-    navigation.goBack();
+    // Navigate back to IssueVisitorPassScreen - form will reset via useFocusEffect
+    navigation.replace("IssueVisitorPass", {});
   };
 
   const handleShare = async () => {
     try {
-      const shareMessage = `Visitor Pass${season ? ` - ${season}` : ""}
+      // Get request_id and visitor_id
+      const requestId = passRequestData?.id || passRequestData?.request_id;
+      const visitorId = firstVisitor?.id || firstVisitor?.visitor_id;
 
-Name: ${visitorName}
-${passNumber ? `Pass Number: ${passNumber}` : ""}
-Date: ${date}
-Time Slot: ${startTime} - ${endTime}
-Purpose: ${purpose}
-${
-  identificationType && identificationNumber
-    ? `${
-        identificationType.charAt(0).toUpperCase() + identificationType.slice(1)
-      }: ${identificationNumber}`
-    : ""
-}
-${requestedBy ? `Requested By: ${requestedBy}` : ""}
-Visitors: ${numberOfVisitors} Person${parseInt(numberOfVisitors) > 1 ? "s" : ""}
-${qrCodeString ? `QR Code: ${qrCodeString}` : ""}
+      if (!requestId || !visitorId) {
+        Alert.alert("Error", "Missing request ID or visitor ID");
+        return;
+      }
 
-This pass is authorized for entry.`;
-
-      let imageUri: string | null = null;
-
-      // Try to capture entire card container as image (includes all details)
+      // Call the resend WhatsApp API
       try {
-        if (cardContainerRef.current) {
-          // Capture the entire card container as an image
-          const uri = await captureRef(cardContainerRef, {
-            format: "png",
-            quality: 1.0,
-            result: "tmpfile",
-          });
-
-          imageUri = uri;
-        }
-      } catch (captureError) {
-        // Continue with text-only share if capture fails
+        await api.resendWhatsApp(String(requestId), String(visitorId));
+        Alert.alert("Success", "Pass has been sent via WhatsApp successfully");
+      } catch (apiError) {
+        const errorMessage =
+          apiError instanceof Error
+            ? apiError.message
+            : "Failed to send pass via WhatsApp. Please try again.";
+        Alert.alert("Error", errorMessage);
+        return;
       }
 
-      const shareOptions: any = {
-        message: shareMessage,
-        title: "Visitor Pass",
-      };
-
-      // Add image if available - works for both iOS and Android
-      if (imageUri) {
-        // For both platforms, use url property for images
-        // Ensure proper file URI format for Android
-        const fileUri =
-          Platform.OS === "android" && !imageUri.startsWith("file://")
-            ? `file://${imageUri}`
-            : imageUri;
-        shareOptions.url = fileUri;
-
-        // On Android, also include the message in the share
-        if (Platform.OS === "android") {
-          shareOptions.message = `${shareMessage}\n\n[Image attached]`;
-        }
-      }
-
-      const result = await Share.share(shareOptions);
-
-      // Clean up temporary file after sharing (optional, system will clean up eventually)
-      if (imageUri) {
-        try {
-          await FileSystem.deleteAsync(imageUri, { idempotent: true });
-        } catch (cleanupError) {
-          // Failed to delete temporary file - system will clean up eventually
-        }
-      }
+      // Native share functionality - commented out for now
+      // Continue with native share functionality
+      // const shareMessage = `Visitor Pass${season ? ` - ${season}` : ""}
+      //
+      // Name: ${visitorName}
+      // ${passNumber ? `Pass Number: ${passNumber}` : ""}
+      // Date: ${validFrom} - ${validTo}
+      // ${requestedBy ? `Requested By: ${requestedBy}` : ""}
+      // ${
+      //   identificationType && identificationNumber
+      //     ? `${identificationType}: ${identificationNumber}`
+      //     : ""
+      // }
+      // ${
+      //   vehicleDetails
+      //     ? `Vehicle: ${vehicleDetails.number}\n${vehicleDetails.details}`
+      //     : ""
+      // }
+      // ${qrCodeString ? `QR Code: ${qrCodeString}` : ""}
+      //
+      // This pass is authorized for entry.`;
+      //
+      // let imageUri: string | null = null;
+      //
+      // try {
+      //   if (cardContainerRef.current) {
+      //     const uri = await captureRef(cardContainerRef, {
+      //       format: "png",
+      //       quality: 1.0,
+      //       result: "tmpfile",
+      //     });
+      //     imageUri = uri;
+      //   }
+      // } catch (captureError) {
+      //   // Continue with text-only share if capture fails
+      // }
+      //
+      // const shareOptions: any = {
+      //   message: shareMessage,
+      //   title: "Visitor Pass",
+      // };
+      //
+      // if (imageUri) {
+      //   const fileUri =
+      //     Platform.OS === "android" && !imageUri.startsWith("file://")
+      //       ? `file://${imageUri}`
+      //       : imageUri;
+      //   shareOptions.url = fileUri;
+      //
+      //   if (Platform.OS === "android") {
+      //     shareOptions.message = `${shareMessage}\n\n[Image attached]`;
+      //   }
+      // }
+      //
+      // const result = await Share.share(shareOptions);
+      //
+      // if (imageUri) {
+      //   try {
+      //     await FileSystem.deleteAsync(imageUri, { idempotent: true });
+      //   } catch (cleanupError) {
+      //     // Failed to delete temporary file
+      //   }
+      // }
     } catch (error) {
       Alert.alert("Error", "Failed to share pass. Please try again.");
     }
@@ -229,8 +287,9 @@ This pass is authorized for entry.`;
     <SafeAreaView style={styles.container}>
       {/* Header */}
       <View style={styles.header}>
-        <View style={styles.headerSpacer} />
-        <Text style={styles.headerTitle}>Preview Pass</Text>
+        <View style={styles.headerTitleContainer}>
+          <Text style={styles.headerTitle}>Preview Pass</Text>
+        </View>
         <TouchableOpacity onPress={handleClose} style={styles.headerButton}>
           <CloseIcon width={20} height={20} />
         </TouchableOpacity>
@@ -240,93 +299,168 @@ This pass is authorized for entry.`;
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
       >
-        {/* White Card Container */}
+        {/* Pass Card Container */}
         <View
           ref={cardContainerRef}
-          style={styles.cardContainer}
+          style={styles.passContainer}
           collapsable={false}
         >
-          {/* Session Title */}
-          {season && <Text style={styles.sessionTitle}>{season}</Text>}
-
-          {/* QR Code */}
-          <QRCodeDisplay
-            qrCodeString={qrCodeString}
-            qrCodeViewRef={qrCodeViewRef}
-          />
-
-          {/* Visitor Name */}
-          <View style={styles.nameSection}>
-            <Text style={styles.visitorName}>{visitorName}</Text>
-          </View>
-
-          {/* Pass Details - Simple Text Format */}
-          <View style={styles.detailsContainer}>
-            {passNumber && (
-              <Text style={styles.detailText}>
-                <Text style={styles.detailLabel}>Pass No: </Text>
-                <Text>{passNumber}</Text>
-              </Text>
-            )}
-            <Text style={styles.detailText}>
-              <Text style={styles.detailLabel}>Date: </Text>
-              <Text>{date}</Text>
-            </Text>
-            <Text style={styles.detailText}>
-              <Text style={styles.detailLabel}>Time Slot: </Text>
-              <Text>
-                {startTime} - {endTime}
-              </Text>
-            </Text>
-            <Text style={styles.detailText}>
-              <Text style={styles.detailLabel}>Purpose: </Text>
-              <Text>{purpose}</Text>
-            </Text>
-            {identificationType && identificationNumber && (
-              <Text style={styles.detailText}>
-                <Text style={styles.detailLabel}>
-                  {identificationType.charAt(0).toUpperCase() +
-                    identificationType.slice(1)}
-                  :{" "}
-                </Text>
-                <Text>{identificationNumber}</Text>
-              </Text>
-            )}
-            {requestedBy && (
-              <Text style={styles.detailText}>
-                <Text style={styles.detailLabel}>Requested By: </Text>
-                <Text>{requestedBy}</Text>
-              </Text>
-            )}
-            {categoryName && (
-              <Text style={styles.detailText}>
-                <Text style={styles.detailLabel}>Category: </Text>
-                <Text>{categoryName}</Text>
-              </Text>
-            )}
-            {passTypeName && (
-              <Text style={styles.detailText}>
-                <Text style={styles.detailLabel}>Pass Type: </Text>
-                <Text>{passTypeName}</Text>
-              </Text>
-            )}
-            <Text style={styles.detailText}>
-              <Text style={styles.detailLabel}>Visitors: </Text>
-              <Text>
-                {numberOfVisitors} Person
-                {parseInt(numberOfVisitors) > 1 ? "s" : ""}
-              </Text>
-            </Text>
-          </View>
-
-          {/* Authorized Badge */}
-          <View style={styles.authorizedBadge}>
-            <View style={styles.authorizedBadgeInner}>
-              <Text style={styles.authorizedText}>AUTHORIZED</Text>
+          {/* Blue Header Section */}
+          <View
+            style={[styles.headerSection, { backgroundColor: passTypeColor }]}
+          >
+            {/* Background Icon */}
+            <View style={styles.headerBackgroundIcon}>
+              <AssemblyIconBG />
+            </View>
+            <View style={styles.headerContent}>
+              <Text style={styles.visitorsPassTitle}>Visitors Gallery</Text>
+              <View style={styles.logoSection}>
+                <View style={styles.logoCircle}>
+                  <AssemblyIcon width={60} height={60} />
+                </View>
+                <View>
+                  <Text style={styles.teluguText}>ఆంధ్ర ప్రదేశ్ శాసనసభ</Text>
+                  <Text style={styles.legislatureText}>
+                    ANDHRA PRADESH LEGISLATURE
+                  </Text>
+                  <Text style={styles.locationText}>
+                    Velagapudi, Amaravathi
+                  </Text>
+                </View>
+              </View>
             </View>
           </View>
 
-          {/* Action Buttons */}
+          {/* White Content Section */}
+          <View style={styles.contentSection}>
+            {/* Session and Visitor Type */}
+            {season && <Text style={styles.sessionText}>{season}</Text>}
+            <Text style={styles.visitorTypeText}>{visitorType}</Text>
+            <View style={styles.divider} />
+
+            {/* Visitor Info Section */}
+            <View style={styles.visitorInfoSection}>
+              {/* Avatar Circle */}
+              <View style={styles.avatarCircle}>
+                {identificationPhotoUrl ? (
+                  <Image
+                    source={{ uri: identificationPhotoUrl }}
+                    style={styles.avatarImage}
+                    resizeMode="cover"
+                  />
+                ) : (
+                  <Text style={styles.avatarText}>{getVisitorInitial()}</Text>
+                )}
+              </View>
+
+              {/* Visitor Details */}
+              <View style={styles.visitorDetails}>
+                <Text style={styles.visitorName}>{visitorName}</Text>
+                {passNumber && (
+                  <Text style={styles.visitorDetail}>{passNumber}</Text>
+                )}
+                {passTypeName && (
+                  <Text style={styles.visitorDetail}>
+                    <Text style={styles.visitorDetailBold}>PASSTYPE: </Text>
+                    {passTypeName}
+                  </Text>
+                )}
+                <Text style={styles.visitorDetail}>
+                  <Text style={styles.visitorDetailBold}>VALID FROM: </Text>
+                  {validFrom}
+                </Text>
+                <Text style={styles.visitorDetail}>
+                  <Text style={styles.visitorDetailBold}>VALID TO: </Text>
+                  {validTo}
+                </Text>
+                {requestedBy && (
+                  <Text style={styles.visitorDetail}>
+                    <Text style={styles.visitorDetailBold}>REQUESTED BY: </Text>
+                    {requestedBy}
+                  </Text>
+                )}
+                {identificationType && identificationNumber && (
+                  <Text style={styles.visitorDetail}>
+                    <Text style={styles.visitorDetailBold}>
+                      {identificationType.toLowerCase()}:{" "}
+                    </Text>
+                    {identificationNumber}
+                  </Text>
+                )}
+              </View>
+            </View>
+            <View style={styles.divider} />
+            {/* Vehicle Pass Details */}
+            {vehicleDetails && (
+              <>
+                <Text style={styles.vehicleTitle}>Vehicle Pass Details</Text>
+                <View style={styles.vehicleBox}>
+                  <Text style={styles.vehicleText}>
+                    Vehicle: {vehicleDetails.number}
+                  </Text>
+                  {vehicleDetails.details && (
+                    <Text style={styles.vehicleText}>
+                      {vehicleDetails.details}
+                    </Text>
+                  )}
+                  {vehicleDetails.tag && (
+                    <View style={styles.vehicleTagContainer}>
+                      <Text style={styles.vehicleTagText}>
+                        {vehicleDetails.tag}
+                      </Text>
+                    </View>
+                  )}
+                </View>
+              </>
+            )}
+
+            {/* QR Code Section */}
+            <QRCodeDisplay
+              qrCodeString={qrCodeString}
+              qrCodeViewRef={qrCodeViewRef}
+            />
+          </View>
+
+          {/* Blue Approval Section */}
+          <View
+            style={[styles.approvalSection, { backgroundColor: passTypeColor }]}
+          >
+            <View style={styles.approvedByBox}>
+              <Text style={styles.approvedByLabel}>APPROVED BY</Text>
+              <Text style={styles.approvedByName}>
+                {requestedBy || "Authorized"}
+              </Text>
+            </View>
+            <View style={styles.signatorySection}>
+              <Text style={styles.signatoryName}>
+                Prasanna Kumar Suryadevara
+              </Text>
+              <Text style={styles.signatoryTitle}>
+                Secretary-General to State Legislature
+              </Text>
+            </View>
+          </View>
+
+          {/* Instructions Section */}
+          <View style={styles.instructionsSection}>
+            <Text style={styles.instructionsTitle}>Instructions:</Text>
+            <View style={styles.instructionsList}>
+              <Text style={styles.instructionItem}>
+                1. Visitors are permitted to visit only the person / place
+                specified in the pass.
+              </Text>
+              <Text style={styles.instructionItem}>
+                2. This Entry Pass is valid only during the period for which it
+                is issued and not transferable.
+              </Text>
+              <Text style={styles.instructionItem}>
+                3. Visitors must carry valid identification proof at all times.
+              </Text>
+            </View>
+          </View>
+
+          {/* Share Button */}
           <View style={styles.actionButtons}>
             <TouchableOpacity style={styles.shareButton} onPress={handleShare}>
               <ShareIcon width={14} height={14} />
@@ -335,11 +469,6 @@ This pass is authorized for entry.`;
           </View>
         </View>
       </ScrollView>
-
-      {/* Background Icon - Behind Card */}
-      <View style={styles.backgroundContainer}>
-        <BackGroundIcon height={200} />
-      </View>
     </SafeAreaView>
   );
 }
@@ -353,8 +482,18 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
+    paddingHorizontal: 15,
+    paddingVertical: 10,
+    backgroundColor: "#E3F7E8",
   },
-  headerSpacer: {
+  headerTitleContainer: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  headerButton: {
+    justifyContent: "center",
+    alignItems: "center",
     width: 40,
   },
   headerTitle: {
@@ -362,51 +501,196 @@ const styles = StyleSheet.create({
     fontWeight: "bold",
     color: "#111827",
   },
-  headerButton: {
-    justifyContent: "center",
-    alignItems: "center",
-    marginRight: 20,
-  },
   scrollContent: {
-    padding: 20,
-    paddingBottom: 40,
     alignItems: "center",
+    paddingHorizontal: 16,
+    paddingBottom: 40,
   },
-  cardContainer: {
+  passContainer: {
     width: "100%",
     maxWidth: 400,
     backgroundColor: "#FFFFFF",
-    borderRadius: 20,
-    padding: 24,
-    alignItems: "center",
-    shadowColor: "#000",
+    borderRadius: 16,
+    shadowColor: "#000000",
     shadowOffset: {
       width: 0,
-      height: 4,
+      height: 6,
     },
     shadowOpacity: 0.3,
-    shadowRadius: 8,
-    elevation: 8,
-    zIndex: 1,
-    position: "relative",
+    shadowRadius: 15,
+    elevation: 15,
   },
-  sessionTitle: {
+  headerSection: {
+    backgroundColor: "#3B82F6",
+    padding: 20,
+    paddingTop: 30,
+    paddingBottom: 25,
+    position: "relative",
+    overflow: "hidden",
+  },
+  headerBackgroundIcon: {
+    position: "absolute",
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    justifyContent: "center",
+    alignItems: "center",
+    zIndex: 0,
+    opacity: 0.15,
+  },
+  headerContent: {
+    position: "relative",
+    zIndex: 1,
+  },
+  visitorsPassTitle: {
+    fontSize: 20,
+    fontWeight: "bold",
+    color: "#FFFFFF",
+    textAlign: "center",
+    marginBottom: 20,
+  },
+  logoSection: {
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  logoCircle: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    backgroundColor: "#FFFFFF",
+    justifyContent: "center",
+    alignItems: "center",
+    marginBottom: 15,
+  },
+  teluguText: {
+    fontSize: 14,
+    color: "#FFFFFF",
+    marginBottom: 4,
+    textAlign: "center",
+  },
+  legislatureText: {
+    fontSize: 18,
+    fontWeight: "bold",
+    color: "#FFFFFF",
+    marginBottom: 4,
+    textAlign: "center",
+  },
+  locationText: {
+    fontSize: 12,
+    color: "#FFFFFF",
+    opacity: 0.9,
+    textAlign: "center",
+    fontWeight: "bold",
+  },
+  contentSection: {
+    backgroundColor: "#FFFFFF",
+    padding: 20,
+  },
+  sessionText: {
+    fontSize: 16,
+    fontWeight: "bold",
+    color: "#111827",
+    marginBottom: 4,
+    textAlign: "center",
+  },
+  visitorTypeText: {
+    fontSize: 14,
+    color: "#111827",
+    textAlign: "center",
+  },
+  visitorInfoSection: {
+    flexDirection: "row",
+  },
+  avatarCircle: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    backgroundColor: "#1E40AF",
+    overflow: "hidden",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  avatarImage: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+  },
+  avatarText: {
+    fontSize: 32,
+    fontWeight: "bold",
+    color: "#FFFFFF",
+  },
+  visitorDetails: {
+    flex: 1,
+    marginLeft: 15,
+  },
+  visitorName: {
     fontSize: 18,
     fontWeight: "bold",
     color: "#111827",
-    marginBottom: 20,
+    marginBottom: 6,
+  },
+  visitorDetail: {
+    fontSize: 12,
+    color: "#111827",
+    marginBottom: 4,
+    lineHeight: 18,
+  },
+  visitorDetailBold: {
+    fontWeight: "bold",
+  },
+  divider: {
+    height: 1,
+    backgroundColor: "#E5E7EB",
+    marginVertical: 16,
+  },
+  vehicleTitle: {
+    fontSize: 14,
+    fontWeight: "bold",
+    color: "#111827",
+    marginBottom: 10,
     textAlign: "center",
   },
-  qrCodeContainer: {
+  vehicleBox: {
+    backgroundColor: "#F3F4F6",
+    padding: 12,
+    borderRadius: 8,
     marginBottom: 20,
+  },
+  vehicleText: {
+    fontSize: 12,
+    color: "#111827",
+    marginBottom: 4,
+  },
+  vehicleTagContainer: {
+    alignSelf: "flex-start",
+    backgroundColor: "#1E40AF",
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 16,
+    marginTop: 8,
+  },
+  vehicleTagText: {
+    fontSize: 12,
+    fontWeight: "600",
+    color: "#FFFFFF",
+  },
+  qrCodeWrapper: {
+    alignItems: "center",
+    marginVertical: 20,
+  },
+  qrCodeBorder: {
+    borderWidth: 2,
+    borderColor: "#10B981",
+    borderStyle: "dashed",
+    padding: 10,
+    borderRadius: 8,
+    marginBottom: 10,
+  },
+  qrCodeContainer: {
     alignItems: "center",
     justifyContent: "center",
-    minHeight: 150,
-    minWidth: 150,
-    borderWidth: 1,
-    borderColor: "#111827",
-
-    padding: 6,
   },
   qrCodePlaceholder: {
     fontSize: 12,
@@ -414,55 +698,81 @@ const styles = StyleSheet.create({
     textAlign: "center",
     padding: 20,
   },
-  nameSection: {
-    width: "100%",
-    alignItems: "center",
-    marginBottom: 24,
-  },
-  visitorName: {
-    fontSize: 20,
-    fontWeight: "bold",
-    color: "#111827",
-    marginBottom: 6,
-  },
-  detailsContainer: {
-    width: "100%",
-    alignItems: "flex-start",
-    marginBottom: 24,
-  },
-  detailText: {
-    fontSize: 14,
-    color: "#111827",
-    marginBottom: 12,
-    lineHeight: 20,
-  },
-  detailLabel: {
-    fontWeight: "bold",
-  },
-  authorizedBadge: {
-    backgroundColor: "#E3F7E8",
-    padding: 4,
-    borderRadius: 16,
-    marginBottom: 24,
-    alignSelf: "center",
+  qrCodeId: {
+    fontSize: 10,
+    color: "#6B7280",
+    textAlign: "center",
     marginTop: 8,
   },
-  authorizedBadgeInner: {
-    backgroundColor: "#DCFCE7",
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 12,
+  approvalSection: {
+    backgroundColor: "#3B82F6",
+    alignItems: "center",
+    justifyContent: "center",
+    padding: 15,
+    flexDirection: "row",
+    gap: 10,
   },
-  authorizedText: {
-    color: "#065F46",
+  approvedByBox: {
+    backgroundColor: "#FFFFFF",
+    padding: 12,
+    borderRadius: 4,
+    minWidth: 120,
+    alignItems: "center",
+    marginBottom: 15,
+  },
+  approvedByLabel: {
     fontSize: 10,
     fontWeight: "bold",
+    color: "#111827",
+    marginBottom: 4,
+    textAlign: "center",
+  },
+  approvedByName: {
+    fontSize: 12,
+    color: "#111827",
+    fontWeight: "600",
+    textAlign: "center",
+  },
+  signatorySection: {
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  signatoryName: {
+    fontSize: 12,
+    fontWeight: "600",
+    color: "#FFFFFF",
+    marginBottom: 4,
+    textAlign: "center",
+  },
+  signatoryTitle: {
+    fontSize: 10,
+    color: "#FFFFFF",
+    opacity: 0.9,
+    textAlign: "center",
+  },
+  instructionsSection: {
+    backgroundColor: "#FFFFFF",
+    padding: 20,
+  },
+  instructionsTitle: {
+    fontSize: 14,
+    fontWeight: "bold",
+    color: "#111827",
+    marginBottom: 12,
+  },
+  instructionsList: {
+    gap: 8,
+  },
+  instructionItem: {
+    fontSize: 12,
+    color: "#111827",
   },
   actionButtons: {
     flexDirection: "row",
     justifyContent: "center",
     width: "100%",
-    paddingTop: 20,
+    padding: 20,
+    backgroundColor: "#FFFFFF",
   },
   shareButton: {
     width: "60%",
@@ -479,16 +789,5 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: "#111827",
     fontWeight: "500",
-  },
-  backgroundContainer: {
-    position: "absolute",
-    bottom: 0,
-    left: 0,
-    right: 0,
-    width: "100%",
-    alignItems: "center",
-    justifyContent: "center",
-    zIndex: 0,
-    pointerEvents: "none",
   },
 });

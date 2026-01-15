@@ -479,12 +479,12 @@ export default function IssueVisitorPassScreen({ navigation, route }: Props) {
       hasError = true;
     }
 
-    // Validate valid from date/time
-    const now = new Date();
-    if (validFrom <= now) {
-      setValidFromError("Valid from date/time must be in the future");
-      hasError = true;
-    }
+    // Validate valid from date/time - removed validation to allow showing 8am to 5pm even if current time is between 8am to 5pm
+    // const now = new Date();
+    // if (validFrom <= now) {
+    //   setValidFromError("Valid from date/time must be in the future");
+    //   hasError = true;
+    // }
 
     if (hasError) {
       return;

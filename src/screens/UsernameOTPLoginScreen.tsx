@@ -63,6 +63,9 @@ export default function UsernameOTPLoginScreen({ navigation }: Props) {
     try {
       await api.generateOTP(username.trim());
 
+      // Clear OTP input if it was previously entered
+      setOtp("");
+      setOtpError("");
       setOtpSent(true);
       Alert.alert(
         "OTP Sent",
