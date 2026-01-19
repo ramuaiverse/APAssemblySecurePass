@@ -11,6 +11,9 @@ import PreCheckScreen from "@/screens/PreCheckScreen";
 import QRScanScreen from "@/screens/QRScanScreen";
 import ValidPassScreen from "@/screens/ValidPassScreen";
 import InvalidPassScreen from "@/screens/InvalidPassScreen";
+import HomeScreen from "@/screens/HomeScreen";
+import VisitorsScreen from "@/screens/VisitorsScreen";
+import VisitorDetailsScreen from "@/screens/VisitorDetailsScreen";
 import IssueVisitorPassScreen from "@/screens/IssueVisitorPassScreen";
 import PreviewPassScreen from "@/screens/PreviewPassScreen";
 import LoginMethodSelectionScreen from "@/screens/LoginMethodSelectionScreen";
@@ -22,7 +25,7 @@ import ResetPasswordScreen from "@/screens/ResetPasswordScreen";
 const Stack = createNativeStackNavigator<RootStackParamList>();
 
 export const setUpNavigation = (
-  navigationRef?: React.RefObject<NavigationContainerRef<RootStackParamList> | null>
+  navigationRef?: React.RefObject<NavigationContainerRef<RootStackParamList> | null>,
 ) => {
   return (
     <NavigationContainer ref={navigationRef || undefined}>
@@ -48,6 +51,9 @@ export const setUpNavigation = (
         <Stack.Screen name="QRScan" component={QRScanScreen} />
         <Stack.Screen name="ValidPass" component={ValidPassScreen} />
         <Stack.Screen name="InvalidPass" component={InvalidPassScreen} />
+        <Stack.Screen name="Home" component={HomeScreen} />
+        <Stack.Screen name="Visitors" component={VisitorsScreen} />
+        <Stack.Screen name="VisitorDetails" component={VisitorDetailsScreen} />
         <Stack.Screen
           name="IssueVisitorPass"
           component={IssueVisitorPassScreen}

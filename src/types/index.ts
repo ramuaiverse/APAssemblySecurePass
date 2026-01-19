@@ -97,6 +97,16 @@ export type RootStackParamList = {
       message?: string;
     };
   };
+  Home: {
+    userFullName?: string;
+    userId?: string;
+    role?: string;
+  };
+  Visitors: undefined;
+  VisitorDetails: {
+    request: any; // Full pass request object
+    visitor: any; // Visitor object from the request
+  };
   IssueVisitorPass: {
     userFullName?: string;
     userId?: string;

@@ -66,7 +66,7 @@ export default function IssueVisitorPassScreen({ navigation, route }: Props) {
   const [idType, setIdType] = useState("Aadhaar");
   const [idNumber, setIdNumber] = useState("");
   const [identificationPhoto, setIdentificationPhoto] = useState<string | null>(
-    null
+    null,
   );
   const [identificationDocument, setIdentificationDocument] = useState<
     string | null
@@ -76,7 +76,7 @@ export default function IssueVisitorPassScreen({ navigation, route }: Props) {
   const [passCategory, setPassCategory] = useState("");
   const [passType, setPassType] = useState("");
   const [requestedBy, setRequestedBy] = useState(
-    route.params?.userFullName || "Legislature"
+    route.params?.userFullName || "Legislature",
   );
   const [purpose, setPurpose] = useState("Instant Pass Issuance");
   const [session, setSession] = useState("");
@@ -137,13 +137,13 @@ export default function IssueVisitorPassScreen({ navigation, route }: Props) {
   const [sessions, setSessions] = useState<Session[]>([]);
   const [loadingSessions, setLoadingSessions] = useState(false);
   const [selectedCategoryId, setSelectedCategoryId] = useState<string | null>(
-    null
+    null,
   );
   const [selectedSubCategoryId, setSelectedSubCategoryId] = useState<
     string | null
   >(null);
   const [selectedPassTypeId, setSelectedPassTypeId] = useState<string | null>(
-    null
+    null,
   );
   const [selectedCategorySubCategories, setSelectedCategorySubCategories] =
     useState<SubCategory[]>([]);
@@ -217,7 +217,7 @@ export default function IssueVisitorPassScreen({ navigation, route }: Props) {
   useFocusEffect(
     React.useCallback(() => {
       resetForm();
-    }, [])
+    }, []),
   );
 
   const handleLogout = () => {
@@ -253,7 +253,7 @@ export default function IssueVisitorPassScreen({ navigation, route }: Props) {
       if (status !== "granted") {
         Alert.alert(
           "Permission needed",
-          "Please grant camera roll permissions"
+          "Please grant camera roll permissions",
         );
         return;
       }
@@ -281,7 +281,7 @@ export default function IssueVisitorPassScreen({ navigation, route }: Props) {
       if (status !== "granted") {
         Alert.alert(
           "Permission needed",
-          "Please grant camera roll permissions"
+          "Please grant camera roll permissions",
         );
         return;
       }
@@ -309,7 +309,7 @@ export default function IssueVisitorPassScreen({ navigation, route }: Props) {
 
     // Find the selected category to get its ID
     const selectedCategory = categories.find(
-      (cat) => cat.name === categoryName
+      (cat) => cat.name === categoryName,
     );
 
     if (selectedCategory) {
@@ -364,8 +364,8 @@ export default function IssueVisitorPassScreen({ navigation, route }: Props) {
       tempValidFromAmPm === "PM" && tempValidFromHour !== 12
         ? tempValidFromHour + 12
         : tempValidFromAmPm === "AM" && tempValidFromHour === 12
-        ? 0
-        : tempValidFromHour;
+          ? 0
+          : tempValidFromHour;
     const newDate = new Date(tempValidFromDate);
     newDate.setHours(hours24, tempValidFromMinute, 0, 0);
     setValidFrom(newDate);
@@ -392,8 +392,8 @@ export default function IssueVisitorPassScreen({ navigation, route }: Props) {
         tempValidToAmPm === "PM" && tempValidToHour !== 12
           ? tempValidToHour + 12
           : tempValidToAmPm === "AM" && tempValidToHour === 12
-          ? 0
-          : tempValidToHour;
+            ? 0
+            : tempValidToHour;
       const newDate = new Date(tempValidToDate);
       newDate.setHours(hours24, tempValidToMinute, 0, 0);
       setValidTo(newDate);
@@ -552,7 +552,7 @@ export default function IssueVisitorPassScreen({ navigation, route }: Props) {
       if (!selectedSubCategoryId) {
         Alert.alert(
           "Error",
-          `Please select a pass type. The selected pass type "${passType}" could not be matched to a subcategory.`
+          `Please select a pass type. The selected pass type "${passType}" could not be matched to a subcategory.`,
         );
         setLoading(false);
         return;
@@ -604,8 +604,8 @@ export default function IssueVisitorPassScreen({ navigation, route }: Props) {
         const matchingIssuer = issuers.find((issuer) =>
           issuer.category_weblinks.some(
             (weblink) =>
-              weblink.category_id === selectedCategoryId && weblink.is_active
-          )
+              weblink.category_id === selectedCategoryId && weblink.is_active,
+          ),
         );
 
         if (matchingIssuer) {
@@ -635,7 +635,7 @@ export default function IssueVisitorPassScreen({ navigation, route }: Props) {
       formData.append("weblink", "legislative-mk2tc07d-laisqe"); // TODO: Generate or get from API
       formData.append(
         "comments",
-        comments.trim() || "Instant pass issued by Legislature"
+        comments.trim() || "Instant pass issued by Legislature",
       );
       formData.append("visitors", JSON.stringify([visitor]));
 
@@ -752,7 +752,7 @@ export default function IssueVisitorPassScreen({ navigation, route }: Props) {
       } catch (error) {
         Alert.alert(
           "Error",
-          "Failed to load categories. Please try again later."
+          "Failed to load categories. Please try again later.",
         );
         // Fallback to empty array
         setPassCategories([]);
@@ -774,7 +774,7 @@ export default function IssueVisitorPassScreen({ navigation, route }: Props) {
       } catch (error) {
         Alert.alert(
           "Error",
-          "Failed to load sessions. Please try again later."
+          "Failed to load sessions. Please try again later.",
         );
         setSessions([]);
       } finally {
@@ -811,8 +811,15 @@ export default function IssueVisitorPassScreen({ navigation, route }: Props) {
       >
         {/* Header */}
         <View style={styles.header}>
-          <View style={styles.headerButton} />
-          <Text style={styles.headerTitle}>Issue Visitor Pass</Text>
+          <TouchableOpacity
+            onPress={() => navigation.goBack()}
+            style={styles.headerButton}
+          >
+            <BackButtonIcon width={18} height={18} />
+          </TouchableOpacity>
+          <View style={styles.headerContent}>
+            <Text style={styles.headerTitle}>Insta Pass</Text>
+          </View>
           <TouchableOpacity onPress={handleLogout} style={styles.headerButton}>
             <LogOutIcon width={24} height={24} />
           </TouchableOpacity>
@@ -1474,11 +1481,11 @@ export default function IssueVisitorPassScreen({ navigation, route }: Props) {
                   passTypes.map((type) => {
                     // Find the pass type object to get its ID
                     const passTypeItem = allPassTypes.find(
-                      (pt) => pt.name === type
+                      (pt) => pt.name === type,
                     );
                     // Find subcategory by matching pass_type_id with pass type ID
                     const subCategory = selectedCategorySubCategories.find(
-                      (subCat) => subCat.pass_type_id === passTypeItem?.id
+                      (subCat) => subCat.pass_type_id === passTypeItem?.id,
                     );
                     return (
                       <TouchableOpacity
@@ -1493,7 +1500,7 @@ export default function IssueVisitorPassScreen({ navigation, route }: Props) {
                           let subCatId =
                             subCategory?.id ||
                             selectedCategorySubCategories.find(
-                              (subCat) => subCat.name === type
+                              (subCat) => subCat.name === type,
                             )?.id ||
                             null;
 
@@ -1504,7 +1511,7 @@ export default function IssueVisitorPassScreen({ navigation, route }: Props) {
                           ) {
                             const firstActiveSubCategory =
                               selectedCategorySubCategories.find(
-                                (subCat) => subCat.is_active
+                                (subCat) => subCat.is_active,
                               ) || selectedCategorySubCategories[0];
                             subCatId = firstActiveSubCategory.id;
                           }
@@ -1686,7 +1693,7 @@ export default function IssueVisitorPassScreen({ navigation, route }: Props) {
                                   {hour.toString().padStart(2, "0")}
                                 </Text>
                               </TouchableOpacity>
-                            )
+                            ),
                           )}
                         </ScrollView>
                       </View>
@@ -1718,7 +1725,7 @@ export default function IssueVisitorPassScreen({ navigation, route }: Props) {
                                   {minute.toString().padStart(2, "0")}
                                 </Text>
                               </TouchableOpacity>
-                            )
+                            ),
                           )}
                         </ScrollView>
                       </View>
@@ -1862,7 +1869,7 @@ export default function IssueVisitorPassScreen({ navigation, route }: Props) {
                                       {hour.toString().padStart(2, "0")}
                                     </Text>
                                   </TouchableOpacity>
-                                )
+                                ),
                               )}
                             </ScrollView>
                           </View>
@@ -1894,7 +1901,7 @@ export default function IssueVisitorPassScreen({ navigation, route }: Props) {
                                       {minute.toString().padStart(2, "0")}
                                     </Text>
                                   </TouchableOpacity>
-                                )
+                                ),
                               )}
                             </ScrollView>
                           </View>
@@ -1961,12 +1968,22 @@ const styles = StyleSheet.create({
     alignItems: "center",
     width: 24,
   },
+  headerContent: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+  },
   headerTitle: {
     fontSize: 18,
     fontWeight: "bold",
     color: "#111827",
-    flex: 1,
     textAlign: "center",
+  },
+  headerSubtitle: {
+    fontSize: 12,
+    color: "#6B7280",
+    textAlign: "center",
+    marginTop: 4,
   },
   scrollContent: {
     padding: 20,

@@ -240,7 +240,7 @@ export const api = {
             Accept: "application/json",
           },
           body: formData.toString(),
-        }
+        },
       );
 
       let data;
@@ -299,8 +299,8 @@ export const api = {
                 .map((e: any) => e.msg || e.message || JSON.stringify(e))
                 .join(", ")
             : typeof data?.detail === "string"
-            ? data.detail
-            : data?.message || data?.error) ||
+              ? data.detail
+              : data?.message || data?.error) ||
           `Login failed: ${response.statusText || `Status ${response.status}`}`;
 
         throw new Error(errorMessage);
@@ -329,12 +329,12 @@ export const api = {
   validateQRCodePublic: async (
     qrCodeId: string,
     gate?: string,
-    gateAction?: "entry" | "exit"
+    gateAction?: "entry" | "exit",
   ): Promise<QRValidationResponse> => {
     try {
       // Build URL with optional gate and gate_action query parameters
       let url = `${VALIDATION_API_BASE_URL}/api/v1/pass-requests/validate-qr/${encodeURIComponent(
-        qrCodeId
+        qrCodeId,
       )}`;
 
       const queryParams: string[] = [];
@@ -374,10 +374,10 @@ export const api = {
                 .map((e: any) => e.msg || e.message || JSON.stringify(e))
                 .join(", ")
             : typeof data.detail === "string"
-            ? data.detail
-            : data.detail
-            ? JSON.stringify(data.detail)
-            : null) ||
+              ? data.detail
+              : data.detail
+                ? JSON.stringify(data.detail)
+                : null) ||
           data.message ||
           data.error ||
           (typeof data === "string"
@@ -404,12 +404,12 @@ export const api = {
       scanned_by?: string;
       gate_location?: string;
       gate_action?: "entry" | "exit";
-    }
+    },
   ): Promise<QRValidationResponse> => {
     try {
       // Build URL with query parameters
       let url = `${VALIDATION_API_BASE_URL}/api/v1/pass-requests/validate-pass-number/${encodeURIComponent(
-        passNumber
+        passNumber,
       )}`;
 
       const queryParams: string[] = [];
@@ -424,21 +424,21 @@ export const api = {
       // Add scanned_by if provided
       if (options?.scanned_by) {
         queryParams.push(
-          `scanned_by=${encodeURIComponent(options.scanned_by)}`
+          `scanned_by=${encodeURIComponent(options.scanned_by)}`,
         );
       }
 
       // Add gate_location if provided
       if (options?.gate_location) {
         queryParams.push(
-          `gate_location=${encodeURIComponent(options.gate_location)}`
+          `gate_location=${encodeURIComponent(options.gate_location)}`,
         );
       }
 
       // Add gate_action if provided
       if (options?.gate_action) {
         queryParams.push(
-          `gate_action=${encodeURIComponent(options.gate_action)}`
+          `gate_action=${encodeURIComponent(options.gate_action)}`,
         );
       }
 
@@ -471,10 +471,10 @@ export const api = {
                 .map((e: any) => e.msg || e.message || JSON.stringify(e))
                 .join(", ")
             : typeof data.detail === "string"
-            ? data.detail
-            : data.detail
-            ? JSON.stringify(data.detail)
-            : null) ||
+              ? data.detail
+              : data.detail
+                ? JSON.stringify(data.detail)
+                : null) ||
           data.message ||
           data.error ||
           (typeof data === "string"
@@ -496,7 +496,7 @@ export const api = {
   // Upload visitor photo (no authentication required)
   uploadVisitorPhoto: async (
     qrData: string,
-    photoUri: string
+    photoUri: string,
   ): Promise<any> => {
     try {
       // Create FormData for file upload
@@ -514,7 +514,7 @@ export const api = {
       } as any);
 
       const url = `${VALIDATION_API_BASE_URL}/api/v1/pass-requests/validate-qr/${encodeURIComponent(
-        qrData
+        qrData,
       )}/upload-photo`;
 
       const response = await fetch(url, {
@@ -543,10 +543,10 @@ export const api = {
                 .map((e: any) => e.msg || e.message || JSON.stringify(e))
                 .join(", ")
             : typeof data.detail === "string"
-            ? data.detail
-            : data.detail
-            ? JSON.stringify(data.detail)
-            : null) ||
+              ? data.detail
+              : data.detail
+                ? JSON.stringify(data.detail)
+                : null) ||
           data.message ||
           data.error ||
           (typeof data === "string"
@@ -571,7 +571,7 @@ export const api = {
     data: {
       suspended_by: string;
       reason: string;
-    }
+    },
   ): Promise<any> => {
     // Validate visitorId
     if (!visitorId || !visitorId.trim()) {
@@ -654,8 +654,8 @@ export const api = {
                 .map((e: any) => e.msg || e.message || JSON.stringify(e))
                 .join(", ")
             : typeof responseData?.detail === "string"
-            ? responseData.detail
-            : responseData?.message || responseData?.error) ||
+              ? responseData.detail
+              : responseData?.message || responseData?.error) ||
           (typeof responseData === "string"
             ? responseData
             : `Suspend visitor failed: ${
@@ -685,7 +685,7 @@ export const api = {
             "Content-Type": "application/json",
             Accept: "application/json",
           },
-        }
+        },
       );
 
       let data;
@@ -705,8 +705,8 @@ export const api = {
                 .map((e: any) => e.msg || e.message || JSON.stringify(e))
                 .join(", ")
             : typeof data?.detail === "string"
-            ? data.detail
-            : data?.message || data?.error) ||
+              ? data.detail
+              : data?.message || data?.error) ||
           (typeof data === "string"
             ? data
             : `Failed to fetch categories: ${response.statusText}`);
@@ -716,7 +716,7 @@ export const api = {
 
       // Filter only active categories
       const activeCategories = (data as MainCategory[]).filter(
-        (category) => category.is_active
+        (category) => category.is_active,
       );
 
       return activeCategories;
@@ -739,7 +739,7 @@ export const api = {
             "Content-Type": "application/json",
             Accept: "application/json",
           },
-        }
+        },
       );
 
       let data;
@@ -759,8 +759,8 @@ export const api = {
                 .map((e: any) => e.msg || e.message || JSON.stringify(e))
                 .join(", ")
             : typeof data?.detail === "string"
-            ? data.detail
-            : data?.message || data?.error) ||
+              ? data.detail
+              : data?.message || data?.error) ||
           (typeof data === "string"
             ? data
             : `Failed to fetch category pass types: ${response.statusText}`);
@@ -789,7 +789,7 @@ export const api = {
             "Content-Type": "application/json",
             Accept: "application/json",
           },
-        }
+        },
       );
 
       let data;
@@ -809,8 +809,8 @@ export const api = {
                 .map((e: any) => e.msg || e.message || JSON.stringify(e))
                 .join(", ")
             : typeof data?.detail === "string"
-            ? data.detail
-            : data?.message || data?.error) ||
+              ? data.detail
+              : data?.message || data?.error) ||
           (typeof data === "string"
             ? data
             : `Failed to fetch pass types: ${response.statusText}`);
@@ -885,8 +885,8 @@ export const api = {
                 .map((e: any) => e.msg || e.message || JSON.stringify(e))
                 .join(", ")
             : typeof data?.detail === "string"
-            ? data.detail
-            : data?.message || data?.error) ||
+              ? data.detail
+              : data?.message || data?.error) ||
           (typeof data === "string"
             ? data
             : `Failed to submit pass request: ${response.statusText}`);
@@ -914,7 +914,7 @@ export const api = {
             "Content-Type": "application/json",
             Accept: "application/json",
           },
-        }
+        },
       );
 
       let data;
@@ -934,8 +934,8 @@ export const api = {
                 .map((e: any) => e.msg || e.message || JSON.stringify(e))
                 .join(", ")
             : typeof data?.detail === "string"
-            ? data.detail
-            : data?.message || data?.error) ||
+              ? data.detail
+              : data?.message || data?.error) ||
           (typeof data === "string"
             ? data
             : `Failed to fetch sessions: ${response.statusText}`);
@@ -964,7 +964,7 @@ export const api = {
       pass_sub_category_id?: string;
       pass_type_id?: string;
       season?: string;
-    }
+    },
   ): Promise<any> => {
     const url = `${VALIDATION_API_BASE_URL}/api/v1/pass-requests/${requestId}/status`;
 
@@ -981,7 +981,7 @@ export const api = {
       if (statusData.pass_sub_category_id) {
         formData.append(
           "pass_sub_category_id",
-          statusData.pass_sub_category_id
+          statusData.pass_sub_category_id,
         );
       }
       if (statusData.pass_type_id) {
@@ -1008,7 +1008,7 @@ export const api = {
         const text = await response.text();
         if (!response.ok) {
           throw new Error(
-            `Server error: ${text || `Status ${response.status}`}`
+            `Server error: ${text || `Status ${response.status}`}`,
           );
         }
       }
@@ -1020,8 +1020,8 @@ export const api = {
                 .map((e: any) => e.msg || e.message || JSON.stringify(e))
                 .join(", ")
             : typeof data?.detail === "string"
-            ? data.detail
-            : data?.message || data?.error) ||
+              ? data.detail
+              : data?.message || data?.error) ||
           (typeof data === "string"
             ? data
             : `Failed to update pass request status: ${response.statusText}`);
@@ -1047,7 +1047,7 @@ export const api = {
       pass_sub_category_id?: string;
       pass_type_id?: string;
       current_user_id: string;
-    }
+    },
   ): Promise<any> => {
     const url = `${VALIDATION_API_BASE_URL}/api/v1/pass-requests/${requestId}/generate-pass`;
 
@@ -1061,7 +1061,7 @@ export const api = {
       if (generateData.pass_sub_category_id) {
         formData.append(
           "pass_sub_category_id",
-          generateData.pass_sub_category_id
+          generateData.pass_sub_category_id,
         );
       }
       if (generateData.pass_type_id) {
@@ -1085,7 +1085,7 @@ export const api = {
         const text = await response.text();
         if (!response.ok) {
           throw new Error(
-            `Server error: ${text || `Status ${response.status}`}`
+            `Server error: ${text || `Status ${response.status}`}`,
           );
         }
       }
@@ -1097,8 +1097,8 @@ export const api = {
                 .map((e: any) => e.msg || e.message || JSON.stringify(e))
                 .join(", ")
             : typeof data?.detail === "string"
-            ? data.detail
-            : data?.message || data?.error) ||
+              ? data.detail
+              : data?.message || data?.error) ||
           (typeof data === "string"
             ? data
             : `Failed to generate pass: ${response.statusText}`);
@@ -1145,8 +1145,8 @@ export const api = {
                 .map((e: any) => e.msg || e.message || JSON.stringify(e))
                 .join(", ")
             : typeof data?.detail === "string"
-            ? data.detail
-            : data?.message || data?.error) ||
+              ? data.detail
+              : data?.message || data?.error) ||
           (typeof data === "string"
             ? data
             : `Failed to get pass request: ${response.statusText}`);
@@ -1193,8 +1193,8 @@ export const api = {
                 .map((e: any) => e.msg || e.message || JSON.stringify(e))
                 .join(", ")
             : typeof data?.detail === "string"
-            ? data.detail
-            : data?.message || data?.error) ||
+              ? data.detail
+              : data?.message || data?.error) ||
           (typeof data === "string"
             ? data
             : `Failed to get issuers: ${response.statusText}`);
@@ -1239,7 +1239,7 @@ export const api = {
         const text = await response.text();
         if (!response.ok) {
           throw new Error(
-            `Server error: ${text || `Status ${response.status}`}`
+            `Server error: ${text || `Status ${response.status}`}`,
           );
         }
       }
@@ -1251,8 +1251,8 @@ export const api = {
                 .map((e: any) => e.msg || e.message || JSON.stringify(e))
                 .join(", ")
             : typeof data?.detail === "string"
-            ? data.detail
-            : data?.message || data?.error) ||
+              ? data.detail
+              : data?.message || data?.error) ||
           (typeof data === "string"
             ? data
             : `Failed to generate OTP: ${response.statusText}`);
@@ -1272,7 +1272,7 @@ export const api = {
   // Verify OTP and login
   verifyOTP: async (
     username: string,
-    otpCode: string
+    otpCode: string,
   ): Promise<LoginResponse> => {
     const url = `${VALIDATION_API_BASE_URL}/api/v1/pass-requests/auth/otp/verify`;
 
@@ -1314,8 +1314,8 @@ export const api = {
                 .map((e: any) => e.msg || e.message || JSON.stringify(e))
                 .join(", ")
             : typeof data?.detail === "string"
-            ? data.detail
-            : data?.message || data?.error) ||
+              ? data.detail
+              : data?.message || data?.error) ||
           (typeof data === "string"
             ? data
             : `Failed to verify OTP: ${response.statusText}`);
@@ -1344,7 +1344,7 @@ export const api = {
         loginResponse = data as LoginResponse;
       } else {
         throw new Error(
-          "Unexpected response structure from OTP verification API"
+          "Unexpected response structure from OTP verification API",
         );
       }
 
@@ -1386,7 +1386,7 @@ export const api = {
         const text = await response.text();
         if (!response.ok) {
           throw new Error(
-            `Server error: ${text || `Status ${response.status}`}`
+            `Server error: ${text || `Status ${response.status}`}`,
           );
         }
       }
@@ -1398,8 +1398,8 @@ export const api = {
                 .map((e: any) => e.msg || e.message || JSON.stringify(e))
                 .join(", ")
             : typeof data?.detail === "string"
-            ? data.detail
-            : data?.message || data?.error) ||
+              ? data.detail
+              : data?.message || data?.error) ||
           (typeof data === "string"
             ? data
             : `Failed to set password: ${response.statusText}`);
@@ -1429,7 +1429,7 @@ export const api = {
   // Resend WhatsApp for visitor pass
   resendWhatsApp: async (
     requestId: string,
-    visitorId: string
+    visitorId: string,
   ): Promise<any> => {
     // Validate IDs
     if (!requestId || !requestId.trim()) {
@@ -1466,8 +1466,8 @@ export const api = {
                 .map((e: any) => e.msg || e.message || JSON.stringify(e))
                 .join(", ")
             : typeof responseData?.detail === "string"
-            ? responseData.detail
-            : responseData?.message || responseData?.error) ||
+              ? responseData.detail
+              : responseData?.message || responseData?.error) ||
           (typeof responseData === "string"
             ? responseData
             : `Resend WhatsApp failed: ${
@@ -1478,6 +1478,54 @@ export const api = {
       }
 
       return responseData;
+    } catch (error) {
+      if (error instanceof Error) {
+        throw error;
+      }
+      throw new Error("Network error. Please check your connection.");
+    }
+  },
+
+  // Get all pass requests for dashboard
+  getAllPassRequests: async (limit: number = 10000): Promise<any[]> => {
+    const url = `${VALIDATION_API_BASE_URL}/api/v1/pass-requests?limit=${limit}`;
+
+    try {
+      const response = await fetch(url, {
+        method: "GET",
+        headers: {
+          "Content-Type": "application/json",
+          Accept: "application/json",
+        },
+      });
+
+      let data;
+      const contentType = response.headers.get("content-type");
+
+      if (contentType && contentType.includes("application/json")) {
+        data = await response.json();
+      } else {
+        const text = await response.text();
+        throw new Error(`Server error: ${text || `Status ${response.status}`}`);
+      }
+
+      if (!response.ok) {
+        const errorMessage =
+          (Array.isArray(data?.detail)
+            ? data.detail
+                .map((e: any) => e.msg || e.message || JSON.stringify(e))
+                .join(", ")
+            : typeof data?.detail === "string"
+              ? data.detail
+              : data?.message || data?.error) ||
+          (typeof data === "string"
+            ? data
+            : `Failed to get pass requests: ${response.statusText}`);
+
+        throw new Error(errorMessage);
+      }
+
+      return Array.isArray(data) ? data : [];
     } catch (error) {
       if (error instanceof Error) {
         throw error;
