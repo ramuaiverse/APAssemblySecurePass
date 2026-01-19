@@ -250,7 +250,7 @@ export default function QRScanScreen({ navigation, route }: Props) {
       Alert.alert(
         "Selection Required",
         "Please select both Gate and Action Type before scanning.",
-        [{ text: "OK" }]
+        [{ text: "OK" }],
       );
       return;
     }
@@ -336,7 +336,7 @@ export default function QRScanScreen({ navigation, route }: Props) {
       const validationResponse = await api.validateQRCodePublic(
         qrData,
         gateLocation,
-        gateAction
+        gateAction,
       );
 
       // Navigate based on valid field from API response
@@ -536,7 +536,7 @@ export default function QRScanScreen({ navigation, route }: Props) {
                             : gate.replace("gate", "")}
                         </Text>
                       </TouchableOpacity>
-                    )
+                    ),
                   )}
                 </View>
               </View>
@@ -628,22 +628,22 @@ export default function QRScanScreen({ navigation, route }: Props) {
                     overlayDimensions && {
                       left: Math.max(
                         10,
-                        (overlayDimensions.width - SCAN_AREA_SIZE) / 2
+                        (overlayDimensions.width - SCAN_AREA_SIZE) / 2,
                       ),
                       top: Math.max(
                         10,
                         (overlayDimensions.height -
                           footerHeight -
                           SCAN_AREA_SIZE) /
-                          2
+                          2,
                       ),
                       width: Math.min(
                         SCAN_AREA_SIZE,
-                        overlayDimensions.width - 20
+                        overlayDimensions.width - 20,
                       ),
                       height: Math.min(
                         SCAN_AREA_SIZE,
-                        overlayDimensions.height - footerHeight - 20
+                        overlayDimensions.height - footerHeight - 20,
                       ),
                     },
                   ]}
@@ -693,8 +693,8 @@ export default function QRScanScreen({ navigation, route }: Props) {
                       {validating
                         ? "Validating..."
                         : showGateAndAction && (!selectedGate || !actionType)
-                        ? "Select Gate & Action"
-                        : "Scanning..."}
+                          ? "Select Gate & Action"
+                          : "Scanning..."}
                     </Text>
                   </View>
                   <TouchableOpacity

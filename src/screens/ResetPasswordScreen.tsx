@@ -74,7 +74,7 @@ export default function ResetPasswordScreen({ navigation, route }: Props) {
               navigation.replace("LoginMethodSelection");
             },
           },
-        ]
+        ],
       );
     } catch (error) {
       const errorMessage =

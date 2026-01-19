@@ -82,26 +82,31 @@ export default function LoginScreen({ navigation }: Props) {
       if (response.id && response.is_active) {
         // Validate role based on selected tab
         const userRole = response.role?.toLowerCase() || "";
-        
+
         // Check if user is trying to login with wrong role
         if (activeTab === "login" && userRole === "security") {
-          setRoleError("Access denied, this login is not for security personnel");
+          setRoleError(
+            "Access denied, this login is not for security personnel",
+          );
           setLoading(false);
           return;
         }
-        
+
         if (activeTab === "security" && userRole !== "security") {
-          setRoleError("Access denied, this login is for security personnel only");
+          setRoleError(
+            "Access denied, this login is for security personnel only",
+          );
           setLoading(false);
           return;
         }
 
         // Navigate based on selected login mode
-        // Login navigation - commented out for now
+        // Login navigation - navigate to Home screen
         if (activeTab === "login") {
-          navigation.replace("IssueVisitorPass", {
+          navigation.replace("Home", {
             userFullName: response.full_name,
             userId: response.id,
+            role: response.role,
           });
         } else {
           navigation.replace("PreCheck");
@@ -114,7 +119,7 @@ export default function LoginScreen({ navigation }: Props) {
           "Login Failed",
           response.is_active === false
             ? "Your account is inactive. Please contact administrator."
-            : "Authentication failed. Please try again."
+            : "Authentication failed. Please try again.",
         );
       }
     } catch (error) {

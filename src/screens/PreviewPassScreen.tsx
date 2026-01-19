@@ -101,7 +101,7 @@ export default function PreviewPassScreen({ navigation, route }: Props) {
       try {
         const passTypes = await api.getAllPassTypes();
         const matchedPassType = passTypes.find(
-          (pt) => pt.name.toLowerCase() === passTypeName.toLowerCase()
+          (pt) => pt.name.toLowerCase() === passTypeName.toLowerCase(),
         );
         if (matchedPassType?.color) {
           setPassTypeColor(matchedPassType.color);
@@ -314,9 +314,7 @@ export default function PreviewPassScreen({ navigation, route }: Props) {
               <AssemblyIconBG />
             </View>
             <View style={styles.headerContent}>
-              <Text style={styles.visitorsPassTitle}>
-                {passTypeName}
-              </Text>
+              <Text style={styles.visitorsPassTitle}>{passTypeName}</Text>
               <View style={styles.logoSection}>
                 <View style={styles.logoCircle}>
                   <AssemblyIcon width={60} height={60} />
@@ -360,13 +358,20 @@ export default function PreviewPassScreen({ navigation, route }: Props) {
               <View style={styles.visitorDetails}>
                 <Text style={styles.visitorName}>{visitorName}</Text>
                 {passNumber && (
-                  <Text style={[styles.visitorDetail, { fontSize: 14, fontWeight: "bold" }]}>{passNumber}</Text>
+                  <Text
+                    style={[
+                      styles.visitorDetail,
+                      { fontSize: 14, fontWeight: "bold" },
+                    ]}
+                  >
+                    {passNumber}
+                  </Text>
                 )}
                 {passTypeName && (
                   <Text style={styles.visitorDetail}>
                     <Text style={styles.visitorDetailBold}>PASSTYPE: </Text>
                     {passTypeName}
-                  </Text> 
+                  </Text>
                 )}
                 <Text style={styles.visitorDetail}>
                   <Text style={styles.visitorDetailBold}>VALID FROM: </Text>

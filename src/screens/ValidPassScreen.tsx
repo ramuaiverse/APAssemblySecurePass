@@ -105,7 +105,7 @@ export default function ValidPassScreen({ navigation, route }: Props) {
 
   // Photo capture state - initialize from route params if available, or use visitor photo URL
   const [visitorPhoto, setVisitorPhoto] = useState<string | null>(
-    validationResponse?.visitorPhoto || visitorPhotoUrl || null
+    validationResponse?.visitorPhoto || visitorPhotoUrl || null,
   );
   const [saving, setSaving] = useState(false);
   const [openingCamera, setOpeningCamera] = useState(false);
@@ -211,7 +211,7 @@ export default function ValidPassScreen({ navigation, route }: Props) {
         Alert.alert(
           "Camera Permission",
           "Camera permission is required to take visitor photos.",
-          [{ text: "OK" }]
+          [{ text: "OK" }],
         );
         setOpeningCamera(false);
         return;
@@ -234,7 +234,7 @@ export default function ValidPassScreen({ navigation, route }: Props) {
         error instanceof Error
           ? error.message
           : "Failed to take photo. Please try again.",
-        [{ text: "OK" }]
+        [{ text: "OK" }],
       );
     } finally {
       setOpeningCamera(false);

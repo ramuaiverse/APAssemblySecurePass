@@ -28,10 +28,10 @@ export default function InvalidPassScreen({ navigation, route }: Props) {
     (validationResponse?.suspended
       ? "Pass is suspended."
       : validationResponse?.expired
-      ? "Pass has expired."
-      : validationResponse?.not_yet_valid
-      ? "Pass is not yet valid."
-      : "Pass details not matching. Do not allow entry.");
+        ? "Pass has expired."
+        : validationResponse?.not_yet_valid
+          ? "Pass is not yet valid."
+          : "Pass details not matching. Do not allow entry.");
   const status = validationResponse?.status || "rejected";
   const suspended = validationResponse?.suspended ?? false;
   const expired = validationResponse?.expired ?? false;

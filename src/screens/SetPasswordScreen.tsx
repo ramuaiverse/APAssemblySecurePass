@@ -92,7 +92,7 @@ export default function SetPasswordScreen({ navigation, route }: Props) {
               navigation.replace("Login");
             },
           },
-        ]
+        ],
       );
     } catch (error) {
       const errorMessage =

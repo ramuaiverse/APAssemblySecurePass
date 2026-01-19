@@ -54,7 +54,7 @@ export default function UsernameOTPLoginScreen({ navigation }: Props) {
     const usernameRegex = /^[a-zA-Z0-9_]{3,30}$/;
     if (!usernameRegex.test(username.trim())) {
       setUsernameError(
-        "Please enter a valid username (3-30 characters, alphanumeric and underscore only)"
+        "Please enter a valid username (3-30 characters, alphanumeric and underscore only)",
       );
       return;
     }
@@ -69,7 +69,7 @@ export default function UsernameOTPLoginScreen({ navigation }: Props) {
       setOtpSent(true);
       Alert.alert(
         "OTP Sent",
-        "Please check your registered email/phone for the OTP code."
+        "Please check your registered email/phone for the OTP code.",
       );
     } catch (error) {
       const errorMessage =
@@ -118,7 +118,7 @@ export default function UsernameOTPLoginScreen({ navigation }: Props) {
           "Login Failed",
           response.is_active === false
             ? "Your account is inactive. Please contact administrator."
-            : "Authentication failed. Please try again."
+            : "Authentication failed. Please try again.",
         );
       }
     } catch (error) {
