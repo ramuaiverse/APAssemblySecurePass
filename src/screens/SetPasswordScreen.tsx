@@ -88,8 +88,8 @@ export default function SetPasswordScreen({ navigation, route }: Props) {
           {
             text: "OK",
             onPress: () => {
-              // Navigate to login method selection (automatic logout)
-              navigation.replace("LoginMethodSelection");
+              // Navigate to login screen
+              navigation.replace("Login");
             },
           },
         ]

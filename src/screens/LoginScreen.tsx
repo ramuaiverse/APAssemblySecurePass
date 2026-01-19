@@ -40,12 +40,14 @@ export default function LoginScreen({ navigation }: Props) {
   const [loading, setLoading] = useState(false);
   const [usernameError, setUsernameError] = useState("");
   const [passwordError, setPasswordError] = useState("");
-  const [activeTab, setActiveTab] = useState<"admin" | "security">("admin");
+  const [roleError, setRoleError] = useState("");
+  const [activeTab, setActiveTab] = useState<"login" | "security">("login");
 
   const handleLogin = async () => {
     // Clear previous errors
     setUsernameError("");
     setPasswordError("");
+    setRoleError("");
 
     // Validate fields - password is now optional
     let hasError = false;
@@ -63,7 +65,7 @@ export default function LoginScreen({ navigation }: Props) {
       const response = await api.login({
         username: username.trim(),
         password: password || "", // Password is optional
-        // expected_role: activeTab === "admin" ? "admin" : "security",
+        // expected_role: activeTab === "login" ? "login" : "security",
       });
 
       // Check if this is first-time login
@@ -78,9 +80,25 @@ export default function LoginScreen({ navigation }: Props) {
 
       // Check if user is active and login is successful
       if (response.id && response.is_active) {
+        // Validate role based on selected tab
+        const userRole = response.role?.toLowerCase() || "";
+        
+        // Check if user is trying to login with wrong role
+        if (activeTab === "login" && userRole === "security") {
+          setRoleError("Access denied, this login is not for security personnel");
+          setLoading(false);
+          return;
+        }
+        
+        if (activeTab === "security" && userRole !== "security") {
+          setRoleError("Access denied, this login is for security personnel only");
+          setLoading(false);
+          return;
+        }
+
         // Navigate based on selected login mode
-        // Admin login navigation - commented out for now
-        if (activeTab === "admin") {
+        // Login navigation - commented out for now
+        if (activeTab === "login") {
           navigation.replace("IssueVisitorPass", {
             userFullName: response.full_name,
             userId: response.id,
@@ -159,6 +177,9 @@ export default function LoginScreen({ navigation }: Props) {
     if (usernameError) {
       setUsernameError("");
     }
+    if (roleError) {
+      setRoleError("");
+    }
   };
 
   const handlePasswordChange = (text: string) => {
@@ -166,6 +187,9 @@ export default function LoginScreen({ navigation }: Props) {
     // Clear error when user starts typing
     if (passwordError) {
       setPasswordError("");
+    }
+    if (roleError) {
+      setRoleError("");
     }
   };
 
@@ -201,21 +225,28 @@ export default function LoginScreen({ navigation }: Props) {
                 <TouchableOpacity
                   style={[
                     styles.tab,
-                    activeTab === "admin"
+                    activeTab === "login"
                       ? styles.tabActive
                       : styles.tabInactive,
                   ]}
-                  onPress={() => setActiveTab("admin")}
+                  onPress={() => {
+                    setActiveTab("login");
+                    setRoleError("");
+                    setUsername("");
+                    setPassword("");
+                    setUsernameError("");
+                    setPasswordError("");
+                  }}
                 >
                   <Text
                     style={[
                       styles.tabText,
-                      activeTab === "admin"
+                      activeTab === "login"
                         ? styles.tabTextActive
                         : styles.tabTextInactive,
                     ]}
                   >
-                    Admin Login
+                    Login
                   </Text>
                 </TouchableOpacity>
                 <TouchableOpacity
@@ -225,7 +256,14 @@ export default function LoginScreen({ navigation }: Props) {
                       ? styles.tabActive
                       : styles.tabInactive,
                   ]}
-                  onPress={() => setActiveTab("security")}
+                  onPress={() => {
+                    setActiveTab("security");
+                    setRoleError("");
+                    setUsername("");
+                    setPassword("");
+                    setUsernameError("");
+                    setPasswordError("");
+                  }}
                 >
                   <Text
                     style={[
@@ -242,7 +280,7 @@ export default function LoginScreen({ navigation }: Props) {
             </View>
 
             <Text style={styles.cardTitle}>
-              {activeTab === "admin" ? "Admin Login" : "Security Login"}
+              {activeTab === "login" ? "Login" : "Security Login"}
             </Text>
             <Text style={styles.cardSubtitle}>
               Enter your credentials to access the system.
@@ -300,6 +338,9 @@ export default function LoginScreen({ navigation }: Props) {
             </View>
             {passwordError ? (
               <Text style={styles.errorText}>{passwordError}</Text>
+            ) : null}
+            {roleError ? (
+              <Text style={styles.errorText}>{roleError}</Text>
             ) : null}
 
             {/* Login Button */}

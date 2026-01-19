@@ -314,7 +314,9 @@ export default function PreviewPassScreen({ navigation, route }: Props) {
               <AssemblyIconBG />
             </View>
             <View style={styles.headerContent}>
-              <Text style={styles.visitorsPassTitle}>Visitors Gallery</Text>
+              <Text style={styles.visitorsPassTitle}>
+                {passTypeName}
+              </Text>
               <View style={styles.logoSection}>
                 <View style={styles.logoCircle}>
                   <AssemblyIcon width={60} height={60} />
@@ -358,13 +360,13 @@ export default function PreviewPassScreen({ navigation, route }: Props) {
               <View style={styles.visitorDetails}>
                 <Text style={styles.visitorName}>{visitorName}</Text>
                 {passNumber && (
-                  <Text style={styles.visitorDetail}>{passNumber}</Text>
+                  <Text style={[styles.visitorDetail, { fontSize: 14, fontWeight: "bold" }]}>{passNumber}</Text>
                 )}
                 {passTypeName && (
                   <Text style={styles.visitorDetail}>
                     <Text style={styles.visitorDetailBold}>PASSTYPE: </Text>
                     {passTypeName}
-                  </Text>
+                  </Text> 
                 )}
                 <Text style={styles.visitorDetail}>
                   <Text style={styles.visitorDetailBold}>VALID FROM: </Text>
@@ -716,12 +718,11 @@ const styles = StyleSheet.create({
     backgroundColor: "#FFFFFF",
     padding: 12,
     borderRadius: 4,
-    minWidth: 120,
+    minWidth: 100,
     alignItems: "center",
-    marginBottom: 15,
   },
   approvedByLabel: {
-    fontSize: 10,
+    fontSize: 8,
     fontWeight: "bold",
     color: "#111827",
     marginBottom: 4,
@@ -738,14 +739,14 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   signatoryName: {
-    fontSize: 12,
+    fontSize: 14,
     fontWeight: "600",
     color: "#FFFFFF",
     marginBottom: 4,
     textAlign: "center",
   },
   signatoryTitle: {
-    fontSize: 10,
+    fontSize: 12,
     color: "#FFFFFF",
     opacity: 0.9,
     textAlign: "center",
