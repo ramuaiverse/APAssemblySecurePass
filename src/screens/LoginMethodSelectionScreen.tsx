@@ -8,6 +8,7 @@ import {
 } from "react-native";
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { RootStackParamList } from "@/types";
+import { SafeAreaView } from "react-native-safe-area-context";
 import Assembly from "../../assets/assembly.svg";
 import DigitalPass from "../../assets/digitalPass.svg";
 import QuestionMarkIcon from "../../assets/questionMark.svg";
@@ -31,10 +32,12 @@ export default function LoginMethodSelectionScreen({ navigation }: Props) {
   };
 
   return (
-    <ScrollView
-      contentContainerStyle={styles.scrollContent}
-      keyboardShouldPersistTaps="handled"
-    >
+    <SafeAreaView style={styles.container} edges={["top"]}>
+      <ScrollView
+        contentContainerStyle={styles.scrollContent}
+        keyboardShouldPersistTaps="handled"
+        showsVerticalScrollIndicator={false}
+      >
       {/* Header */}
       <View style={styles.header}>
         <View style={styles.logoContainer}>
@@ -89,6 +92,8 @@ export default function LoginMethodSelectionScreen({ navigation }: Props) {
         </TouchableOpacity>
       </View>
 
+      </ScrollView>
+      
       {/* Footer */}
       <View style={styles.footer}>
         <View style={styles.footerTextContainer}>
@@ -100,15 +105,19 @@ export default function LoginMethodSelectionScreen({ navigation }: Props) {
           logged.
         </Text>
       </View>
-    </ScrollView>
+    </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    backgroundColor: "#E3F7E8",
+  },
   scrollContent: {
     flexGrow: 1,
     padding: 20,
-    backgroundColor: "#E3F7E8",
+    paddingBottom: 0,
   },
   header: {
     alignItems: "center",
@@ -188,9 +197,10 @@ const styles = StyleSheet.create({
     fontWeight: "bold",
   },
   footer: {
-    marginTop: 30,
     alignItems: "center",
     paddingHorizontal: 20,
+    paddingBottom: 20,
+    paddingTop: 10,
   },
   footerTextContainer: {
     flexDirection: "row",

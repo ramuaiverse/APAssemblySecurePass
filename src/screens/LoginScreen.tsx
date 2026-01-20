@@ -92,6 +92,14 @@ export default function LoginScreen({ navigation }: Props) {
           return;
         }
 
+        if ((activeTab === "login"||activeTab === "security") && userRole === "admin") {
+          setRoleError(
+            "Access denied, this login is not for admin personnel",
+          );
+          setLoading(false);
+          return;
+        }
+
         if (activeTab === "security" && userRole !== "security") {
           setRoleError(
             "Access denied, this login is for security personnel only",
@@ -199,23 +207,28 @@ export default function LoginScreen({ navigation }: Props) {
   };
 
   return (
-    <SafeAreaView style={styles.container} edges={["top"]}>
+    <SafeAreaView style={styles.container} edges={["top", "bottom"]}>
+      {/* Back Button - Fixed Position */}
+      <TouchableOpacity
+        onPress={() => navigation.goBack()}
+        style={styles.backButton}
+      >
+        <BackButtonIcon width={20} height={20} />
+      </TouchableOpacity>
+      
       <KeyboardAvoidingView
         behavior={Platform.OS === "ios" ? "padding" : "height"}
         style={styles.keyboardView}
+        keyboardVerticalOffset={Platform.OS === "ios" ? 0 : 0}
       >
-        <ScrollView
-          contentContainerStyle={styles.scrollContent}
-          keyboardShouldPersistTaps="handled"
-        >
+        <View style={styles.contentWrapper}>
+          <ScrollView
+            contentContainerStyle={styles.scrollContent}
+            keyboardShouldPersistTaps="handled"
+            showsVerticalScrollIndicator={false}
+          >
           {/* Header */}
           <View style={styles.header}>
-            <TouchableOpacity
-              onPress={() => navigation.goBack()}
-              style={styles.backButton}
-            >
-              <BackButtonIcon width={20} height={20} />
-            </TouchableOpacity>
             <View style={styles.logoContainer}>
               <DigitalPass width={110} height={150} />
               <Assembly width={110} height={150} />
@@ -376,19 +389,21 @@ export default function LoginScreen({ navigation }: Props) {
             </TouchableOpacity>
           </View>
 
-          {/* Footer */}
-          <View style={styles.footer}>
-            <View style={styles.footerTextContainer}>
-              <QuestionMarkIcon width={14} height={14} />
-              <Text style={styles.footerText}>Authorized Personnel Only</Text>
-            </View>
-            <Text style={styles.footerSubtext}>
-              This system is for official use only. All activities are monitored
-              and logged.
-            </Text>
-          </View>
-        </ScrollView>
+          </ScrollView>
+        </View>
       </KeyboardAvoidingView>
+      
+      {/* Footer - Fixed at Bottom */}
+      <View style={styles.footer}>
+        <View style={styles.footerTextContainer}>
+          <QuestionMarkIcon width={14} height={14} />
+          <Text style={styles.footerText}>Authorized Personnel Only</Text>
+        </View>
+        <Text style={styles.footerSubtext}>
+          This system is for official use only. All activities are monitored
+          and logged.
+        </Text>
+      </View>
     </SafeAreaView>
   );
 }
@@ -401,20 +416,19 @@ const styles = StyleSheet.create({
   keyboardView: {
     flex: 1,
   },
+  contentWrapper: {
+    flex: 1,
+  },
   scrollContent: {
     flexGrow: 1,
     padding: 20,
+    paddingBottom: 100,
   },
   header: {
     alignItems: "center",
   },
   backButton: {
-    position: "absolute",
-    top: 0,
-    left: 0,
-    justifyContent: "center",
-    alignItems: "center",
-    zIndex: 1,
+    paddingHorizontal: 16,
   },
   logoContainer: {
     paddingVertical: 10,
@@ -509,9 +523,15 @@ const styles = StyleSheet.create({
     fontWeight: "500",
   },
   footer: {
-    marginTop: 30,
+    position: "absolute",
+    bottom: 0,
+    left: 0,
+    right: 0,
     alignItems: "center",
     paddingHorizontal: 20,
+    paddingBottom: 20,
+    paddingTop: 10,
+    backgroundColor: "#E3F7E8",
   },
   footerTextContainer: {
     flexDirection: "row",
