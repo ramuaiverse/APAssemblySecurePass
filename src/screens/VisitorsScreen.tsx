@@ -392,7 +392,7 @@ export default function VisitorsScreen({ navigation }: Props) {
           <Text style={styles.headerTitle}>Visitors</Text>
         </View>
         <TouchableOpacity onPress={handleLogout} style={styles.logoutButton}>
-          <LogOutIcon width={22} height={22} />
+          <LogOutIcon width={24} height={24} />
         </TouchableOpacity>
       </View>
 
