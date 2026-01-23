@@ -12,6 +12,7 @@ import {
   Dimensions,
 } from "react-native";
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
+import { RouteProp } from "@react-navigation/native";
 import { RootStackParamList } from "@/types";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { api, MainCategory, PassTypeItem } from "@/services/api";
@@ -30,6 +31,7 @@ type VisitorsScreenNavigationProp = NativeStackNavigationProp<
 
 type Props = {
   navigation: VisitorsScreenNavigationProp;
+  route: RouteProp<RootStackParamList, "Visitors">;
 };
 
 interface VisitorStats {
@@ -49,7 +51,8 @@ interface ExpandedVisitor {
   [key: string]: boolean;
 }
 
-export default function VisitorsScreen({ navigation }: Props) {
+export default function VisitorsScreen({ navigation, route }: Props) {
+  const userRole = route.params?.role || "";
   const [passRequests, setPassRequests] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [stats, setStats] = useState<VisitorStats>({
@@ -67,10 +70,6 @@ export default function VisitorsScreen({ navigation }: Props) {
   const [selectedStatusValue, setSelectedStatusValue] = useState<string | null>(
     null,
   );
-  const [selectedApprover, setSelectedApprover] = useState(
-    "All Approvers (HOD)",
-  );
-  const [selectedIssuer, setSelectedIssuer] = useState("All Issuers");
   const [selectedPassType, setSelectedPassType] = useState("All Pass Types");
   const [selectedPassTypeId, setSelectedPassTypeId] = useState<string | null>(
     null,
@@ -160,40 +159,35 @@ export default function VisitorsScreen({ navigation }: Props) {
       setExpandedVisitors(initialExpandedVisitors);
 
       // Calculate stats based on individual visitor statuses
-      let totalVisitors = 0;
+      // Each visitor is counted in exactly ONE category
       let pending = 0;
       let routed = 0;
       let approved = 0;
       let rejected = 0;
       let suspended = 0;
 
-      // Iterate through all requests and count visitors by their individual status
+      // Iterate through all requests and categorize each visitor
       requests.forEach((req) => {
         if (req.visitors && req.visitors.length > 0) {
           req.visitors.forEach((visitor: any) => {
-            totalVisitors++;
-
-            // Count by visitor_status field
-            if (visitor.visitor_status === "pending") {
-              pending++;
+            // Categorize visitor into exactly one status
+            if (visitor.is_suspended === true) {
+              suspended++;
+            } else if (visitor.visitor_routed_to) {
+              routed++;
             } else if (visitor.visitor_status === "approved") {
               approved++;
             } else if (visitor.visitor_status === "rejected") {
               rejected++;
-            }
-
-            // Count suspended visitors
-            if (visitor.is_suspended === true) {
-              suspended++;
-            }
-
-            // Count routed visitors
-            if (visitor.visitor_routed_to) {
-              routed++;
+            } else if (visitor.visitor_status === "pending") {
+              pending++;
             }
           });
         }
       });
+
+      // Total visitors is the sum of all categories
+      const totalVisitors = pending + routed + approved + rejected + suspended;
 
       setStats({
         totalVisitors,
@@ -360,7 +354,7 @@ export default function VisitorsScreen({ navigation }: Props) {
   };
 
   const handleVisitorClick = (request: any, visitor: any) => {
-    navigation.navigate("VisitorDetails", { request, visitor });
+    navigation.navigate("VisitorDetails", { request, visitor, role: userRole });
   };
 
   const handleLogout = () => {
@@ -440,14 +434,6 @@ export default function VisitorsScreen({ navigation }: Props) {
                 onPress={() => setShowStatusModal(true)}
               >
                 <Text style={styles.filterText}>{selectedStatus}</Text>
-                <ChevronDownIcon width={16} height={16} />
-              </TouchableOpacity>
-              <TouchableOpacity style={styles.filterButton}>
-                <Text style={styles.filterText}>{selectedApprover}</Text>
-                <ChevronDownIcon width={16} height={16} />
-              </TouchableOpacity>
-              <TouchableOpacity style={styles.filterButton}>
-                <Text style={styles.filterText}>{selectedIssuer}</Text>
                 <ChevronDownIcon width={16} height={16} />
               </TouchableOpacity>
               <TouchableOpacity
@@ -636,8 +622,20 @@ export default function VisitorsScreen({ navigation }: Props) {
                                               styles.visitorStatusContainer
                                             }
                                           >
-                                            {visitor.visitor_status ===
-                                            "approved" ? (
+                                            {visitor.is_suspended === true ? (
+                                              <View
+                                                style={styles.suspendedStatus}
+                                              >
+                                                <Text
+                                                  style={
+                                                    styles.suspendedStatusText
+                                                  }
+                                                >
+                                                  Suspended
+                                                </Text>
+                                              </View>
+                                            ) : visitor.visitor_status ===
+                                              "approved" ? (
                                               <View
                                                 style={styles.approvedStatus}
                                               >
@@ -1155,6 +1153,8 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     gap: 8,
+    flex: 1,
+    minWidth: 0,
   },
   avatar: {
     width: 32,
@@ -1169,7 +1169,9 @@ const styles = StyleSheet.create({
     fontWeight: "bold",
   },
   visitorDetails: {
-    flex: 0.8,
+    flex: 1,
+    flexShrink: 1,
+    minWidth: 0,
   },
   visitorName: {
     fontSize: 13,
@@ -1216,6 +1218,18 @@ const styles = StyleSheet.create({
     fontSize: 11,
     fontWeight: "600",
     color: "#D97706",
+  },
+  suspendedStatus: {
+    backgroundColor: "#E5E7EB",
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 12,
+    alignSelf: "flex-start",
+  },
+  suspendedStatusText: {
+    fontSize: 11,
+    fontWeight: "600",
+    color: "#374151",
   },
   passInfo: {
     flexDirection: "row",

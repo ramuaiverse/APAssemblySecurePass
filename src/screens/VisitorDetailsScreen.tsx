@@ -14,7 +14,7 @@ import { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { RouteProp } from "@react-navigation/native";
 import { RootStackParamList } from "@/types";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { api, MainCategory, PassTypeItem } from "@/services/api";
+import { api, MainCategory, PassTypeItem, User } from "@/services/api";
 import {
   Ionicons,
   MaterialIcons,
@@ -118,6 +118,7 @@ const getInitials = (firstName: string, lastName: string) => {
 
 export default function VisitorDetailsScreen({ navigation, route }: Props) {
   const { request, visitor } = route.params;
+  const userRole = route.params?.role || "";
 
   // Category mappings
   const [categoryMap, setCategoryMap] = useState<{ [key: string]: string }>({});
@@ -128,10 +129,20 @@ export default function VisitorDetailsScreen({ navigation, route }: Props) {
   // Pass type mappings
   const [passTypeMap, setPassTypeMap] = useState<{ [key: string]: string }>({});
 
+  // User mappings
+  const [userMap, setUserMap] = useState<{ [key: string]: string }>({});
+  
+  // HOD User mappings (department role)
+  const [hodUserMap, setHodUserMap] = useState<{ [key: string]: string }>({});
+
   useEffect(() => {
     fetchCategories();
     fetchPassTypes();
-  }, []);
+    fetchHODUsers(); // Always fetch HOD users
+    if (userRole) {
+      fetchUsers();
+    }
+  }, [userRole]);
 
   const fetchCategories = async () => {
     try {
@@ -198,6 +209,67 @@ export default function VisitorDetailsScreen({ navigation, route }: Props) {
     return passTypeMap[passTypeId] || passTypeId;
   };
 
+  const fetchUsers = async () => {
+    try {
+      const users = await api.getUsersByRole(userRole);
+      const userMapping: { [key: string]: string } = {};
+      users.forEach((user: User) => {
+        if (user.id && user.full_name) {
+          userMapping[user.id] = user.full_name;
+        }
+      });
+      setUserMap(userMapping);
+    } catch (error) {
+      console.error("Error fetching users:", error);
+    }
+  };
+
+  const fetchHODUsers = async () => {
+    try {
+      const hodUsers = await api.getUsersByRole("department");
+      const hodUserMapping: { [key: string]: string } = {};
+      hodUsers.forEach((user: User) => {
+        if (user.id && user.full_name) {
+          hodUserMapping[user.id] = user.full_name;
+        }
+      });
+      setHodUserMap(hodUserMapping);
+    } catch (error) {
+      console.error("Error fetching HOD users:", error);
+    }
+  };
+
+  const getUserName = (userId: string | null | undefined) => {
+    if (!userId) return "—";
+    // Check if user map has been populated
+    if (Object.keys(userMap).length === 0) {
+      // If map is empty, return ID as fallback (might still be loading)
+      return userId;
+    }
+    return userMap[userId] || userId;
+  };
+
+  const getHODUserName = (userId: string | null | undefined) => {
+    if (!userId) return "—";
+    // Check if HOD user map has been populated
+    if (Object.keys(hodUserMap).length === 0) {
+      // If map is empty, return ID as fallback (might still be loading)
+      return userId;
+    }
+    return hodUserMap[userId] || userId;
+  };
+
+  const extractUUIDFromQRString = (qrString: string | null | undefined) => {
+    if (!qrString) return "—";
+    // Extract UUID from URL format: https://.../validate/{uuid}
+    const match = qrString.match(/\/validate\/([^\/\s]+)/);
+    if (match && match[1]) {
+      return match[1];
+    }
+    // If no match, return the original string
+    return qrString;
+  };
+
   const handleOpenDocument = (url: string) => {
     if (url) {
       Linking.openURL(url).catch(() => {
@@ -219,8 +291,9 @@ export default function VisitorDetailsScreen({ navigation, route }: Props) {
     navigation.replace("LoginMethodSelection");
   };
 
-  const isApproved = visitor.visitor_status === "approved";
-  const isRejected = visitor.visitor_status === "rejected";
+  const isSuspended = visitor.is_suspended === true;
+  const isApproved = !isSuspended && visitor.visitor_status === "approved";
+  const isRejected = !isSuspended && visitor.visitor_status === "rejected";
 
   return (
     <SafeAreaView style={styles.container} edges={["top"]}>
@@ -422,7 +495,7 @@ export default function VisitorDetailsScreen({ navigation, route }: Props) {
                 <View style={styles.infoContent}>
                   <Text style={styles.infoLabel}>REQUESTED BY</Text>
                   <Text style={styles.infoValue}>
-                    {request.requested_by || "—"}
+                    {getUserName(request.requested_by) || "—"}
                   </Text>
                 </View>
               </View>
@@ -537,13 +610,35 @@ export default function VisitorDetailsScreen({ navigation, route }: Props) {
                     <View style={styles.timelineContent}>
                       <Text style={styles.timelineTitle}>SUBMITTED</Text>
                       <Text style={styles.timelineText}>
-                        Submitted by: {request.requested_by || "—"}
+                        Submitted by: {getUserName(request.requested_by) || "—"}
                       </Text>
                       <Text style={styles.timelineDate}>
                         {formatDate(request.created_at)}
                       </Text>
                     </View>
                   </View>
+
+                  {visitor.visitor_approved_by && visitor.visitor_approved_at && (
+                    <View style={styles.timelineItem}>
+                      <View
+                        style={[styles.timelineDot, styles.timelineDotBlue]}
+                      />
+                      <View style={styles.timelineIconContainer}>
+                        <Ionicons name="checkmark-circle" size={24} color="#3B82F6" />
+                      </View>
+                      <View style={styles.timelineContent}>
+                        <Text style={[styles.timelineTitle, styles.timelineTitleBlue]}>
+                          HOD APPROVAL
+                        </Text>
+                        <Text style={[styles.timelineText, styles.timelineTextBlue]}>
+                          Approved by: {getHODUserName(visitor.visitor_approved_by) || "—"}
+                        </Text>
+                        <Text style={styles.timelineDate}>
+                          {formatDate(visitor.visitor_approved_at)}
+                        </Text>
+                      </View>
+                    </View>
+                  )}
 
                   {isApproved && visitor.visitor_legislative_approved_at && (
                     <View style={styles.timelineItem}>
@@ -554,10 +649,12 @@ export default function VisitorDetailsScreen({ navigation, route }: Props) {
                         <ApprovedIcon width={24} height={24} />
                       </View>
                       <View style={styles.timelineContent}>
-                        <Text style={styles.timelineTitle}>FINAL APPROVAL</Text>
-                        <Text style={styles.timelineText}>
+                        <Text style={[styles.timelineTitle, styles.timelineTitleGreen]}>
+                          FINAL APPROVAL
+                        </Text>
+                        <Text style={[styles.timelineText, styles.timelineTextGreen]}>
                           Approved by:{" "}
-                          {visitor.visitor_legislative_approved_by || "—"}
+                          {getUserName(visitor.visitor_legislative_approved_by) || "—"}
                         </Text>
                         <Text style={styles.timelineDate}>
                           {formatDate(visitor.visitor_legislative_approved_at)}
@@ -581,7 +678,7 @@ export default function VisitorDetailsScreen({ navigation, route }: Props) {
                       <View style={styles.timelineContent}>
                         <Text style={styles.timelineTitle}>REJECTED</Text>
                         <Text style={styles.timelineText}>
-                          Rejected by: {visitor.visitor_rejected_by || "—"}
+                          Rejected by: {getUserName(visitor.visitor_rejected_by) || "—"}
                         </Text>
                         {visitor.visitor_rejection_reason && (
                           <View style={styles.rejectionReasonBox}>
@@ -635,8 +732,8 @@ export default function VisitorDetailsScreen({ navigation, route }: Props) {
             </View>
           </View>
 
-          {/* Card 4: Pass Information (only if approved) */}
-          {isApproved && visitor.pass_number && (
+          {/* Card 4: Pass Information (only if approved or suspended) */}
+          {(isApproved || isSuspended) && visitor.pass_number && (
             <View style={styles.card}>
               <View style={styles.cardHeader}>
                 <View style={styles.cardHeaderLeft}>
@@ -677,7 +774,7 @@ export default function VisitorDetailsScreen({ navigation, route }: Props) {
                     <View style={styles.infoContent}>
                       <Text style={styles.infoLabel}>QR CODE STRING</Text>
                       <Text style={styles.infoValue}>
-                        {visitor.pass_qr_string}
+                        {extractUUIDFromQRString(visitor.pass_qr_string)}
                       </Text>
                     </View>
                   </View>
@@ -738,7 +835,7 @@ export default function VisitorDetailsScreen({ navigation, route }: Props) {
                     <View style={styles.infoContent}>
                       <Text style={styles.infoLabel}>PASS APPROVED BY</Text>
                       <Text style={styles.infoValue}>
-                        {visitor.visitor_legislative_approved_by}
+                        {getUserName(visitor.visitor_legislative_approved_by) || "—"}
                       </Text>
                     </View>
                   </View>
@@ -1032,6 +1129,18 @@ const styles = StyleSheet.create({
   timelineDate: {
     fontSize: 12,
     color: "#6B7280",
+  },
+  timelineTitleBlue: {
+    color: "#3B82F6",
+  },
+  timelineTitleGreen: {
+    color: "#059669",
+  },
+  timelineTextBlue: {
+    color: "#3B82F6",
+  },
+  timelineTextGreen: {
+    color: "#059669",
   },
   qrCodeImage: {
     width: 120,

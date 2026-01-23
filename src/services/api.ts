@@ -199,6 +199,27 @@ export interface Issuer {
   category_weblinks: CategoryWeblink[];
 }
 
+// User schema from users by role API
+export interface User {
+  id: string;
+  username: string;
+  email: string;
+  full_name: string;
+  mobile: string;
+  employee_id: string | null;
+  role: string;
+  approval_level: string | null;
+  hod_approver: boolean;
+  legislative_approver: boolean;
+  is_superior: boolean;
+  must_set_password: boolean;
+  profile_picture: string | null;
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
+  created_by: string | null;
+}
+
 export const api = {
   login: async (credentials: LoginRequest): Promise<LoginResponse> => {
     // Validate required fields - password is now optional
@@ -1155,6 +1176,54 @@ export const api = {
       }
 
       return data;
+    } catch (error) {
+      if (error instanceof Error) {
+        throw error;
+      }
+      throw new Error("Network error. Please check your connection.");
+    }
+  },
+
+  // Get users by role
+  getUsersByRole: async (roleName: string): Promise<User[]> => {
+    const url = `${VALIDATION_API_BASE_URL}/api/v1/pass-requests/users/by-role/${roleName}`;
+
+    try {
+      const response = await fetch(url, {
+        method: "GET",
+        headers: {
+          "Content-Type": "application/json",
+          Accept: "application/json",
+        },
+      });
+
+      let data;
+      const contentType = response.headers.get("content-type");
+
+      if (contentType && contentType.includes("application/json")) {
+        data = await response.json();
+      } else {
+        const text = await response.text();
+        throw new Error(`Server error: ${text || `Status ${response.status}`}`);
+      }
+
+      if (!response.ok) {
+        const errorMessage =
+          (Array.isArray(data?.detail)
+            ? data.detail
+                .map((e: any) => e.msg || e.message || JSON.stringify(e))
+                .join(", ")
+            : typeof data?.detail === "string"
+              ? data.detail
+              : data?.message || data?.error) ||
+          (typeof data === "string"
+            ? data
+            : `Failed to get users by role: ${response.statusText}`);
+
+        throw new Error(errorMessage);
+      }
+
+      return Array.isArray(data) ? data : [];
     } catch (error) {
       if (error instanceof Error) {
         throw error;

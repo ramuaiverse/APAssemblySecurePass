@@ -102,10 +102,13 @@ export type RootStackParamList = {
     userId?: string;
     role?: string;
   };
-  Visitors: undefined;
+  Visitors: {
+    role?: string;
+  };
   VisitorDetails: {
     request: any; // Full pass request object
     visitor: any; // Visitor object from the request
+    role?: string;
   };
   IssueVisitorPass: {
     userFullName?: string;

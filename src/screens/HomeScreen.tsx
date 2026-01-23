@@ -129,7 +129,7 @@ export default function HomeScreen({ navigation, route }: Props) {
   };
 
   const handleVisitors = () => {
-    navigation.navigate("Visitors");
+    navigation.navigate("Visitors", { role: userRole });
   };
 
   return (
