@@ -115,6 +115,8 @@ export default function LoginScreen({ navigation }: Props) {
             userFullName: response.full_name,
             userId: response.id,
             role: response.role,
+            hod_approver: response.hod_approver,
+            legislative_approver: response.legislative_approver,
           });
         } else {
           navigation.replace("PreCheck");
@@ -423,18 +425,23 @@ const styles = StyleSheet.create({
     flexGrow: 1,
     padding: 20,
     paddingBottom: 100,
+    paddingTop: 0,
   },
   header: {
     alignItems: "center",
   },
   backButton: {
     paddingHorizontal: 16,
+    paddingTop: 0,
+    paddingBottom: 0,
+    zIndex: 10,
   },
   logoContainer: {
-    paddingVertical: 10,
+    paddingVertical: 0,
     flexDirection: "row",
     justifyContent: "center",
     gap: 60,
+    marginTop: 0,
   },
   loginCard: {
     backgroundColor: "#fff",

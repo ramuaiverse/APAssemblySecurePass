@@ -10,6 +10,7 @@ import {
   Image,
   Modal,
   Dimensions,
+  Alert,
 } from "react-native";
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { RouteProp } from "@react-navigation/native";
@@ -53,6 +54,11 @@ interface ExpandedVisitor {
 
 export default function VisitorsScreen({ navigation, route }: Props) {
   const userRole = route.params?.role || "";
+  const userId = route.params?.userId || "";
+  const hodApprover = route.params?.hod_approver || false;
+  const legislativeApprover = route.params?.legislative_approver || false;
+  const isApprover = hodApprover || legislativeApprover;
+
   const [passRequests, setPassRequests] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [stats, setStats] = useState<VisitorStats>({
@@ -76,6 +82,17 @@ export default function VisitorsScreen({ navigation, route }: Props) {
   );
   const [showPassTypeModal, setShowPassTypeModal] = useState(false);
   const [showStatusModal, setShowStatusModal] = useState(false);
+
+  // Approve/Reject modals state
+  const [showApproveAllModal, setShowApproveAllModal] = useState(false);
+  const [showRejectAllModal, setShowRejectAllModal] = useState(false);
+  const [showApproveModal, setShowApproveModal] = useState(false);
+  const [showRejectModal, setShowRejectModal] = useState(false);
+  const [approveComment, setApproveComment] = useState("");
+  const [rejectReason, setRejectReason] = useState("");
+  const [selectedRequest, setSelectedRequest] = useState<any>(null);
+  const [selectedVisitor, setSelectedVisitor] = useState<any>(null);
+  const [processingStatus, setProcessingStatus] = useState(false);
 
   // Category mappings
   const [categoryMap, setCategoryMap] = useState<{ [key: string]: string }>({});
@@ -362,6 +379,190 @@ export default function VisitorsScreen({ navigation, route }: Props) {
     navigation.replace("LoginMethodSelection");
   };
 
+  // Handler for Approve All
+  const handleApproveAllClick = (request: any) => {
+    setSelectedRequest(request);
+    setApproveComment("");
+    setShowApproveAllModal(true);
+  };
+
+  // Handler for Reject All
+  const handleRejectAllClick = (request: any) => {
+    setSelectedRequest(request);
+    setRejectReason("");
+    setShowRejectAllModal(true);
+  };
+
+  // Handler for individual Approve
+  const handleApproveClick = (visitor: any) => {
+    setSelectedVisitor(visitor);
+    setApproveComment("");
+    setShowApproveModal(true);
+  };
+
+  // Handler for individual Reject
+  const handleRejectClick = (visitor: any) => {
+    setSelectedVisitor(visitor);
+    setRejectReason("");
+    setShowRejectModal(true);
+  };
+
+  // Execute Approve All
+  const executeApproveAll = async () => {
+    if (!selectedRequest || !userId) return;
+
+    const pendingVisitors = selectedRequest.visitors?.filter(
+      (v: any) => v.visitor_status === "pending",
+    );
+
+    if (!pendingVisitors || pendingVisitors.length === 0) {
+      Alert.alert("No Pending Visitors", "There are no pending visitors to approve.");
+      setShowApproveAllModal(false);
+      return;
+    }
+
+    setProcessingStatus(true);
+    try {
+      // Approve all pending visitors
+      const promises = pendingVisitors.map((visitor: any) =>
+        api.updateVisitorStatus(
+          visitor.id,
+          "approved",
+          userId,
+          approveComment || undefined,
+        ),
+      );
+
+      await Promise.all(promises);
+
+      // Refresh the data
+      await fetchVisitors();
+      setShowApproveAllModal(false);
+      setApproveComment("");
+      Alert.alert("Success", "All visitors have been approved successfully.");
+    } catch (error) {
+      const errorMessage =
+        error instanceof Error
+          ? error.message
+          : "Failed to approve visitors. Please try again.";
+      Alert.alert("Error", errorMessage);
+    } finally {
+      setProcessingStatus(false);
+    }
+  };
+
+  // Execute Reject All
+  const executeRejectAll = async () => {
+    if (!selectedRequest || !userId) return;
+
+    if (!rejectReason.trim()) {
+      Alert.alert("Required", "Please provide a reason for rejection.");
+      return;
+    }
+
+    const pendingVisitors = selectedRequest.visitors?.filter(
+      (v: any) => v.visitor_status === "pending",
+    );
+
+    if (!pendingVisitors || pendingVisitors.length === 0) {
+      Alert.alert("No Pending Visitors", "There are no pending visitors to reject.");
+      setShowRejectAllModal(false);
+      return;
+    }
+
+    setProcessingStatus(true);
+    try {
+      // Reject all pending visitors
+      const promises = pendingVisitors.map((visitor: any) =>
+        api.updateVisitorStatus(
+          visitor.id,
+          "rejected",
+          userId,
+          rejectReason,
+        ),
+      );
+
+      await Promise.all(promises);
+
+      // Refresh the data
+      await fetchVisitors();
+      setShowRejectAllModal(false);
+      setRejectReason("");
+      Alert.alert("Success", "All visitors have been rejected successfully.");
+    } catch (error) {
+      const errorMessage =
+        error instanceof Error
+          ? error.message
+          : "Failed to reject visitors. Please try again.";
+      Alert.alert("Error", errorMessage);
+    } finally {
+      setProcessingStatus(false);
+    }
+  };
+
+  // Execute individual Approve
+  const executeApprove = async () => {
+    if (!selectedVisitor || !userId) return;
+
+    setProcessingStatus(true);
+    try {
+      await api.updateVisitorStatus(
+        selectedVisitor.id,
+        "approved",
+        userId,
+        approveComment || undefined,
+      );
+
+      // Refresh the data
+      await fetchVisitors();
+      setShowApproveModal(false);
+      setApproveComment("");
+      Alert.alert("Success", "Visitor has been approved successfully.");
+    } catch (error) {
+      const errorMessage =
+        error instanceof Error
+          ? error.message
+          : "Failed to approve visitor. Please try again.";
+      Alert.alert("Error", errorMessage);
+    } finally {
+      setProcessingStatus(false);
+    }
+  };
+
+  // Execute individual Reject
+  const executeReject = async () => {
+    if (!selectedVisitor || !userId) return;
+
+    if (!rejectReason.trim()) {
+      Alert.alert("Required", "Please provide a reason for rejection.");
+      return;
+    }
+
+    setProcessingStatus(true);
+    try {
+      await api.updateVisitorStatus(
+        selectedVisitor.id,
+        "rejected",
+        userId,
+        rejectReason,
+      );
+
+      // Refresh the data
+      await fetchVisitors();
+      setShowRejectModal(false);
+      setRejectReason("");
+      Alert.alert("Success", "Visitor has been rejected successfully.");
+    } catch (error) {
+      const errorMessage =
+        error instanceof Error
+          ? error.message
+          : "Failed to reject visitor. Please try again.";
+      Alert.alert("Error", errorMessage);
+    } finally {
+      setProcessingStatus(false);
+    }
+  };
+
   return (
     <SafeAreaView style={styles.container} edges={["top"]}>
       {/* Background Assembly Image - Center */}
@@ -546,6 +747,35 @@ export default function VisitorsScreen({ navigation, route }: Props) {
                           </View>
                         </View>
 
+                        {/* Approve All / Reject All Buttons for Approvers */}
+                        {isApprover &&
+                          request.visitors &&
+                          request.visitors.length > 0 &&
+                          request.visitors.some(
+                            (v: any) => v.visitor_status === "pending",
+                          ) && (
+                            <View style={styles.approveRejectAllContainer}>
+                              <TouchableOpacity
+                                style={styles.approveAllButton}
+                                onPress={() => handleApproveAllClick(request)}
+                                disabled={processingStatus}
+                              >
+                                <Text style={styles.approveAllButtonText}>
+                                  Approve All
+                                </Text>
+                              </TouchableOpacity>
+                              <TouchableOpacity
+                                style={styles.rejectAllButton}
+                                onPress={() => handleRejectAllClick(request)}
+                                disabled={processingStatus}
+                              >
+                                <Text style={styles.rejectAllButtonText}>
+                                  Reject All
+                                </Text>
+                              </TouchableOpacity>
+                            </View>
+                          )}
+
                         {/* Visitors Section - Nested within the same card */}
                         {request.visitors && request.visitors.length > 0 && (
                           <View style={styles.visitorsSection}>
@@ -697,6 +927,47 @@ export default function VisitorsScreen({ navigation, route }: Props) {
                                             </View>
                                           </View>
                                         )}
+                                        {/* Approve/Reject Buttons for Approvers */}
+                                        {isApprover &&
+                                          visitor.visitor_status === "pending" && (
+                                            <View
+                                              style={
+                                                styles.approveRejectButtonsContainer
+                                              }
+                                            >
+                                              <TouchableOpacity
+                                                style={styles.approveButton}
+                                                onPress={() =>
+                                                  handleApproveClick(visitor)
+                                                }
+                                                disabled={processingStatus}
+                                              >
+                                                <Text
+                                                  style={
+                                                    styles.approveButtonText
+                                                  }
+                                                >
+                                                  Approve
+                                                </Text>
+                                              </TouchableOpacity>
+                                              <TouchableOpacity
+                                                style={styles.rejectButton}
+                                                onPress={() =>
+                                                  handleRejectClick(visitor)
+                                                }
+                                                disabled={processingStatus}
+                                              >
+                                                <Text
+                                                  style={
+                                                    styles.rejectButtonText
+                                                  }
+                                                >
+                                                  Reject
+                                                </Text>
+                                              </TouchableOpacity>
+                                            </View>
+                                          )}
+
                                         <TouchableOpacity
                                           style={styles.viewDetailsButton}
                                           onPress={() =>
@@ -726,6 +997,262 @@ export default function VisitorsScreen({ navigation, route }: Props) {
           </View>
         </ScrollView>
       )}
+
+      {/* Approve All Modal */}
+      <Modal
+        visible={showApproveAllModal}
+        transparent={true}
+        animationType="fade"
+        onRequestClose={() => setShowApproveAllModal(false)}
+      >
+        <TouchableOpacity
+          style={styles.modalOverlay}
+          activeOpacity={1}
+          onPress={() => setShowApproveAllModal(false)}
+        >
+          <View
+            style={styles.approveModalContent}
+            onStartShouldSetResponder={() => true}
+          >
+            <TouchableOpacity
+              style={styles.modalCloseButtonTop}
+              onPress={() => setShowApproveAllModal(false)}
+            >
+              <CloseIcon width={20} height={20} />
+            </TouchableOpacity>
+            <Text style={styles.approveModalTitle}>
+              Approve All Visitors
+            </Text>
+            <Text style={styles.approveModalSubtitle}>
+              Add optional comments for approval
+            </Text>
+            <TextInput
+              style={styles.modalTextInput}
+              placeholder="Add any comments about this approval..."
+              placeholderTextColor="#9CA3AF"
+              value={approveComment}
+              onChangeText={setApproveComment}
+              multiline
+              numberOfLines={4}
+              textAlignVertical="top"
+            />
+            <View style={styles.modalButtonsContainer}>
+              <TouchableOpacity
+                style={styles.modalCancelButton}
+                onPress={() => {
+                  setShowApproveAllModal(false);
+                  setApproveComment("");
+                }}
+                disabled={processingStatus}
+              >
+                <Text style={styles.modalCancelButtonText}>Cancel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={styles.modalApproveButton}
+                onPress={executeApproveAll}
+                disabled={processingStatus}
+              >
+                {processingStatus ? (
+                  <ActivityIndicator color="#FFFFFF" />
+                ) : (
+                  <Text style={styles.modalApproveButtonText}>
+                    Approve All
+                  </Text>
+                )}
+              </TouchableOpacity>
+            </View>
+          </View>
+        </TouchableOpacity>
+      </Modal>
+
+      {/* Reject All Modal */}
+      <Modal
+        visible={showRejectAllModal}
+        transparent={true}
+        animationType="fade"
+        onRequestClose={() => setShowRejectAllModal(false)}
+      >
+        <TouchableOpacity
+          style={styles.modalOverlay}
+          activeOpacity={1}
+          onPress={() => setShowRejectAllModal(false)}
+        >
+          <View
+            style={styles.rejectModalContent}
+            onStartShouldSetResponder={() => true}
+          >
+            <TouchableOpacity
+              style={styles.modalCloseButtonTop}
+              onPress={() => setShowRejectAllModal(false)}
+            >
+              <CloseIcon width={20} height={20} />
+            </TouchableOpacity>
+            <Text style={styles.rejectModalTitle}>Reject All Visitors</Text>
+            <Text style={styles.rejectModalSubtitle}>
+              Please provide a reason for rejection
+            </Text>
+            <TextInput
+              style={styles.modalTextInput}
+              placeholder="Please provide a reason for rejection..."
+              placeholderTextColor="#9CA3AF"
+              value={rejectReason}
+              onChangeText={setRejectReason}
+              multiline
+              numberOfLines={4}
+              textAlignVertical="top"
+            />
+            <View style={styles.modalButtonsContainer}>
+              <TouchableOpacity
+                style={styles.modalCancelButton}
+                onPress={() => {
+                  setShowRejectAllModal(false);
+                  setRejectReason("");
+                }}
+                disabled={processingStatus}
+              >
+                <Text style={styles.modalCancelButtonText}>Cancel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={styles.modalRejectButton}
+                onPress={executeRejectAll}
+                disabled={processingStatus}
+              >
+                {processingStatus ? (
+                  <ActivityIndicator color="#FFFFFF" />
+                ) : (
+                  <Text style={styles.modalRejectButtonText}>Reject All</Text>
+                )}
+              </TouchableOpacity>
+            </View>
+          </View>
+        </TouchableOpacity>
+      </Modal>
+
+      {/* Approve Individual Modal */}
+      <Modal
+        visible={showApproveModal}
+        transparent={true}
+        animationType="fade"
+        onRequestClose={() => setShowApproveModal(false)}
+      >
+        <TouchableOpacity
+          style={styles.modalOverlay}
+          activeOpacity={1}
+          onPress={() => setShowApproveModal(false)}
+        >
+          <View
+            style={styles.approveModalContent}
+            onStartShouldSetResponder={() => true}
+          >
+            <TouchableOpacity
+              style={styles.modalCloseButtonTop}
+              onPress={() => setShowApproveModal(false)}
+            >
+              <CloseIcon width={20} height={20} />
+            </TouchableOpacity>
+            <Text style={styles.approveModalTitle}>Approve Visitor</Text>
+            <Text style={styles.approveModalSubtitle}>
+              Add optional comments for approval
+            </Text>
+            <TextInput
+              style={styles.modalTextInput}
+              placeholder="Add any comments about this approval..."
+              placeholderTextColor="#9CA3AF"
+              value={approveComment}
+              onChangeText={setApproveComment}
+              multiline
+              numberOfLines={4}
+              textAlignVertical="top"
+            />
+            <View style={styles.modalButtonsContainer}>
+              <TouchableOpacity
+                style={styles.modalCancelButton}
+                onPress={() => {
+                  setShowApproveModal(false);
+                  setApproveComment("");
+                }}
+                disabled={processingStatus}
+              >
+                <Text style={styles.modalCancelButtonText}>Cancel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={styles.modalApproveButton}
+                onPress={executeApprove}
+                disabled={processingStatus}
+              >
+                {processingStatus ? (
+                  <ActivityIndicator color="#FFFFFF" />
+                ) : (
+                  <Text style={styles.modalApproveButtonText}>Approve</Text>
+                )}
+              </TouchableOpacity>
+            </View>
+          </View>
+        </TouchableOpacity>
+      </Modal>
+
+      {/* Reject Individual Modal */}
+      <Modal
+        visible={showRejectModal}
+        transparent={true}
+        animationType="fade"
+        onRequestClose={() => setShowRejectModal(false)}
+      >
+        <TouchableOpacity
+          style={styles.modalOverlay}
+          activeOpacity={1}
+          onPress={() => setShowRejectModal(false)}
+        >
+          <View
+            style={styles.rejectModalContent}
+            onStartShouldSetResponder={() => true}
+          >
+            <TouchableOpacity
+              style={styles.modalCloseButtonTop}
+              onPress={() => setShowRejectModal(false)}
+            >
+              <CloseIcon width={20} height={20} />
+            </TouchableOpacity>
+            <Text style={styles.rejectModalTitle}>Reject Visitor</Text>
+            <Text style={styles.rejectModalSubtitle}>
+              Please provide a reason for rejection
+            </Text>
+            <TextInput
+              style={styles.modalTextInput}
+              placeholder="Please provide a reason for rejection..."
+              placeholderTextColor="#9CA3AF"
+              value={rejectReason}
+              onChangeText={setRejectReason}
+              multiline
+              numberOfLines={4}
+              textAlignVertical="top"
+            />
+            <View style={styles.modalButtonsContainer}>
+              <TouchableOpacity
+                style={styles.modalCancelButton}
+                onPress={() => {
+                  setShowRejectModal(false);
+                  setRejectReason("");
+                }}
+                disabled={processingStatus}
+              >
+                <Text style={styles.modalCancelButtonText}>Cancel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={styles.modalRejectButton}
+                onPress={executeReject}
+                disabled={processingStatus}
+              >
+                {processingStatus ? (
+                  <ActivityIndicator color="#FFFFFF" />
+                ) : (
+                  <Text style={styles.modalRejectButtonText}>Reject</Text>
+                )}
+              </TouchableOpacity>
+            </View>
+          </View>
+        </TouchableOpacity>
+      </Modal>
 
       {/* Pass Type Filter Modal */}
       <Modal
@@ -1305,6 +1832,192 @@ const styles = StyleSheet.create({
   },
   modalItemTextSelected: {
     color: "#3B82F6",
+    fontWeight: "600",
+  },
+  approveRejectAllContainer: {
+    flexDirection: "row",
+    gap: 12,
+    marginTop: 16,
+    marginBottom: 8,
+  },
+  approveAllButton: {
+    flex: 1,
+    backgroundColor: "#457E51",
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    borderRadius: 8,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  approveAllButtonText: {
+    color: "#FFFFFF",
+    fontSize: 14,
+    fontWeight: "600",
+  },
+  rejectAllButton: {
+    flex: 1,
+    backgroundColor: "#EF4444",
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    borderRadius: 8,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  rejectAllButtonText: {
+    color: "#FFFFFF",
+    fontSize: 14,
+    fontWeight: "600",
+  },
+  approveRejectButtonsContainer: {
+    flexDirection: "row",
+    gap: 12,
+    marginTop: 12,
+    marginBottom: 8,
+  },
+  approveButton: {
+    flex: 1,
+    backgroundColor: "#457E51",
+    paddingVertical: 10,
+    paddingHorizontal: 16,
+    borderRadius: 8,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  approveButtonText: {
+    color: "#FFFFFF",
+    fontSize: 13,
+    fontWeight: "600",
+  },
+  rejectButton: {
+    flex: 1,
+    backgroundColor: "#EF4444",
+    paddingVertical: 10,
+    paddingHorizontal: 16,
+    borderRadius: 8,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  rejectButtonText: {
+    color: "#FFFFFF",
+    fontSize: 13,
+    fontWeight: "600",
+  },
+  approveModalContent: {
+    backgroundColor: "#FFFFFF",
+    borderRadius: 12,
+    width: "85%",
+    maxWidth: 400,
+    padding: 24,
+    shadowColor: "#000",
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.25,
+    shadowRadius: 4,
+    elevation: 5,
+  },
+  rejectModalContent: {
+    backgroundColor: "#FFFFFF",
+    borderRadius: 12,
+    width: "85%",
+    maxWidth: 400,
+    padding: 24,
+    shadowColor: "#000",
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.25,
+    shadowRadius: 4,
+    elevation: 5,
+  },
+  modalCloseButtonTop: {
+    position: "absolute",
+    top: 16,
+    right: 16,
+    padding: 4,
+    zIndex: 1,
+  },
+  approveModalTitle: {
+    fontSize: 20,
+    fontWeight: "bold",
+    color: "#111827",
+    marginBottom: 8,
+    marginTop: 8,
+  },
+  approveModalSubtitle: {
+    fontSize: 14,
+    color: "#6B7280",
+    marginBottom: 16,
+  },
+  rejectModalTitle: {
+    fontSize: 20,
+    fontWeight: "bold",
+    color: "#111827",
+    marginBottom: 8,
+    marginTop: 8,
+  },
+  rejectModalSubtitle: {
+    fontSize: 14,
+    color: "#6B7280",
+    marginBottom: 16,
+  },
+  modalTextInput: {
+    borderWidth: 1,
+    borderColor: "#D1D5DB",
+    borderRadius: 8,
+    padding: 12,
+    fontSize: 14,
+    color: "#111827",
+    minHeight: 100,
+    marginBottom: 20,
+    backgroundColor: "#F9FAFB",
+  },
+  modalButtonsContainer: {
+    flexDirection: "row",
+    gap: 12,
+    justifyContent: "flex-end",
+  },
+  modalCancelButton: {
+    backgroundColor: "#F3F4F6",
+    paddingVertical: 12,
+    paddingHorizontal: 24,
+    borderRadius: 8,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  modalCancelButtonText: {
+    color: "#374151",
+    fontSize: 14,
+    fontWeight: "600",
+  },
+  modalApproveButton: {
+    backgroundColor: "#457E51",
+    paddingVertical: 12,
+    paddingHorizontal: 24,
+    borderRadius: 8,
+    alignItems: "center",
+    justifyContent: "center",
+    minWidth: 120,
+  },
+  modalApproveButtonText: {
+    color: "#FFFFFF",
+    fontSize: 14,
+    fontWeight: "600",
+  },
+  modalRejectButton: {
+    backgroundColor: "#EF4444",
+    paddingVertical: 12,
+    paddingHorizontal: 24,
+    borderRadius: 8,
+    alignItems: "center",
+    justifyContent: "center",
+    minWidth: 120,
+  },
+  modalRejectButtonText: {
+    color: "#FFFFFF",
+    fontSize: 14,
     fontWeight: "600",
   },
 });

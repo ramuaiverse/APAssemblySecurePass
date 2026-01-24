@@ -101,9 +101,14 @@ export type RootStackParamList = {
     userFullName?: string;
     userId?: string;
     role?: string;
+    hod_approver?: boolean;
+    legislative_approver?: boolean;
   };
   Visitors: {
     role?: string;
+    userId?: string;
+    hod_approver?: boolean;
+    legislative_approver?: boolean;
   };
   VisitorDetails: {
     request: any; // Full pass request object

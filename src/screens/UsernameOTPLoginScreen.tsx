@@ -156,6 +156,12 @@ export default function UsernameOTPLoginScreen({ navigation }: Props) {
     if (usernameError) {
       setUsernameError("");
     }
+    // If OTP was already sent and user changes username, reset OTP state
+    if (otpSent) {
+      setOtpSent(false);
+      setOtp("");
+      setOtpError("");
+    }
   };
 
   const handleOtpChange = (text: string) => {
@@ -269,7 +275,6 @@ export default function UsernameOTPLoginScreen({ navigation }: Props) {
                 keyboardType="default"
                 autoCapitalize="none"
                 autoCorrect={false}
-                editable={!otpSent}
               />
             </View>
             {usernameError ? (
@@ -383,24 +388,26 @@ const styles = StyleSheet.create({
   },
   scrollContent: {
     flexGrow: 1,
-    padding: 20,
+    paddingHorizontal: 20,
     paddingBottom: 100,
+    paddingTop: 0,
   },
   header: {
     alignItems: "center",
-    // paddingTop: 10,
-    // paddingHorizontal: 15,
     position: "relative",
   },
   backButton: {
     paddingHorizontal: 16,
+    paddingTop: 0,
+    paddingBottom: 0,
+    zIndex: 10,
   },
   logoContainer: {
-    paddingVertical: 10,
+    paddingVertical: 0,
     flexDirection: "row",
     justifyContent: "center",
     gap: 60,
-    marginTop: 20,
+    marginTop: 0,
   },
   loginCard: {
     backgroundColor: "#fff",

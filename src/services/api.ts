@@ -1602,4 +1602,77 @@ export const api = {
       throw new Error("Network error. Please check your connection.");
     }
   },
+
+  // Update visitor status (approve/reject)
+  updateVisitorStatus: async (
+    visitorId: string,
+    status: "approved" | "rejected",
+    currentUserId: string,
+    rejectionReason?: string,
+  ): Promise<any> => {
+    if (!visitorId || !visitorId.trim()) {
+      throw new Error("Visitor ID is required");
+    }
+    if (!currentUserId || !currentUserId.trim()) {
+      throw new Error("Current user ID is required");
+    }
+    if (status !== "approved" && status !== "rejected") {
+      throw new Error("Status must be 'approved' or 'rejected'");
+    }
+
+    const url = `${VALIDATION_API_BASE_URL}/api/v1/pass-requests/visitors/${visitorId}/status`;
+
+    // Create form data
+    const formData = new FormData();
+    formData.append("status", status);
+    formData.append("current_user_id", currentUserId);
+    if (rejectionReason) {
+      formData.append("rejection_reason", rejectionReason);
+    }
+
+    try {
+      const response = await fetch(url, {
+        method: "PATCH",
+        headers: {
+          Accept: "*/*",
+        },
+        body: formData,
+      });
+
+      let responseData;
+      const contentType = response.headers.get("content-type");
+
+      if (contentType && contentType.includes("application/json")) {
+        responseData = await response.json();
+      } else {
+        const text = await response.text();
+        throw new Error(`Server error: ${text || `Status ${response.status}`}`);
+      }
+
+      if (!response.ok) {
+        const errorMessage =
+          (Array.isArray(responseData?.detail)
+            ? responseData.detail
+                .map((e: any) => e.msg || e.message || JSON.stringify(e))
+                .join(", ")
+            : typeof responseData?.detail === "string"
+              ? responseData.detail
+              : responseData?.message || responseData?.error) ||
+          (typeof responseData === "string"
+            ? responseData
+            : `Update visitor status failed: ${
+                response.statusText || `Status ${response.status}`
+              }`);
+
+        throw new Error(errorMessage);
+      }
+
+      return responseData;
+    } catch (error) {
+      if (error instanceof Error) {
+        throw error;
+      }
+      throw new Error("Network error. Please check your connection.");
+    }
+  },
 };

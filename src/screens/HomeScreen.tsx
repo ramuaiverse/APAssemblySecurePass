@@ -46,6 +46,8 @@ export default function HomeScreen({ navigation, route }: Props) {
   const userFullName = route.params?.userFullName || "";
   const userId = route.params?.userId || "";
   const userRole = route.params?.role || "";
+  const hodApprover = route.params?.hod_approver || false;
+  const legislativeApprover = route.params?.legislative_approver || false;
 
   const [dashboardData, setDashboardData] = useState<DashboardMetrics>({
     totalRequests: 0,
@@ -129,7 +131,12 @@ export default function HomeScreen({ navigation, route }: Props) {
   };
 
   const handleVisitors = () => {
-    navigation.navigate("Visitors", { role: userRole });
+    navigation.navigate("Visitors", {
+      role: userRole,
+      userId: userId,
+      hod_approver: hodApprover,
+      legislative_approver: legislativeApprover,
+    });
   };
 
   return (
@@ -170,7 +177,9 @@ export default function HomeScreen({ navigation, route }: Props) {
         <View style={styles.dashboardSectionContainer}>
           <View style={styles.dashboardSection}>
             <Text style={styles.dashboardHeading}>
-              {userRole ? `${userRole} Dashboard` : "Dashboard"}
+              {userRole
+                ? `${userRole.charAt(0).toUpperCase() + userRole.slice(1)} Dashboard`
+                : "Dashboard"}
             </Text>
             <Text style={styles.dashboardSubheading}>
               Comprehensive overview of pass requests and approvals
@@ -411,7 +420,7 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   welcomeText: {
-    fontSize: 16,
+    fontSize: 20,
     fontWeight: "600",
     color: "#111827",
   },
@@ -495,7 +504,7 @@ const styles = StyleSheet.create({
     marginBottom: 0,
   },
   dashboardHeading: {
-    fontSize: 24,
+    fontSize: 20,
     fontWeight: "bold",
     color: "#111827",
     marginBottom: 8,

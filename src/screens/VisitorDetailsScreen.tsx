@@ -81,7 +81,6 @@ const formatDate = (dateString: string) => {
 const formatDateOnly = (dateString: string) => {
   try {
     const date = new Date(dateString);
-    const days = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
     const months = [
       "Jan",
       "Feb",
@@ -96,15 +95,14 @@ const formatDateOnly = (dateString: string) => {
       "Nov",
       "Dec",
     ];
-    const dayName = days[date.getDay()];
-    const day = date.getDate().toString().padStart(2, "0");
+    const day = date.getDate();
     const month = months[date.getMonth()];
     const year = date.getFullYear();
     const hours = date.getHours();
     const minutes = date.getMinutes().toString().padStart(2, "0");
     const ampm = hours >= 12 ? "pm" : "am";
     const displayHours = hours % 12 || 12;
-    return `${dayName}, ${day}/${month}/${year} ${displayHours}:${minutes} ${ampm}`;
+    return `${day} ${month} ${year}, ${displayHours}:${minutes} ${ampm}`;
   } catch {
     return dateString;
   }
@@ -578,151 +576,176 @@ export default function VisitorDetailsScreen({ navigation, route }: Props) {
             </View>
           </View>
 
-          {/* Card 3: Timeline */}
+          {/* Card 3: Dates & Timeline */}
           <View style={styles.card}>
             <View style={styles.cardHeader}>
               <View style={styles.cardHeaderLeft}>
-                <View style={[styles.cardIcon, { backgroundColor: "#457E51" }]}>
-                  <MaterialIcons name="event" size={24} color="#FFFFFF" />
+                <View style={[styles.cardIcon, { backgroundColor: "#3B82F6" }]}>
+                  <Ionicons name="time-outline" size={20} color="#FFFFFF" />
                 </View>
                 <View>
-                  <Text style={styles.cardTitle}>Timeline</Text>
-                  <Text style={styles.cardSubtitle}>Dates & Status</Text>
+                  <Text style={styles.cardTitle}>Dates & Timeline</Text>
+                  <Text style={styles.cardSubtitle}>Visit Dates & Approval Status</Text>
                 </View>
               </View>
             </View>
             <View style={styles.cardHeaderSeparator} />
 
             <View style={styles.cardContent}>
-              <View style={styles.timelineContainer}>
-                {/* Vertical line connecting all dots - positioned at center of dots */}
-                <View style={styles.timelineVerticalLine} />
+              {/* Dates Cards */}
+              <View style={styles.datesCardsContainer}>
+                {request.valid_from && (
+                  <View style={styles.dateCard}>
+                    <View style={styles.dateCardIcon}>
+                      <MaterialIcons name="event" size={20} color="#3B82F6" />
+                    </View>
+                    <View style={styles.dateCardContent}>
+                      <Text style={styles.dateCardLabel}>Valid From</Text>
+                      <Text style={styles.dateCardValue}>
+                        {formatDateOnly(request.valid_from)}
+                      </Text>
+                    </View>
+                  </View>
+                )}
+
+                {request.valid_to && (
+                  <View style={styles.dateCard}>
+                    <View style={styles.dateCardIcon}>
+                      <MaterialIcons name="event" size={20} color="#3B82F6" />
+                    </View>
+                    <View style={styles.dateCardContent}>
+                      <Text style={styles.dateCardLabel}>Valid To</Text>
+                      <Text style={styles.dateCardValue}>
+                        {formatDateOnly(request.valid_to)}
+                      </Text>
+                    </View>
+                  </View>
+                )}
+
+                {request.purpose && (
+                  <View style={styles.dateCard}>
+                    <View style={styles.dateCardIcon}>
+                      <MaterialIcons name="description" size={20} color="#3B82F6" />
+                    </View>
+                    <View style={styles.dateCardContent}>
+                      <Text style={styles.dateCardLabel}>Purpose</Text>
+                      <Text style={styles.dateCardValue}>{request.purpose}</Text>
+                    </View>
+                  </View>
+                )}
+              </View>
+            </View>
+          </View>
+
+          {/* Card 4: Approval Timeline */}
+          <View style={styles.card}>
+            <View style={styles.cardHeader}>
+              <View style={styles.cardHeaderLeft}>
+                <Text style={styles.approvalTimelineTitle}>Approval Timeline</Text>
+              </View>
+            </View>
+            <View style={styles.cardHeaderSeparator} />
+
+            <View style={styles.cardContent}>
+              <View style={styles.approvalTimelineContainer}>
+                {/* Vertical line connecting all dots */}
+                <View style={styles.approvalTimelineVerticalLine} />
 
                 {/* Timeline Items */}
-                <View style={styles.timelineItemsWrapper}>
-                  <View style={styles.timelineItem}>
-                    <View
-                      style={[styles.timelineDot, styles.timelineDotGrey]}
-                    />
-                    <View style={styles.timelineIconContainer}>
-                      <Ionicons name="time-outline" size={24} color="#6B7280" />
+                <View style={styles.approvalTimelineItemsWrapper}>
+                  {/* Request Submitted */}
+                  <View style={styles.approvalTimelineItem}>
+                    <View style={styles.approvalTimelineDotBlue}>
+                      <View style={styles.approvalTimelineDotInner} />
                     </View>
-                    <View style={styles.timelineContent}>
-                      <Text style={styles.timelineTitle}>SUBMITTED</Text>
-                      <Text style={styles.timelineText}>
-                        Submitted by: {getUserName(request.requested_by) || "—"}
+                    <View style={styles.approvalTimelineContent}>
+                      <Text style={styles.approvalTimelineTitleBlue}>
+                        Request Submitted
                       </Text>
-                      <Text style={styles.timelineDate}>
+                      <Text style={styles.approvalTimelineDate}>
                         {formatDate(request.created_at)}
                       </Text>
                     </View>
                   </View>
 
-                  {visitor.visitor_approved_by && visitor.visitor_approved_at && (
-                    <View style={styles.timelineItem}>
-                      <View
-                        style={[styles.timelineDot, styles.timelineDotBlue]}
-                      />
-                      <View style={styles.timelineIconContainer}>
-                        <Ionicons name="checkmark-circle" size={24} color="#3B82F6" />
+                  {/* Pending Approval - Show when status is pending and not approved/rejected */}
+                  {visitor.visitor_status === "pending" &&
+                    !visitor.visitor_approved_by &&
+                    !isRejected && (
+                      <View style={styles.approvalTimelineItem}>
+                        <View style={styles.approvalTimelineDotOrange}>
+                          <Ionicons name="trophy" size={16} color="#F97316" />
+                        </View>
+                        <View style={styles.approvalTimelineContent}>
+                          <Text style={styles.approvalTimelineTitleOrange}>
+                            Pending Approval
+                          </Text>
+                          <Text style={styles.approvalTimelineSubtext}>
+                            Awaiting HOD review
+                          </Text>
+                        </View>
                       </View>
-                      <View style={styles.timelineContent}>
-                        <Text style={[styles.timelineTitle, styles.timelineTitleBlue]}>
-                          HOD APPROVAL
+                    )}
+
+                  {/* HOD Approval */}
+                  {visitor.visitor_approved_by && visitor.visitor_approved_at && (
+                    <View style={styles.approvalTimelineItem}>
+                      <View style={styles.approvalTimelineDotBlue}>
+                        <View style={styles.approvalTimelineDotInner} />
+                      </View>
+                      <View style={styles.approvalTimelineContent}>
+                        <Text style={styles.approvalTimelineTitleBlue}>
+                          HOD Approval
                         </Text>
-                        <Text style={[styles.timelineText, styles.timelineTextBlue]}>
+                        <Text style={styles.approvalTimelineSubtext}>
                           Approved by: {getHODUserName(visitor.visitor_approved_by) || "—"}
                         </Text>
-                        <Text style={styles.timelineDate}>
+                        <Text style={styles.approvalTimelineDate}>
                           {formatDate(visitor.visitor_approved_at)}
                         </Text>
                       </View>
                     </View>
                   )}
 
+                  {/* Final/Legislative Approval */}
                   {isApproved && visitor.visitor_legislative_approved_at && (
-                    <View style={styles.timelineItem}>
-                      <View
-                        style={[styles.timelineDot, styles.timelineDotGreen]}
-                      />
-                      <View style={styles.timelineIconContainer}>
-                        <ApprovedIcon width={24} height={24} />
+                    <View style={styles.approvalTimelineItem}>
+                      <View style={styles.approvalTimelineDotBlue}>
+                        <View style={styles.approvalTimelineDotInner} />
                       </View>
-                      <View style={styles.timelineContent}>
-                        <Text style={[styles.timelineTitle, styles.timelineTitleGreen]}>
-                          FINAL APPROVAL
+                      <View style={styles.approvalTimelineContent}>
+                        <Text style={styles.approvalTimelineTitleBlue}>
+                          Final Approval
                         </Text>
-                        <Text style={[styles.timelineText, styles.timelineTextGreen]}>
+                        <Text style={styles.approvalTimelineSubtext}>
                           Approved by:{" "}
                           {getUserName(visitor.visitor_legislative_approved_by) || "—"}
                         </Text>
-                        <Text style={styles.timelineDate}>
+                        <Text style={styles.approvalTimelineDate}>
                           {formatDate(visitor.visitor_legislative_approved_at)}
                         </Text>
                       </View>
                     </View>
                   )}
 
+                  {/* Rejected */}
                   {isRejected && visitor.visitor_rejected_at && (
-                    <View style={styles.timelineItem}>
-                      <View
-                        style={[styles.timelineDot, styles.timelineDotRed]}
-                      />
-                      <View style={styles.timelineIconContainer}>
-                        <Ionicons
-                          name="close-circle"
-                          size={24}
-                          color="#DC2626"
-                        />
+                    <View style={styles.approvalTimelineItem}>
+                      <View style={styles.approvalTimelineDotRed}>
+                        <Ionicons name="close-circle" size={16} color="#DC2626" />
                       </View>
-                      <View style={styles.timelineContent}>
-                        <Text style={styles.timelineTitle}>REJECTED</Text>
-                        <Text style={styles.timelineText}>
+                      <View style={styles.approvalTimelineContent}>
+                        <Text style={styles.approvalTimelineTitleRed}>Rejected</Text>
+                        <Text style={styles.approvalTimelineSubtext}>
                           Rejected by: {getUserName(visitor.visitor_rejected_by) || "—"}
                         </Text>
                         {visitor.visitor_rejection_reason && (
-                          <View style={styles.rejectionReasonBox}>
-                            <Text style={styles.rejectionReasonText}>
-                              Reason: {visitor.visitor_rejection_reason}
-                            </Text>
-                          </View>
+                          <Text style={styles.approvalTimelineSubtext}>
+                            Reason: {visitor.visitor_rejection_reason}
+                          </Text>
                         )}
-                        <Text style={styles.timelineDate}>
+                        <Text style={styles.approvalTimelineDate}>
                           {formatDate(visitor.visitor_rejected_at)}
-                        </Text>
-                      </View>
-                    </View>
-                  )}
-
-                  {request.valid_from && (
-                    <View style={styles.timelineItem}>
-                      <View
-                        style={[styles.timelineDot, styles.timelineDotBlue]}
-                      />
-                      <View style={styles.timelineIconContainer}>
-                        <MaterialIcons name="event" size={24} color="#6B7280" />
-                      </View>
-                      <View style={styles.timelineContent}>
-                        <Text style={styles.timelineTitle}>VALID FROM</Text>
-                        <Text style={styles.timelineDate}>
-                          {formatDateOnly(request.valid_from)}
-                        </Text>
-                      </View>
-                    </View>
-                  )}
-
-                  {request.valid_to && (
-                    <View style={styles.timelineItem}>
-                      <View
-                        style={[styles.timelineDot, styles.timelineDotPurple]}
-                      />
-                      <View style={styles.timelineIconContainer}>
-                        <MaterialIcons name="event" size={24} color="#6B7280" />
-                      </View>
-                      <View style={styles.timelineContent}>
-                        <Text style={styles.timelineTitle}>VALID TO</Text>
-                        <Text style={styles.timelineDate}>
-                          {formatDateOnly(request.valid_to)}
                         </Text>
                       </View>
                     </View>
@@ -732,7 +755,7 @@ export default function VisitorDetailsScreen({ navigation, route }: Props) {
             </View>
           </View>
 
-          {/* Card 4: Pass Information (only if approved or suspended) */}
+          {/* Card 5: Pass Information (only if approved or suspended) */}
           {(isApproved || isSuspended) && visitor.pass_number && (
             <View style={styles.card}>
               <View style={styles.cardHeader}>
@@ -1147,5 +1170,138 @@ const styles = StyleSheet.create({
     height: 120,
     borderRadius: 8,
     marginTop: 8,
+  },
+  datesCardsContainer: {
+    gap: 12,
+  },
+  dateCard: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#DBEAFE",
+    borderRadius: 8,
+    padding: 12,
+    gap: 12,
+  },
+  dateCardIcon: {
+    width: 32,
+    height: 32,
+    borderRadius: 6,
+    backgroundColor: "#FFFFFF",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  dateCardContent: {
+    flex: 1,
+  },
+  dateCardLabel: {
+    fontSize: 11,
+    fontWeight: "600",
+    color: "#6B7280",
+    textTransform: "uppercase",
+    marginBottom: 4,
+    letterSpacing: 0.5,
+  },
+  dateCardValue: {
+    fontSize: 14,
+    fontWeight: "500",
+    color: "#111827",
+  },
+  approvalTimelineTitle: {
+    fontSize: 18,
+    fontWeight: "bold",
+    color: "#111827",
+  },
+  approvalTimelineContainer: {
+    position: "relative",
+    paddingLeft: 0,
+  },
+  approvalTimelineVerticalLine: {
+    position: "absolute",
+    left: 11, // Center of 24px dot (12px from left edge)
+    top: 12, // Start from center of first dot
+    bottom: 12, // End at center of last dot
+    width: 2,
+    backgroundColor: "#E5E7EB",
+    zIndex: 0,
+  },
+  approvalTimelineItemsWrapper: {
+    position: "relative",
+    zIndex: 1,
+  },
+  approvalTimelineItem: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    marginBottom: 20,
+    gap: 12,
+  },
+  approvalTimelineDotBlue: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    backgroundColor: "#3B82F6",
+    borderWidth: 3,
+    borderColor: "#FFFFFF",
+    justifyContent: "center",
+    alignItems: "center",
+    zIndex: 2,
+  },
+  approvalTimelineDotOrange: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    backgroundColor: "#FFFFFF",
+    borderWidth: 2,
+    borderColor: "#F97316",
+    justifyContent: "center",
+    alignItems: "center",
+    zIndex: 2,
+  },
+  approvalTimelineDotRed: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    backgroundColor: "#FFFFFF",
+    borderWidth: 2,
+    borderColor: "#DC2626",
+    justifyContent: "center",
+    alignItems: "center",
+    zIndex: 2,
+  },
+  approvalTimelineDotInner: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: "#FFFFFF",
+  },
+  approvalTimelineContent: {
+    flex: 1,
+    paddingTop: 2,
+  },
+  approvalTimelineTitleBlue: {
+    fontSize: 14,
+    fontWeight: "600",
+    color: "#3B82F6",
+    marginBottom: 4,
+  },
+  approvalTimelineTitleOrange: {
+    fontSize: 14,
+    fontWeight: "600",
+    color: "#F97316",
+    marginBottom: 4,
+  },
+  approvalTimelineTitleRed: {
+    fontSize: 14,
+    fontWeight: "600",
+    color: "#DC2626",
+    marginBottom: 4,
+  },
+  approvalTimelineSubtext: {
+    fontSize: 12,
+    color: "#6B7280",
+    marginBottom: 4,
+  },
+  approvalTimelineDate: {
+    fontSize: 12,
+    color: "#6B7280",
   },
 });

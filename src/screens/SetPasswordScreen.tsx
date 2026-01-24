@@ -80,20 +80,22 @@ export default function SetPasswordScreen({ navigation, route }: Props) {
         password: newPassword.trim(),
       });
 
-      // Show success message and automatically logout
-      Alert.alert(
-        "Success",
-        "Password has been set successfully. Please login again.",
-        [
-          {
-            text: "OK",
-            onPress: () => {
-              // Navigate to login screen
-              navigation.replace("Login");
-            },
-          },
-        ],
-      );
+      // Navigate to login screen immediately
+      // Reset navigation stack to Login screen (which has Login and Security Login tabs)
+      navigation.reset({
+        index: 0,
+        routes: [{ name: "Login" }],
+      });
+
+      setLoading(false);
+
+      // Show success message after navigation
+      setTimeout(() => {
+        Alert.alert(
+          "Success",
+          "Password has been set successfully. Please login again.",
+        );
+      }, 300);
     } catch (error) {
       const errorMessage =
         error instanceof Error
