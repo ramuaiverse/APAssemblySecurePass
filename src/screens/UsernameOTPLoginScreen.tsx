@@ -397,9 +397,10 @@ const styles = StyleSheet.create({
     position: "relative",
   },
   backButton: {
+    minWidth: 36,
+    minHeight: 36,
     paddingHorizontal: 16,
-    paddingTop: 0,
-    paddingBottom: 0,
+    paddingVertical: 6,
     zIndex: 10,
   },
   logoContainer: {

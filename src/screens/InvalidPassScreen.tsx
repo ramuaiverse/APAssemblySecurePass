@@ -106,6 +106,9 @@ const styles = StyleSheet.create({
     paddingTop: 50,
   },
   headerButton: {
+    minWidth: 36,
+    minHeight: 36,
+    padding: 6,
     justifyContent: "center",
     alignItems: "center",
   },

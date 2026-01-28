@@ -76,7 +76,7 @@ export default function IssueVisitorPassScreen({ navigation, route }: Props) {
   const [passCategory, setPassCategory] = useState("");
   const [passType, setPassType] = useState("");
   const [requestedBy, setRequestedBy] = useState(
-    route.params?.userFullName || "Legislature",
+    route.params?.userFullName || "",
   );
   const [purpose, setPurpose] = useState("Instant Pass Issuance");
   const [session, setSession] = useState("");
@@ -424,6 +424,10 @@ export default function IssueVisitorPassScreen({ navigation, route }: Props) {
     setPassTypeError("");
     setPurposeError("");
     setValidFromError("");
+    setCarMakeError("");
+    setCarModelError("");
+    setCarColorError("");
+    setCarNumberError("");
 
     // Validate required fields
     let hasError = false;
@@ -485,6 +489,26 @@ export default function IssueVisitorPassScreen({ navigation, route }: Props) {
     //   setValidFromError("Valid from date/time must be in the future");
     //   hasError = true;
     // }
+
+    // Validate car passes if car pass is enabled
+    if (carPass) {
+      if (!carMake.trim()) {
+        setCarMakeError("Car make is required");
+        hasError = true;
+      }
+      if (!carModel.trim()) {
+        setCarModelError("Car model is required");
+        hasError = true;
+      }
+      if (!carColor.trim()) {
+        setCarColorError("Car color is required");
+        hasError = true;
+      }
+      if (!carNumber.trim()) {
+        setCarNumberError("Car number is required");
+        hasError = true;
+      }
+    }
 
     if (hasError) {
       return;
@@ -570,16 +594,6 @@ export default function IssueVisitorPassScreen({ navigation, route }: Props) {
 
       // Add car passes if car pass is enabled
       if (carPass) {
-        if (
-          !carMake.trim() ||
-          !carModel.trim() ||
-          !carColor.trim() ||
-          !carNumber.trim()
-        ) {
-          Alert.alert("Error", "Please fill all car details");
-          setLoading(false);
-          return;
-        }
         visitor.car_passes = [
           {
             car_make: carMake.trim(),
@@ -1219,9 +1233,9 @@ export default function IssueVisitorPassScreen({ navigation, route }: Props) {
               </>
             ) : (
               <View style={styles.carPassFormContainer}>
-                {/* Car Maker */}
+                {/* Car Make */}
                 <Text style={styles.inputLabel}>
-                  Car Maker<Text style={styles.required}>*</Text>
+                  Car Make<Text style={styles.required}>*</Text>
                 </Text>
                 <View
                   style={[
@@ -1964,9 +1978,11 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
   },
   headerButton: {
+    minWidth: 36,
+    minHeight: 36,
+    padding: 6,
     justifyContent: "center",
     alignItems: "center",
-    width: 24,
   },
   headerContent: {
     flex: 1,
