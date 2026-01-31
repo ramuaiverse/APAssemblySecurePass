@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import {
   View,
   Text,
@@ -10,10 +10,10 @@ import {
   Alert,
 } from "react-native";
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
-import { RouteProp } from "@react-navigation/native";
+import { RouteProp, useFocusEffect } from "@react-navigation/native";
 import { RootStackParamList } from "@/types";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { api } from "@/services/api";
+import { api, MainCategory } from "@/services/api";
 import Assembly from "../../assets/assembly.svg";
 import DigitalPass from "../../assets/digitalPass.svg";
 import VisitorIcon from "../../assets/visitor.svg";
@@ -41,14 +41,23 @@ interface DashboardMetrics {
   rejectedRequests: number;
   routedRequests: number;
   totalVisitors: number;
+  // Department/Peshi specific metrics
+  pendingHodApproval?: number;
+  hodApproved?: number;
+  hodRejected?: number;
+  todayRequests?: number;
 }
 
 export default function HomeScreen({ navigation, route }: Props) {
-  const userFullName = route.params?.userFullName || "";
   const userId = route.params?.userId || "";
   const userRole = route.params?.role || "";
   const hodApprover = route.params?.hod_approver || false;
   const userSubCategories = route.params?.sub_categories || [];
+
+  // Store userFullName in state to persist it even when navigating back
+  const [userFullName, setUserFullName] = useState<string>(
+    route.params?.userFullName || ""
+  );
 
   const [dashboardData, setDashboardData] = useState<DashboardMetrics>({
     totalRequests: 0,
@@ -57,8 +66,37 @@ export default function HomeScreen({ navigation, route }: Props) {
     rejectedRequests: 0,
     routedRequests: 0,
     totalVisitors: 0,
+    pendingHodApproval: 0,
+    hodApproved: 0,
+    hodRejected: 0,
+    todayRequests: 0,
   });
   const [loading, setLoading] = useState(true);
+
+  // Update userFullName from route params if provided (e.g., on initial load or when navigating with params)
+  // Only update if route params have userFullName - don't clear it if route params don't have it
+  useEffect(() => {
+    if (route.params?.userFullName) {
+      setUserFullName(route.params.userFullName);
+    }
+    // Note: We intentionally don't clear userFullName if route.params?.userFullName is undefined
+    // This preserves the state when navigating back via goBack()
+  }, [route.params?.userFullName]);
+
+  // Restore userFullName from route params when screen comes into focus
+  // Only update if route params have a value - preserve existing state if route params don't have it
+  useFocusEffect(
+    useCallback(() => {
+      // Only update if route params have userFullName and it's different from current state
+      // Don't clear it if route params don't have it - this preserves state when navigating back
+      const routeUserFullName = route.params?.userFullName;
+      if (routeUserFullName && routeUserFullName !== userFullName) {
+        setUserFullName(routeUserFullName);
+      }
+      // If userFullName is already set in state, preserve it even if route params don't have it
+      // This ensures state persists when navigating back via goBack()
+    }, [route.params?.userFullName, userFullName])
+  );
 
   useEffect(() => {
     fetchDashboardData();
@@ -85,40 +123,273 @@ export default function HomeScreen({ navigation, route }: Props) {
         });
       }
 
-      // Calculate metrics based on top-level requests only
-      const totalRequests = passRequests.length;
+      // For non-department/peshi roles, use web logic with visitor filtering
+      if (userRole !== "department" && userRole !== "peshi") {
+        // Helper function to check if visitor should be shown (same logic as visitors page)
+        const shouldShowVisitor = (request: any, visitor: any): boolean => {
+          // Check if request is routed to legislative (either pending with routing or routed_for_approval)
+          const hasRouting = !!request.routed_to || !!request.routed_at;
+          const isPendingWithRouting = request.status === "pending" && hasRouting;
+          const isRoutedForApproval = request.status === "routed_for_approval";
+          const isRequestApproved = request.status === "approved";
+          const isPassGenerated = !!visitor.pass_generated_at;
+          const isVisitorApprovedOrRejected =
+            visitor.visitor_status === "approved" ||
+            visitor.visitor_status === "rejected";
+          const isVisitorRouted = !!visitor.visitor_routed_to;
 
-      // Count requests by their status
-      const pendingRequests = passRequests.filter(
-        (req) => req.status === "pending",
-      ).length;
+          // Show visitor if:
+          // 1. Request is pending but routed to legislative
+          // 2. Request is routed_for_approval
+          // 3. Request is approved
+          // 4. Pass has been generated
+          // 5. Visitor is approved or rejected
+          // 6. Visitor has been routed to superior (show it with routed status)
+          return (
+            isPendingWithRouting ||
+            isRoutedForApproval ||
+            isRequestApproved ||
+            isPassGenerated ||
+            isVisitorApprovedOrRejected ||
+            isVisitorRouted
+          );
+        };
 
-      const approvedRequests = passRequests.filter(
-        (req) => req.status === "approved",
-      ).length;
+        // Helper function to determine visitor status (same logic as visitors page)
+        const getVisitorStatus = (visitor: any, request: any): string => {
+          // Priority 1: If visitor is suspended, show as suspended (highest priority)
+          if (visitor.is_suspended) {
+            return "suspended";
+          }
+          // Priority 2: If pass has been generated, it's approved
+          if (visitor.pass_generated_at) {
+            return "approved";
+          }
+          // Priority 3: If visitor is individually routed to superior, show as routed
+          if (visitor.visitor_routed_to) {
+            return "routed_for_approval";
+          }
+          // Priority 4: If visitor is rejected, show rejected
+          if (visitor.visitor_status === "rejected") {
+            return "rejected";
+          }
+          // Priority 5: If request is approved, check if pass is generated
+          if (request.status === "approved") {
+            if (visitor.pass_generated_at) {
+              return "approved";
+            } else {
+              return "pending"; // Approved but pass not generated yet
+            }
+          }
+          // Priority 6: If request is routed_for_approval, check routing type
+          if (request.status === "routed_for_approval") {
+            if (!request.routed_by) {
+              return "pending"; // Auto-routed from weblink
+            } else {
+              return "routed_for_approval"; // Manually routed by HOD
+            }
+          }
+          // Priority 7: If request is pending but routed to legislative, show as pending
+          if (request.routed_to && request.status === "pending") {
+            return "pending";
+          }
+          // Priority 8: Otherwise, use visitor status logic
+          if (
+            visitor.visitor_status === "approved" &&
+            !visitor.pass_generated_at
+          ) {
+            return "pending"; // Pending legislative approval
+          }
+          return visitor.visitor_status || "pending";
+        };
 
-      const rejectedRequests = passRequests.filter(
-        (req) => req.status === "rejected",
-      ).length;
+        let totalRequests = 0;
+        let totalVisitors = 0;
+        const statusCounts = {
+          pending: { requests: 0, visitors: 0 },
+          approved: { requests: 0, visitors: 0 },
+          rejected: { requests: 0, visitors: 0 },
+          routed_for_approval: { requests: 0, visitors: 0 },
+        };
 
-      // Count routed requests - only count requests with routed_to (request-level routing)
-      const routedRequests = passRequests.filter((req) => {
-        return req.routed_to !== null && req.routed_to !== undefined;
-      }).length;
+        passRequests.forEach((request: any) => {
+          // Count only visitors that should be shown (same filtering as visitors page)
+          const visibleVisitors =
+            request.visitors?.filter((visitor: any) =>
+              shouldShowVisitor(request, visitor),
+            ) || [];
+          const visitorCount = visibleVisitors.length;
 
-      // Count requests that have visitors (requests with at least one visitor)
-      const totalVisitors = passRequests.reduce((sum, req) => {
-        return sum + (req.visitors?.length || 0);
-      }, 0);
+          // Only count request if it has at least one visible visitor
+          if (visitorCount > 0) {
+            totalRequests++;
+            totalVisitors += visitorCount;
 
-      setDashboardData({
-        totalRequests,
-        pendingRequests,
-        approvedRequests,
-        rejectedRequests,
-        routedRequests,
-        totalVisitors,
-      });
+            // Status counts - determine visitor status for each visible visitor
+            visibleVisitors.forEach((visitor: any) => {
+              const visitorStatus = getVisitorStatus(visitor, request);
+
+              // Count by visitor status
+              if (visitorStatus === "pending") {
+                statusCounts.pending.visitors++;
+              } else if (visitorStatus === "approved") {
+                statusCounts.approved.visitors++;
+              } else if (visitorStatus === "rejected") {
+                statusCounts.rejected.visitors++;
+              } else if (visitorStatus === "routed_for_approval") {
+                statusCounts.routed_for_approval.visitors++;
+              }
+            });
+
+            // Status counts for requests
+            const status = request.status;
+            if (status === "pending") {
+              statusCounts.pending.requests++;
+            } else if (status === "approved") {
+              statusCounts.approved.requests++;
+            } else if (status === "rejected") {
+              statusCounts.rejected.requests++;
+            } else if (status === "routed_for_approval") {
+              statusCounts.routed_for_approval.requests++;
+            }
+          }
+        });
+
+        setDashboardData({
+          totalRequests,
+          pendingRequests: statusCounts.pending.requests,
+          approvedRequests: statusCounts.approved.requests,
+          rejectedRequests: statusCounts.rejected.requests,
+          routedRequests: statusCounts.routed_for_approval.requests,
+          totalVisitors,
+        });
+      } else if (userRole === "peshi") {
+        // For peshi role, use peshi-specific web logic
+        // Fetch categories to get peshi main category ID
+        const categories = await api.getMainCategories();
+
+        // Get peshi main category ID
+        const peshiCategory = categories.find(
+          (cat) => cat.type?.toLowerCase() === "peshi",
+        );
+        const peshiMainCategoryId = peshiCategory?.id || null;
+
+        // Filter requests:
+        // 1. Filter by peshi main category (if set)
+        // 2. Filter by user's sub-categories (already done above)
+        let filteredRequests = passRequests;
+
+        if (peshiMainCategoryId) {
+          filteredRequests = filteredRequests.filter(
+            (req) => req.main_category_id === peshiMainCategoryId,
+          );
+        }
+
+        // Calculate date ranges for today's requests
+        const now = new Date();
+        const todayStart = new Date(
+          now.getFullYear(),
+          now.getMonth(),
+          now.getDate(),
+        );
+
+        // Calculate stats (matching peshi web logic)
+        const totalRequests = filteredRequests.length;
+        const pendingHodApproval = filteredRequests.filter(
+          (req) => req.status === "pending",
+        ).length;
+        const hodApproved = filteredRequests.filter(
+          (req) => req.status === "routed_for_approval",
+        ).length;
+        const hodRejected = filteredRequests.filter(
+          (req) => req.status === "rejected",
+        ).length;
+        const todayRequests = filteredRequests.filter(
+          (req) => new Date(req.created_at) >= todayStart,
+        ).length;
+
+        // Count requests that have visitors (requests with at least one visitor)
+        const totalVisitors = filteredRequests.reduce((sum, req) => {
+          return sum + (req.visitors?.length || 0);
+        }, 0);
+
+        setDashboardData({
+          totalRequests,
+          pendingRequests: pendingHodApproval,
+          approvedRequests: hodApproved, // Map hodApproved to approvedRequests for display
+          rejectedRequests: hodRejected,
+          routedRequests: hodApproved, // Map hodApproved to routedRequests for display
+          totalVisitors,
+          // Peshi specific metrics
+          pendingHodApproval,
+          hodApproved,
+          hodRejected,
+          todayRequests,
+        });
+      } else {
+        // For department role, use department-specific web logic
+        // Fetch categories to get department main category ID
+        const categories = await api.getMainCategories();
+
+        // Get department main category ID
+        const departmentCategory = categories.find(
+          (cat) => cat.type?.toLowerCase() === "department",
+        );
+        const deptMainCategoryId = departmentCategory?.id || null;
+
+        // Filter requests:
+        // 1. Filter by department main category (if set)
+        // 2. Filter by user's sub-categories (already done above)
+        let filteredRequests = passRequests;
+
+        if (deptMainCategoryId) {
+          filteredRequests = filteredRequests.filter(
+            (req) => req.main_category_id === deptMainCategoryId,
+          );
+        }
+
+        // Calculate date ranges for today's requests
+        const now = new Date();
+        const todayStart = new Date(
+          now.getFullYear(),
+          now.getMonth(),
+          now.getDate(),
+        );
+
+        // Calculate stats (matching department web logic)
+        const totalRequests = filteredRequests.length;
+        const pendingHodApproval = filteredRequests.filter(
+          (req) => req.status === "pending",
+        ).length;
+        const hodApproved = filteredRequests.filter(
+          (req) => req.status === "routed_for_approval",
+        ).length;
+        const hodRejected = filteredRequests.filter(
+          (req) => req.status === "rejected",
+        ).length;
+        const todayRequests = filteredRequests.filter(
+          (req) => new Date(req.created_at) >= todayStart,
+        ).length;
+
+        // Count requests that have visitors (requests with at least one visitor)
+        const totalVisitors = filteredRequests.reduce((sum, req) => {
+          return sum + (req.visitors?.length || 0);
+        }, 0);
+
+        setDashboardData({
+          totalRequests,
+          pendingRequests: pendingHodApproval,
+          approvedRequests: hodApproved, // Map hodApproved to approvedRequests for display
+          rejectedRequests: hodRejected,
+          routedRequests: hodApproved, // Map hodApproved to routedRequests for display
+          totalVisitors,
+          // Department specific metrics
+          pendingHodApproval,
+          hodApproved,
+          hodRejected,
+          todayRequests,
+        });
+      }
     } catch (error) {
       // Set default values on error
       setDashboardData({
@@ -128,6 +399,10 @@ export default function HomeScreen({ navigation, route }: Props) {
         rejectedRequests: 0,
         routedRequests: 0,
         totalVisitors: 0,
+        pendingHodApproval: 0,
+        hodApproved: 0,
+        hodRejected: 0,
+        todayRequests: 0,
       });
     } finally {
       setLoading(false);
@@ -150,7 +425,7 @@ export default function HomeScreen({ navigation, route }: Props) {
   };
 
   const handleInstaPass = () => {
-    if (userRole === "department") {
+    if (userRole === "department" || userRole === "peshi") {
       navigation.navigate("MyPassRequests", {
         userId,
         userFullName,
@@ -165,12 +440,22 @@ export default function HomeScreen({ navigation, route }: Props) {
   };
 
   const handleVisitors = () => {
-    navigation.navigate("Visitors", {
-      role: userRole,
-      userId: userId,
-      hod_approver: hodApprover,
-      sub_categories: userSubCategories,
-    });
+    if (userRole === "department" || userRole === "peshi") {
+      navigation.navigate("StatusAndApprovals", {
+        userId: userId,
+        hod_approver: hodApprover,
+        sub_categories: userSubCategories,
+        userFullName: userFullName,
+        role: userRole,
+      });
+    } else {
+      navigation.navigate("Visitors", {
+        role: userRole,
+        userId: userId,
+        hod_approver: hodApprover,
+        sub_categories: userSubCategories,
+      });
+    }
   };
 
   return (
@@ -216,7 +501,9 @@ export default function HomeScreen({ navigation, route }: Props) {
                 : "Dashboard"}
             </Text>
             <Text style={styles.dashboardSubheading}>
-              Comprehensive overview of pass requests and approvals
+              {(userRole === "department" || userRole === "peshi")
+                ? "Manage pass requests and HOD approvals"
+                : "Comprehensive overview of pass requests and approvals"}
             </Text>
 
             {loading ? (
@@ -246,7 +533,7 @@ export default function HomeScreen({ navigation, route }: Props) {
                   </Text>
                 </View>
 
-                {/* Pending Requests */}
+                {/* Pending Requests / Pending HOD Approval */}
                 <View style={[styles.metricCard, styles.pendingRequestsCard]}>
                   <View style={styles.iconAndCountContainer}>
                     <View
@@ -261,17 +548,21 @@ export default function HomeScreen({ navigation, route }: Props) {
                     <Text
                       style={[styles.metricValue, styles.pendingRequestsValue]}
                     >
-                      {dashboardData.pendingRequests}
+                      {(userRole === "department" || userRole === "peshi")
+                        ? dashboardData.pendingHodApproval ?? dashboardData.pendingRequests
+                        : dashboardData.pendingRequests}
                     </Text>
                   </View>
                   <Text
                     style={[styles.metricLabel, styles.pendingRequestsLabel]}
                   >
-                    PENDING
+                    {(userRole === "department" || userRole === "peshi")
+                      ? "PENDING HOD APPROVAL"
+                      : "PENDING"}
                   </Text>
                 </View>
 
-                {/* Approved Requests */}
+                {/* Approved Requests / HOD Approved */}
                 <View style={[styles.metricCard, styles.approvedRequestsCard]}>
                   <View style={styles.iconAndCountContainer}>
                     <View
@@ -282,41 +573,57 @@ export default function HomeScreen({ navigation, route }: Props) {
                     <Text
                       style={[styles.metricValue, styles.approvedRequestsValue]}
                     >
-                      {dashboardData.approvedRequests}
+                      {(userRole === "department" || userRole === "peshi")
+                        ? dashboardData.hodApproved ?? dashboardData.approvedRequests
+                        : dashboardData.approvedRequests}
                     </Text>
                   </View>
                   <Text
                     style={[styles.metricLabel, styles.approvedRequestsLabel]}
                   >
-                    APPROVED
+                    {(userRole === "department" || userRole === "peshi")
+                      ? "HOD APPROVED"
+                      : "APPROVED"}
                   </Text>
                 </View>
 
-                {/* Routed Requests */}
+                {/* Routed Requests / Today's Requests */}
                 <View style={[styles.metricCard, styles.routedRequestsCard]}>
                   <View style={styles.iconAndCountContainer}>
                     <View
                       style={[styles.iconBox, styles.routedRequestsIconBox]}
                     >
-                      <View style={styles.routedIcon}>
-                        <View style={styles.arrowLeft} />
-                        <View style={styles.arrowRight} />
-                      </View>
+                      {(userRole === "department" || userRole === "peshi") ? (
+                        <View style={styles.clockIcon}>
+                          <View style={styles.clockCircle} />
+                          <View style={styles.clockHandHour} />
+                          <View style={styles.clockHandMinute} />
+                        </View>
+                      ) : (
+                        <View style={styles.routedIcon}>
+                          <View style={styles.arrowLeft} />
+                          <View style={styles.arrowRight} />
+                        </View>
+                      )}
                     </View>
                     <Text
                       style={[styles.metricValue, styles.routedRequestsValue]}
                     >
-                      {dashboardData.routedRequests}
+                      {(userRole === "department" || userRole === "peshi")
+                        ? dashboardData.todayRequests ?? 0
+                        : dashboardData.routedRequests}
                     </Text>
                   </View>
                   <Text
                     style={[styles.metricLabel, styles.routedRequestsLabel]}
                   >
-                    ROUTED
+                    {(userRole === "department" || userRole === "peshi")
+                      ? "TODAY'S REQUESTS"
+                      : "ROUTED"}
                   </Text>
                 </View>
 
-                {/* Rejected Requests */}
+                {/* Rejected Requests / HOD Rejected */}
                 <View style={[styles.metricCard, styles.rejectedRequestsCard]}>
                   <View style={styles.iconAndCountContainer}>
                     <View
@@ -334,13 +641,17 @@ export default function HomeScreen({ navigation, route }: Props) {
                     <Text
                       style={[styles.metricValue, styles.rejectedRequestsValue]}
                     >
-                      {dashboardData.rejectedRequests}
+                      {(userRole === "department" || userRole === "peshi")
+                        ? dashboardData.hodRejected ?? dashboardData.rejectedRequests
+                        : dashboardData.rejectedRequests}
                     </Text>
                   </View>
                   <Text
                     style={[styles.metricLabel, styles.rejectedRequestsLabel]}
                   >
-                    REJECTED
+                    {(userRole === "department" || userRole === "peshi")
+                      ? "HOD REJECTED"
+                      : "REJECTED"}
                   </Text>
                 </View>
 
@@ -380,10 +691,10 @@ export default function HomeScreen({ navigation, route }: Props) {
                   <VisitorPassIcon width={50} height={50} />
                 </View>
                 <Text style={styles.cardTitle}>
-                  {userRole === "department" ? "Request Pass" : "Insta Pass"}
+                  {(userRole === "department" || userRole === "peshi") ? "Request Pass" : "Insta Pass"}
                 </Text>
                 <Text style={styles.cardDescription}>
-                  {userRole === "department"
+                  {(userRole === "department" || userRole === "peshi")
                     ? "View and manage all your visitor pass requests"
                     : "Issue a new visitor pass instantly"}
                 </Text>
@@ -399,12 +710,12 @@ export default function HomeScreen({ navigation, route }: Props) {
                   <VisitorIcon width={50} height={50} />
                 </View>
                 <Text style={styles.cardTitle}>
-                  {userRole === "department"
+                  {(userRole === "department" || userRole === "peshi")
                     ? "Status & Approvals"
                     : "Visitors"}
                 </Text>
                 <Text style={styles.cardDescription}>
-                  {userRole === "department"
+                  {(userRole === "department" || userRole === "peshi")
                     ? "Review and manage all HOD approval requests"
                     : "View and manage visitor records"}
                 </Text>

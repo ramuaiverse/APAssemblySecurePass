@@ -8,6 +8,7 @@ import {
   Share,
   Alert,
   Image,
+  BackHandler,
 } from "react-native";
 import * as FileSystem from "expo-file-system";
 import { captureRef } from "react-native-view-shot";
@@ -88,6 +89,8 @@ export default function PreviewPassScreen({ navigation, route }: Props) {
 
   const categoryName = route.params?.categoryName || null;
   const passTypeName = route.params?.passTypeName || null;
+  const returnTo = route.params?.returnTo;
+  const returnToParams = route.params?.returnToParams || {};
 
   // State for pass type color
   const [passTypeColor, setPassTypeColor] = useState<string>("#3B82F6"); // Default blue color
@@ -112,6 +115,33 @@ export default function PreviewPassScreen({ navigation, route }: Props) {
 
     fetchPassTypeColor();
   }, [passTypeName]);
+
+  // Handle back button press
+  useEffect(() => {
+    const backHandler = BackHandler.addEventListener(
+      "hardwareBackPress",
+      () => {
+        // If returnTo is "Visitors", navigate back to VisitorsScreen
+        if (returnTo === "Visitors") {
+          navigation.reset({
+            index: 0,
+            routes: [
+              {
+                name: "Visitors",
+                params: returnToParams,
+              },
+            ],
+          });
+        } else {
+          // Default behavior: Navigate back to IssueVisitorPassScreen
+          navigation.replace("IssueVisitorPass", {});
+        }
+        return true; // Prevent default back behavior
+      }
+    );
+
+    return () => backHandler.remove();
+  }, [returnTo, returnToParams, navigation]);
 
   const firstVisitor = passRequestData?.visitors?.[0];
   const carPasses = firstVisitor?.car_passes || [];
@@ -185,8 +215,21 @@ export default function PreviewPassScreen({ navigation, route }: Props) {
       : categoryName || passTypeName || "General visitors";
 
   const handleClose = () => {
-    // Navigate back to IssueVisitorPassScreen - form will reset via useFocusEffect
-    navigation.replace("IssueVisitorPass", {});
+    // If returnTo is "Visitors", navigate back to VisitorsScreen
+    if (returnTo === "Visitors") {
+      navigation.reset({
+        index: 0,
+        routes: [
+          {
+            name: "Visitors",
+            params: returnToParams,
+          },
+        ],
+      });
+    } else {
+      // Default behavior: Navigate back to IssueVisitorPassScreen
+      navigation.replace("IssueVisitorPass", {});
+    }
   };
 
   const handleShare = async () => {

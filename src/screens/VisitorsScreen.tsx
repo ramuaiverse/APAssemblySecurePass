@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo, useCallback } from "react";
 import {
   View,
   Text,
@@ -24,7 +24,7 @@ import {
   Session,
   SubCategory,
 } from "@/services/api";
-import { Ionicons } from "@expo/vector-icons";
+import { Ionicons, MaterialIcons } from "@expo/vector-icons";
 import BackButtonIcon from "../../assets/backButton.svg";
 import ChevronDownIcon from "../../assets/chevronDown.svg";
 import Assembly from "../../assets/assembly.svg";
@@ -69,7 +69,11 @@ export default function VisitorsScreen({ navigation, route }: Props) {
   const userSubCategories = route.params?.sub_categories || [];
 
   const [passRequests, setPassRequests] = useState<any[]>([]);
+  const [allRequests, setAllRequests] = useState<any[]>([]); // Store all requests for filtering
   const [loading, setLoading] = useState(true);
+  const [displayedItemsCount, setDisplayedItemsCount] = useState(20);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const itemsPerPage = 20;
   const [stats, setStats] = useState<VisitorStats>({
     totalVisitors: 0,
     pending: 0,
@@ -85,6 +89,7 @@ export default function VisitorsScreen({ navigation, route }: Props) {
   const [selectedStatusValue, setSelectedStatusValue] = useState<string | null>(
     null,
   );
+  const [userMap, setUserMap] = useState<Map<string, string>>(new Map()); // Map user ID to full_name
   const [selectedPassType, setSelectedPassType] = useState("All Pass Types");
   const [selectedPassTypeId, setSelectedPassTypeId] = useState<string | null>(
     null,
@@ -176,6 +181,17 @@ export default function VisitorsScreen({ navigation, route }: Props) {
   const [tempValidToMinute, setTempValidToMinute] = useState(0);
   const [tempValidToAmPm, setTempValidToAmPm] = useState<"AM" | "PM">("PM");
 
+  // Route modal state
+  const [showRouteModal, setShowRouteModal] = useState(false);
+  const [superiors, setSuperiors] = useState<any[]>([]);
+  const [selectedSuperior, setSelectedSuperior] = useState<string>("");
+  const [routeComments, setRouteComments] = useState("");
+  const [showSuperiorModal, setShowSuperiorModal] = useState(false);
+
+  // Pass type mapping state (for category-based pass types)
+  const [availablePassTypes, setAvailablePassTypes] = useState<PassTypeItem[]>([]);
+  const [loadingPassTypes, setLoadingPassTypes] = useState(false);
+
   useEffect(() => {
     fetchCategories();
     fetchPassTypes();
@@ -186,11 +202,12 @@ export default function VisitorsScreen({ navigation, route }: Props) {
     }
   }, [isLegislative]);
 
-  // Refresh visitors when screen comes into focus (e.g., returning from legislative screens)
+  // Reload data when screen comes into focus (e.g., after returning from legislative screens)
   useFocusEffect(
-    React.useCallback(() => {
+    useCallback(() => {
+      // Reload visitors data to get latest status after actions from legislative screens
       fetchVisitors();
-    }, []),
+    }, [])
   );
 
   const fetchCategories = async () => {
@@ -256,6 +273,218 @@ export default function VisitorsScreen({ navigation, route }: Props) {
     }
   };
 
+  // Helper function to determine visitor status based on visitor_status and pass generation
+  // Priority: Suspended > Pass generated > Routed > Rejected > Approved (HOD) > Pending
+  const getVisitorStatus = (
+    visitor: any,
+    request: any,
+  ): string => {
+    // Priority 1: If visitor is suspended, show as suspended (highest priority)
+    if (visitor.is_suspended) {
+      return "suspended";
+    }
+    // Priority 2: If pass has been generated, it's approved
+    if (visitor.pass_generated_at) {
+      return "approved";
+    }
+    // Priority 3: If visitor is individually routed to superior, show as routed
+    if (visitor.visitor_routed_to) {
+      return "routed_for_approval";
+    }
+    // Priority 4: If visitor is rejected, show rejected
+    if (visitor.visitor_status === "rejected") {
+      return "rejected";
+    }
+    // Priority 5: If request is approved, check if pass is generated
+    if (request.status === "approved") {
+      // Only show as approved if pass is generated, otherwise show as pending
+      if (visitor.pass_generated_at) {
+        return "approved";
+      } else {
+        return "pending"; // Approved but pass not generated yet
+      }
+    }
+    // Priority 6: If request is routed_for_approval, check routing type
+    if (request.status === "routed_for_approval") {
+      // Check if this was auto-routed from weblink (no routed_by means auto-routed)
+      if (!request.routed_by) {
+        // Auto-routed from weblink - show as pending (awaiting legislative approval)
+        return "pending";
+      } else {
+        // Manually routed by HOD - show as routed_for_approval
+        return "routed_for_approval";
+      }
+    }
+    // Priority 7: If request is pending but routed to legislative, show as pending
+    if (request.routed_to && request.status === "pending") {
+      // Request routed directly to legislative (non-department/peshi categories)
+      return "pending";
+    }
+    // Priority 8: Otherwise, use visitor status logic
+    if (visitor.visitor_status === "approved" && !visitor.pass_generated_at) {
+      return "pending"; // Pending legislative approval
+    }
+    return visitor.visitor_status || "pending";
+  };
+
+  // Helper function to build visitor rows from requests (similar to web version)
+  const buildVisitorRows = (
+    allRequests: any[],
+    allCategories: MainCategory[],
+    allPassTypes: PassTypeItem[],
+  ): any[] => {
+    const visitorRows: any[] = [];
+    
+    allRequests.forEach((request: any) => {
+      // Get category names
+      const mainCategory = allCategories.find(
+        (cat) => cat.id === request.main_category_id,
+      );
+      const categoryName = mainCategory?.name || "Unknown";
+      const subCategory = mainCategory?.sub_categories?.find(
+        (sub) => sub.id === request.sub_category_id,
+      );
+      const subCategoryName = subCategory?.name || "Unknown";
+
+      request.visitors.forEach((visitor: any) => {
+        // WORKFLOW CLARIFICATION:
+        // 1. Department & Peshi categories: HOD approval → Legislative approval → Pass generation
+        // 2. All other categories: Direct to Legislative → Pass generation (no HOD approval needed)
+        //
+        // Show visitors if:
+        // - Approved by department HOD (visitor_status = 'approved') - for department/peshi requests
+        // - Rejected visitors (visitor_status = 'rejected')
+        // - Routed directly to legislative (routed_to is set) - for non-department/peshi requests
+        // - Approved requests (request.status === 'approved' or pass has been generated)
+        // Skip visitors that are still pending department approval (only for department/peshi requests)
+        // Skip visitors that have been routed to a superior (visitor_routed_to is set) - they're no longer in legislative portal
+
+        // Check if request is routed to legislative
+        const hasRouting = !!request.routed_to || !!request.routed_at;
+        const isPendingWithRouting =
+          request.status === "pending" && hasRouting;
+        const isRoutedForApproval = request.status === "routed_for_approval";
+        const isRequestApproved = request.status === "approved";
+        const isPassGenerated = !!visitor.pass_generated_at;
+        const isVisitorApprovedOrRejected =
+          visitor.visitor_status === "approved" ||
+          visitor.visitor_status === "rejected";
+
+        // Check if visitor has been individually routed to a superior
+        const isVisitorRouted = !!visitor.visitor_routed_to;
+
+        // Show visitor if:
+        // 1. Request is pending but routed to legislative
+        // 2. Request is routed_for_approval
+        // 3. Request is approved
+        // 4. Pass has been generated
+        // 5. Visitor is approved or rejected
+        // 6. Visitor has been routed to superior (show it with routed status)
+        const shouldShow =
+          isPendingWithRouting ||
+          isRoutedForApproval ||
+          isRequestApproved ||
+          isPassGenerated ||
+          isVisitorApprovedOrRejected ||
+          isVisitorRouted;
+
+        if (!shouldShow) {
+          return; // Skip this visitor (pending department approval)
+        }
+
+        // Get pass category names and type if pass was issued
+        let passCategoryName = "";
+        let passSubCategoryName = "";
+        let passCategoryType = "";
+        if (visitor.pass_category_id) {
+          const passMainCategory = allCategories.find(
+            (cat) => cat.id === visitor.pass_category_id,
+          );
+          passCategoryName = passMainCategory?.name || "Unknown";
+          passCategoryType = passMainCategory?.type || "";
+          if (visitor.pass_sub_category_id && passMainCategory) {
+            const passSubCategory = passMainCategory.sub_categories?.find(
+              (sub) => sub.id === visitor.pass_sub_category_id,
+            );
+            passSubCategoryName = passSubCategory?.name || "";
+          }
+        }
+
+        // Get pass type name if available
+        const passTypeId =
+          visitor.pass_type_id || (request as any).pass_type_id;
+        const passType = passTypeId
+          ? allPassTypes.find((pt) => pt.id === passTypeId)
+          : null;
+
+        // Determine status with clear priority
+        const visitorStatus = getVisitorStatus(visitor, request);
+
+        visitorRows.push({
+          id: visitor.id,
+          requestId: request.request_id,
+          request: request, // Keep reference to original request
+          visitor: visitor, // Keep reference to original visitor
+          visitorName: `${visitor.first_name} ${visitor.last_name}`,
+          email: visitor.email,
+          phone: visitor.phone,
+          identificationType: visitor.identification_type,
+          identificationNumber: visitor.identification_number,
+          category: categoryName,
+          subCategory: subCategoryName,
+          categoryId: request.main_category_id,
+          subCategoryId: request.sub_category_id,
+          categoryType: mainCategory?.type || "",
+          requestedBy: request.requested_by,
+          approvedBy: visitor.visitor_approved_by,
+          hodApprovedAt: visitor.visitor_approved_at,
+          finalApprovedBy:
+            visitor.visitor_legislative_approved_by || request.approved_by,
+          rejectedBy: visitor.visitor_rejected_by,
+          rejectedAt: visitor.visitor_rejected_at,
+          rejectionReason: visitor.visitor_rejection_reason,
+          purpose: visitor.purpose || request.purpose,
+          validFrom: visitor.valid_from || request.valid_from,
+          validTo: visitor.valid_to || request.valid_to || undefined,
+          status: visitorStatus,
+          submittedAt: request.created_at,
+          identificationPhotoUrl: visitor.identification_photo_url,
+          identificationDocumentUrl: visitor.identification_document_url,
+          hodLetterUrl: request.hod_letter_url,
+          accreditationLetterUrl: request.accreditation_letter_url,
+          accreditationNumber: request.accreditation_number,
+          numberOfStudents: request.number_of_students,
+          passUrl: visitor.pass_url,
+          passQrCode: visitor.pass_qr_code,
+          passQrString: visitor.pass_qr_string,
+          passNumber: visitor.pass_number,
+          passGeneratedAt: visitor.pass_generated_at,
+          passCategoryId: visitor.pass_category_id,
+          routedTo: request.routed_to,
+          routedBy: request.routed_by,
+          routedAt: request.routed_at,
+          visitorRoutedTo: visitor.visitor_routed_to,
+          visitorRoutedBy: visitor.visitor_routed_by,
+          visitorRoutedAt: visitor.visitor_routed_at,
+          passSubCategoryId: visitor.pass_sub_category_id,
+          passCategoryName: passCategoryName,
+          passSubCategoryName: passSubCategoryName,
+          passCategoryType: passCategoryType,
+          passTypeId: visitor.pass_type_id || (request as any).pass_type_id,
+          passTypeName: passType?.name || "",
+          season: request.season || "",
+          isSuspended: visitor.is_suspended,
+          suspendedAt: visitor.suspended_at,
+          suspendedBy: visitor.suspended_by,
+          suspensionReason: visitor.suspension_reason,
+          carPasses: visitor.car_passes || [],
+        });
+      });
+    });
+    
+    return visitorRows;
+  };
+
   const fetchVisitors = async () => {
     try {
       setLoading(true);
@@ -277,13 +506,71 @@ export default function VisitorsScreen({ navigation, route }: Props) {
         });
       }
 
-      setPassRequests(requests);
+      // Store all requests for filtering
+      setAllRequests(requests);
+
+      // Fetch all users to create a user map for name lookups
+      try {
+        const allUsers: any[] = [];
+        // Fetch users from different roles
+        const departmentUsers = await api.getUsersByRole("department");
+        const legislativeUsers = await api.getUsersByRole("legislative");
+        const peshiUsers = await api.getUsersByRole("peshi");
+        const adminUsers = await api.getUsersByRole("admin");
+
+        allUsers.push(
+          ...departmentUsers,
+          ...legislativeUsers,
+          ...peshiUsers,
+          ...adminUsers,
+        );
+
+        // Create a map of user ID to full_name
+        const newUserMap = new Map<string, string>();
+        allUsers.forEach((user) => {
+          newUserMap.set(user.id, user.full_name || user.username);
+        });
+        setUserMap(newUserMap);
+      } catch (err) {
+        // Continue even if user fetch fails
+      }
+
+      // Fetch categories and pass types for buildVisitorRows
+      const allCategories = await api.getMainCategories();
+      const allPassTypes = await api.getAllPassTypes();
+
+      // Build visitor rows using the same logic as web
+      const visitorRows = buildVisitorRows(requests, allCategories, allPassTypes);
+
+      // Group visitors back by request for display
+      const requestsWithVisitors: { [key: string]: any[] } = {};
+      visitorRows.forEach((visitorRow) => {
+        if (!requestsWithVisitors[visitorRow.requestId]) {
+          requestsWithVisitors[visitorRow.requestId] = [];
+        }
+        requestsWithVisitors[visitorRow.requestId].push(visitorRow);
+      });
+
+      // Convert back to request format with filtered visitors
+      const processedRequests = requests
+        .map((req) => {
+          const visitors = requestsWithVisitors[req.request_id] || [];
+          if (visitors.length === 0) return null;
+          return {
+            ...req,
+            visitors: visitors.map((vr) => vr.visitor), // Use original visitor objects
+            visitorRows: visitors, // Store processed visitor rows for filtering
+          };
+        })
+        .filter((req) => req !== null);
+
+      setPassRequests(processedRequests);
 
       // Initialize all cards as expanded (open) by default
       const initialExpandedRows: ExpandedRow = {};
       const initialExpandedVisitors: ExpandedVisitor = {};
 
-      requests.forEach((req) => {
+      processedRequests.forEach((req) => {
         initialExpandedRows[req.id] = true;
         req.visitors?.forEach((visitor: any, index: number) => {
           const visitorId = visitor.id || `${req.id}-${index}`;
@@ -294,31 +581,25 @@ export default function VisitorsScreen({ navigation, route }: Props) {
       setExpandedRows(initialExpandedRows);
       setExpandedVisitors(initialExpandedVisitors);
 
-      // Calculate stats based on individual visitor statuses
-      // Each visitor is counted in exactly ONE category
+      // Calculate stats based on visitor rows (using processed status)
       let pending = 0;
       let routed = 0;
       let approved = 0;
       let rejected = 0;
       let suspended = 0;
 
-      // Iterate through all requests and categorize each visitor
-      requests.forEach((req) => {
-        if (req.visitors && req.visitors.length > 0) {
-          req.visitors.forEach((visitor: any) => {
-            // Categorize visitor into exactly one status
-            if (visitor.is_suspended === true) {
-              suspended++;
-            } else if (visitor.visitor_routed_to) {
-              routed++;
-            } else if (visitor.visitor_status === "approved") {
-              approved++;
-            } else if (visitor.visitor_status === "pending") {
-              pending++;
-            } else if (visitor.visitor_status === "rejected") {
-              rejected++;
-            }
-          });
+      visitorRows.forEach((visitorRow) => {
+        const status = visitorRow.status;
+        if (status === "suspended") {
+          suspended++;
+        } else if (status === "routed_for_approval") {
+          routed++;
+        } else if (status === "approved") {
+          approved++;
+        } else if (status === "rejected") {
+          rejected++;
+        } else if (status === "pending") {
+          pending++;
         }
       });
 
@@ -370,16 +651,29 @@ export default function VisitorsScreen({ navigation, route }: Props) {
     }
   };
 
-  const getVisitorStatusCounts = (visitors: any[]) => {
+  const getVisitorStatusCounts = (visitors: any[], visitorRows?: any[]) => {
     const counts = {
       approved: 0,
       rejected: 0,
       pending: 0,
+      routed: 0,
+      suspended: 0,
     };
     visitors?.forEach((visitor: any) => {
-      if (visitor.visitor_status === "approved") counts.approved++;
-      else if (visitor.visitor_status === "rejected") counts.rejected++;
-      else if (visitor.visitor_status === "pending") counts.pending++;
+      // Use processed status from visitorRows if available
+      const visitorRow = visitorRows?.find(
+        (vr: any) => vr.visitor?.id === visitor.id || vr.id === visitor.id
+      );
+      const status = visitorRow?.status || 
+        (visitor.is_suspended ? "suspended" : 
+         visitor.visitor_routed_to ? "routed_for_approval" :
+         visitor.visitor_status || "pending");
+      
+      if (status === "suspended") counts.suspended++;
+      else if (status === "routed_for_approval") counts.routed++;
+      else if (status === "approved") counts.approved++;
+      else if (status === "rejected") counts.rejected++;
+      else if (status === "pending") counts.pending++;
     });
     return counts;
   };
@@ -390,6 +684,12 @@ export default function VisitorsScreen({ navigation, route }: Props) {
     return first + last;
   };
 
+  // Helper function to normalize UUIDs for comparison
+  const normalizeUuid = (uuid: string | undefined) => {
+    if (!uuid) return "";
+    return uuid.replace(/-/g, "").toLowerCase();
+  };
+
   // Helper function to get filtered visitors for a request based on pass type
   const getFilteredVisitors = (visitors: any[] | null | undefined) => {
     if (!visitors) return [];
@@ -397,49 +697,84 @@ export default function VisitorsScreen({ navigation, route }: Props) {
     return visitors.filter((v: any) => v.pass_type_id === selectedPassTypeId);
   };
 
+  // Helper function to get status label
+  const getStatusLabel = (status: string) => {
+    const labels: { [key: string]: string } = {
+      pending: "Pending",
+      approved: "Approved",
+      rejected: "Rejected",
+      suspended: "Suspended",
+      routed_for_approval: "Routed for Approval",
+      assigned_to_me: "Assigned to Me",
+    };
+    return labels[status] || status.charAt(0).toUpperCase() + status.slice(1);
+  };
+
   const filteredRequests = passRequests
     .map((req) => {
+      // Use visitorRows if available, otherwise fall back to visitors
+      const visitorRows = req.visitorRows || [];
+      
       // Filter visitors within the request based on pass type and status
-      let filteredVisitors = getFilteredVisitors(req.visitors);
+      let filteredVisitorRows = visitorRows;
+
+      // Apply pass type filter
+      if (selectedPassTypeId) {
+        filteredVisitorRows = filteredVisitorRows.filter(
+          (vr: any) => vr.passTypeId === selectedPassTypeId,
+        );
+      }
 
       // Apply status filter to visitors
       if (selectedStatusValue) {
-        filteredVisitors = filteredVisitors.filter((v: any) => {
-          if (selectedStatusValue === "suspended") {
-            return v.is_suspended === true;
-          } else if (selectedStatusValue === "routed for approval") {
-            return (
-              v.visitor_routed_to !== null && v.visitor_routed_to !== undefined
-            );
-          } else if (selectedStatusValue === "assigned to me") {
-            // This would need user context - for now, return all visitors
-            // In a real implementation, you'd check if visitor_routed_to matches current user ID
-            return true;
-          } else {
-            // Map display status to actual status values
-            const statusMap: { [key: string]: string } = {
-              pending: "pending",
-              rejected: "rejected",
-              approved: "approved",
-            };
-            const actualStatus =
-              statusMap[selectedStatusValue] || selectedStatusValue;
-            return v.visitor_status === actualStatus;
-          }
-        });
+        if (selectedStatusValue === "assigned_to_me") {
+          // Show only requests/visitors assigned to current user
+          const normalizedCurrentUserId = normalizeUuid(userId);
+          filteredVisitorRows = filteredVisitorRows.filter((vr: any) => {
+            const normalizedRoutedTo = normalizeUuid(vr.routedTo);
+            const normalizedVisitorRoutedTo = normalizeUuid(vr.visitorRoutedTo);
+            // Show if:
+            // 1. Request is routed to current user (request-level routing)
+            // 2. Visitor is individually routed to current user (visitor-level routing)
+            const isRequestRoutedToMe =
+              normalizedRoutedTo === normalizedCurrentUserId &&
+              vr.status === "routed_for_approval";
+            const isVisitorRoutedToMe =
+              normalizedVisitorRoutedTo === normalizedCurrentUserId;
+            return isRequestRoutedToMe || isVisitorRoutedToMe;
+          });
+        } else {
+          // Map display status to actual status values
+          const statusMap: { [key: string]: string } = {
+            pending: "pending",
+            rejected: "rejected",
+            approved: "approved",
+            suspended: "suspended",
+            "routed for approval": "routed_for_approval",
+          };
+          const actualStatus =
+            statusMap[selectedStatusValue] || selectedStatusValue;
+          filteredVisitorRows = filteredVisitorRows.filter(
+            (vr: any) => vr.status === actualStatus,
+          );
+        }
       }
 
       // Return request with filtered visitors, or null if no visitors match
       if (
-        (selectedPassTypeId && filteredVisitors.length === 0) ||
-        (selectedStatusValue && filteredVisitors.length === 0)
+        (selectedPassTypeId && filteredVisitorRows.length === 0) ||
+        (selectedStatusValue && filteredVisitorRows.length === 0)
       ) {
         return null;
       }
 
+      // Map back to original visitor objects
+      const filteredVisitors = filteredVisitorRows.map((vr: any) => vr.visitor);
+
       return {
         ...req,
         visitors: filteredVisitors,
+        visitorRows: filteredVisitorRows, // Keep visitor rows for status display
       };
     })
     .filter((req) => {
@@ -477,30 +812,97 @@ export default function VisitorsScreen({ navigation, route }: Props) {
         }
       }
 
-      // Text search filter
-      const searchLower = searchQuery.toLowerCase();
-      const matchesSearch =
-        !searchQuery ||
-        req.request_id?.toLowerCase().includes(searchLower) ||
-        req.requested_by?.toLowerCase().includes(searchLower) ||
-        req.purpose?.toLowerCase().includes(searchLower) ||
-        getCategoryName(req.main_category_id)
-          ?.toLowerCase()
-          .includes(searchLower) ||
-        getSubCategoryName(req.sub_category_id)
-          ?.toLowerCase()
-          .includes(searchLower) ||
-        req.visitors?.some(
-          (v: any) =>
-            `${v.first_name} ${v.last_name}`
-              .toLowerCase()
-              .includes(searchLower) ||
-            v.email?.toLowerCase().includes(searchLower) ||
-            v.phone?.toLowerCase().includes(searchLower),
+      // Enhanced text search filter (matching web version)
+      const searchLower = searchQuery.toLowerCase().trim();
+      if (!searchLower) return true;
+      
+      // Search in request details
+      const requestIdMatch = req.request_id?.toLowerCase().includes(searchLower);
+      const requestedByMatch = req.requested_by?.toLowerCase().includes(searchLower);
+      const purposeMatch = req.purpose?.toLowerCase().includes(searchLower);
+      
+      // Search in category details
+      const categoryMatch = getCategoryName(req.main_category_id)
+        ?.toLowerCase()
+        .includes(searchLower);
+      const subCategoryMatch = getSubCategoryName(req.sub_category_id)
+        ?.toLowerCase()
+        .includes(searchLower);
+      
+      // Search in visitor details
+      const visitorMatch = req.visitors?.some((v: any) => {
+        const visitorName = `${v.first_name || ""} ${v.last_name || ""}`.toLowerCase();
+        const email = v.email?.toLowerCase() || "";
+        const phone = v.phone?.toLowerCase() || "";
+        const identificationNumber = v.identification_number?.toLowerCase() || "";
+        
+        return (
+          visitorName.includes(searchLower) ||
+          email.includes(searchLower) ||
+          phone.includes(searchLower) ||
+          identificationNumber.includes(searchLower)
         );
+      });
+      
+      // Search in dates (formatted)
+      const validFromMatch = req.valid_from
+        ? formatDate(req.valid_from).toLowerCase().includes(searchLower)
+        : false;
+      const validToMatch = req.valid_to
+        ? formatDate(req.valid_to).toLowerCase().includes(searchLower)
+        : false;
+      const submittedAtMatch = req.created_at
+        ? formatDate(req.created_at).toLowerCase().includes(searchLower)
+        : false;
+      
+      // Search in status (using visitorRows if available)
+      const statusMatch = req.visitorRows?.some((vr: any) => {
+        const statusLabel = getStatusLabel(vr.status || "");
+        return statusLabel.toLowerCase().includes(searchLower);
+      });
+      
+      // Search in user names (using userMap)
+      const requestedByNameMatch = req.requested_by
+        ? (userMap.get(req.requested_by) || req.requested_by)
+            .toLowerCase()
+            .includes(searchLower)
+        : false;
 
-      return matchesSearch;
+      return (
+        requestIdMatch ||
+        requestedByMatch ||
+        requestedByNameMatch ||
+        purposeMatch ||
+        categoryMatch ||
+        subCategoryMatch ||
+        visitorMatch ||
+        validFromMatch ||
+        validToMatch ||
+        submittedAtMatch ||
+        statusMatch
+      );
     });
+
+  const displayedRequests = useMemo(() => {
+    return filteredRequests.slice(0, displayedItemsCount);
+  }, [filteredRequests, displayedItemsCount]);
+
+  const hasMore = displayedItemsCount < filteredRequests.length;
+
+  useEffect(() => {
+    setDisplayedItemsCount(20);
+  }, [searchQuery, selectedStatusValue, selectedPassTypeId, selectedCategoryFilterId, selectedDate]);
+
+  const loadMore = () => {
+    if (!loadingMore && hasMore) {
+      setLoadingMore(true);
+      // Simulate slight delay for smooth UX
+      setTimeout(() => {
+        setDisplayedItemsCount((prev) => Math.min(prev + itemsPerPage, filteredRequests.length));
+        setLoadingMore(false);
+      }, 300);
+    }
+  };
 
   const handlePassTypeSelect = (passType: PassTypeItem | null) => {
     if (passType) {
@@ -515,8 +917,22 @@ export default function VisitorsScreen({ navigation, route }: Props) {
 
   const handleStatusSelect = (status: string | null) => {
     if (status && status !== "All Status") {
-      setSelectedStatus(status);
-      setSelectedStatusValue(status.toLowerCase());
+      // Map display status to filter value
+      const statusMap: { [key: string]: string } = {
+        "pending": "pending",
+        "rejected": "rejected",
+        "approved": "approved",
+        "routed for approval": "routed_for_approval",
+        "assigned to me": "assigned_to_me",
+        "suspended": "suspended",
+      };
+      const filterValue = statusMap[status.toLowerCase()] || status.toLowerCase();
+      
+      // Get the display label (proper case) to match what's shown in the dropdown
+      const displayLabel = getStatusLabel(status === "assigned to me" ? "assigned_to_me" : status);
+      
+      setSelectedStatus(displayLabel);
+      setSelectedStatusValue(filterValue);
     } else {
       setSelectedStatus("All Status");
       setSelectedStatusValue(null);
@@ -711,6 +1127,7 @@ export default function VisitorsScreen({ navigation, route }: Props) {
   const handleApproveClick = (visitor: any, request: any) => {
     setSelectedVisitor(visitor);
     setSelectedRequest(request);
+    
     if (isLegislative) {
       // For legislative role, navigate to approve screen
       navigation.navigate("LegislativeApprove", {
@@ -728,18 +1145,21 @@ export default function VisitorsScreen({ navigation, route }: Props) {
   // Handler for individual Reject
   const handleRejectClick = (visitor: any) => {
     setSelectedVisitor(visitor);
+    // Find the request for this visitor
+    const request = passRequests.find((req) =>
+      req.visitors?.some((v: any) => v.id === visitor.id),
+    );
+    if (request) {
+      setSelectedRequest(request);
+    }
+    
     if (isLegislative) {
       // For legislative role, navigate to reject screen
-      const request = passRequests.find((req) =>
-        req.visitors?.some((v: any) => v.id === visitor.id),
-      );
-      if (request) {
-        navigation.navigate("LegislativeReject", {
-          visitor,
-          request,
-          userId: userId,
-        });
-      }
+      navigation.navigate("LegislativeReject", {
+        visitor,
+        request,
+        userId: userId,
+      });
       return;
     }
     // For non-legislative users, show reject modal
@@ -748,8 +1168,9 @@ export default function VisitorsScreen({ navigation, route }: Props) {
   };
 
   // Handler for Route for Superior Approval
-  const handleRouteClick = (visitor: any, request: any) => {
+  const handleRouteClick = async (visitor: any, request: any) => {
     if (isLegislative) {
+      // For legislative role, navigate to route screen
       navigation.navigate("LegislativeRoute", {
         visitor,
         request,
@@ -937,27 +1358,38 @@ export default function VisitorsScreen({ navigation, route }: Props) {
     try {
       const requestId = selectedRequest.id;
 
-      // Step 1: Update pass request status
-      await api.updatePassRequestStatus(requestId, {
-        status: "approved",
-        comments: legislativeComments || undefined,
-        current_user_id: userId,
-        pass_category_id: selectedCategoryId,
-        pass_sub_category_id: selectedSubCategoryId || undefined,
-        pass_type_id: selectedPassTypeId || undefined,
-        season: selectedSessionName,
-      });
+      // Format dates for API (convert to ISO string)
+      const formatLocalISOString = (dateObj: Date): string => {
+        const year = dateObj.getFullYear();
+        const month = String(dateObj.getMonth() + 1).padStart(2, "0");
+        const day = String(dateObj.getDate()).padStart(2, "0");
+        const hours = String(dateObj.getHours()).padStart(2, "0");
+        const minutes = String(dateObj.getMinutes()).padStart(2, "0");
+        const seconds = String(dateObj.getSeconds()).padStart(2, "0");
+        return `${year}-${month}-${day}T${hours}:${minutes}:${seconds}.000Z`;
+      };
 
-      // Step 2: Generate pass
+      const validFromISO = formatLocalISOString(validFrom);
+      const validUntilISO = validTo ? formatLocalISOString(validTo) : undefined;
+
+      // Get pass type color
+      const passType = passTypes.find((pt) => pt.id === selectedPassTypeId);
+      const passTypeColor = passType?.color || "#3B82F6";
+
+      // Call generate-pass API directly (it handles status update internally)
       await api.generatePass(requestId, {
         visitor_id: selectedVisitor.id,
         pass_category_id: selectedCategoryId,
         pass_sub_category_id: selectedSubCategoryId || undefined,
-        pass_type_id: selectedPassTypeId || undefined,
+        pass_type_id: selectedPassTypeId,
         current_user_id: userId,
+        valid_from: validFromISO,
+        valid_to: validUntilISO || undefined,
+        pass_type_color: passTypeColor,
+        season: selectedSessionName,
       });
 
-      // Step 3: Get pass request details
+      // Get pass request details
       const passRequestData = await api.getPassRequest(requestId);
 
       // Get category and pass type names
@@ -980,6 +1412,47 @@ export default function VisitorsScreen({ navigation, route }: Props) {
         error instanceof Error
           ? error.message
           : "Failed to approve and generate pass. Please try again.";
+      Alert.alert("Error", errorMessage);
+    } finally {
+      setProcessingStatus(false);
+    }
+  };
+
+  // Execute Route for Superior Approval
+  const executeRoute = async () => {
+    if (!selectedRequest || !selectedVisitor || !userId) return;
+
+    if (!selectedSuperior) {
+      Alert.alert("Required", "Please select a superior.");
+      return;
+    }
+    if (!routeComments.trim()) {
+      Alert.alert("Required", "Please provide comments for routing.");
+      return;
+    }
+
+    setProcessingStatus(true);
+    try {
+      // Use request.request_id (formatted ID like REQ-xxx) instead of request.id (UUID)
+      await api.routeForSuperiorApproval(selectedRequest.request_id, {
+        visitor_id: selectedVisitor.id,
+        routed_to: selectedSuperior,
+        routed_by: userId,
+        current_user_id: userId,
+        comments: routeComments,
+      });
+
+      // Refresh the data
+      await fetchVisitors();
+      setShowRouteModal(false);
+      setSelectedSuperior("");
+      setRouteComments("");
+      Alert.alert("Success", "Visitor has been routed for superior approval.");
+    } catch (error) {
+      const errorMessage =
+        error instanceof Error
+          ? error.message
+          : "Failed to route visitor. Please try again.";
       Alert.alert("Error", errorMessage);
     } finally {
       setProcessingStatus(false);
@@ -1075,6 +1548,41 @@ export default function VisitorsScreen({ navigation, route }: Props) {
     return category?.sub_categories || [];
   };
 
+  // Fetch pass types when category changes (for category mapping)
+  useEffect(() => {
+    const fetchCategoryPassTypes = async () => {
+      if (!selectedCategoryId) {
+        setAvailablePassTypes([]);
+        setSelectedPassTypeId(null);
+        return;
+      }
+
+      setLoadingPassTypes(true);
+      try {
+        // Get mapped pass type IDs for the selected category
+        const passTypeIds = await api.getCategoryPassTypes(selectedCategoryId);
+        
+        // Filter pass types to only include mapped ones
+        const mappedPassTypes = passTypes.filter(pt => passTypeIds.includes(pt.id));
+        setAvailablePassTypes(mappedPassTypes);
+        
+        // Auto-select if only one pass type is available
+        if (mappedPassTypes.length === 1) {
+          setSelectedPassTypeId(mappedPassTypes[0].id);
+        } else if (mappedPassTypes.length === 0) {
+          setSelectedPassTypeId(null);
+        }
+      } catch (error) {
+        setAvailablePassTypes([]);
+        setSelectedPassTypeId(null);
+      } finally {
+        setLoadingPassTypes(false);
+      }
+    };
+
+    fetchCategoryPassTypes();
+  }, [selectedCategoryId, passTypes]);
+
   // Get category name
   const getCategoryNameForLegislative = (categoryId: string | null) => {
     if (!categoryId) return "";
@@ -1109,7 +1617,28 @@ export default function VisitorsScreen({ navigation, route }: Props) {
       {/* Header */}
       <View style={styles.header}>
         <TouchableOpacity
-          onPress={() => navigation.goBack()}
+          onPress={() => {
+            if (navigation.canGoBack()) {
+              navigation.goBack();
+            } else {
+              // Fallback: Navigate to HomeScreen if there's no previous screen
+              // Try to preserve existing HomeScreen params (including userFullName) from navigation state
+              const navigationState = navigation.getState();
+              const homeRoute = navigationState.routes.find(
+                (route) => route.name === "Home"
+              );
+              const existingHomeParams = homeRoute?.params as any;
+              
+              navigation.navigate("Home", {
+                userId: userId,
+                role: userRole,
+                hod_approver: hodApprover,
+                sub_categories: userSubCategories,
+                // Preserve userFullName if it exists in existing params
+                userFullName: existingHomeParams?.userFullName || "",
+              });
+            }
+          }}
           style={styles.backButton}
         >
           <BackButtonIcon width={18} height={18} />
@@ -1134,6 +1663,16 @@ export default function VisitorsScreen({ navigation, route }: Props) {
         <ScrollView
           contentContainerStyle={styles.scrollContent}
           showsVerticalScrollIndicator={false}
+          onScroll={({ nativeEvent }) => {
+            const { layoutMeasurement, contentOffset, contentSize } = nativeEvent;
+            const paddingToBottom = 20;
+            const isCloseToBottom =
+              layoutMeasurement.height + contentOffset.y >= contentSize.height - paddingToBottom;
+            if (isCloseToBottom && hasMore && !loadingMore) {
+              loadMore();
+            }
+          }}
+          scrollEventThrottle={400}
         >
           {/* Search and Filters */}
           <View style={styles.searchSection}>
@@ -1226,10 +1765,11 @@ export default function VisitorsScreen({ navigation, route }: Props) {
 
           {/* Request Cards */}
           <View style={styles.cardsListContainer}>
-            {filteredRequests.map((request) => {
+            {displayedRequests.map((request) => {
               const isExpanded = expandedRows[request.id] ?? true;
               const statusCounts = getVisitorStatusCounts(
                 request.visitors || [],
+                request.visitorRows || [],
               );
               const hasMultipleVisitors = (request.visitors?.length || 0) > 1;
 
@@ -1275,7 +1815,7 @@ export default function VisitorsScreen({ navigation, route }: Props) {
                               Requested By:
                             </Text>
                             <Text style={styles.requestInfoValue}>
-                              {request.requested_by}
+                              {userMap.get(request.requested_by) || request.requested_by}
                             </Text>
                           </View>
                           <View style={styles.requestInfoRow}>
@@ -1338,6 +1878,15 @@ export default function VisitorsScreen({ navigation, route }: Props) {
                                   visitor.id || `${request.id}-${index}`;
                                 const isVisitorExpanded =
                                   expandedVisitors[visitorId] ?? true;
+                                
+                                // Get processed status from visitorRows if available
+                                const visitorRow = request.visitorRows?.find(
+                                  (vr: any) => vr.visitor?.id === visitor.id || vr.id === visitor.id
+                                );
+                                const displayStatus = visitorRow?.status || 
+                                  (visitor.is_suspended ? "suspended" : 
+                                   visitor.visitor_routed_to ? "routed_for_approval" :
+                                   visitor.visitor_status || "pending");
 
                                 return (
                                   <View
@@ -1402,7 +1951,7 @@ export default function VisitorsScreen({ navigation, route }: Props) {
                                               styles.visitorStatusContainer
                                             }
                                           >
-                                            {visitor.is_suspended === true ? (
+                                            {displayStatus === "suspended" ? (
                                               <View
                                                 style={styles.suspendedStatus}
                                               >
@@ -1414,8 +1963,7 @@ export default function VisitorsScreen({ navigation, route }: Props) {
                                                   Suspended
                                                 </Text>
                                               </View>
-                                            ) : visitor.visitor_status ===
-                                              "approved" ? (
+                                            ) : displayStatus === "approved" ? (
                                               <View
                                                 style={styles.approvedStatus}
                                               >
@@ -1427,8 +1975,7 @@ export default function VisitorsScreen({ navigation, route }: Props) {
                                                   Approved
                                                 </Text>
                                               </View>
-                                            ) : visitor.visitor_status ===
-                                              "rejected" ? (
+                                            ) : displayStatus === "rejected" ? (
                                               <View
                                                 style={styles.rejectedStatus}
                                               >
@@ -1438,6 +1985,18 @@ export default function VisitorsScreen({ navigation, route }: Props) {
                                                   }
                                                 >
                                                   Rejected
+                                                </Text>
+                                              </View>
+                                            ) : displayStatus === "routed_for_approval" ? (
+                                              <View
+                                                style={styles.pendingStatus}
+                                              >
+                                                <Text
+                                                  style={
+                                                    styles.pendingStatusText
+                                                  }
+                                                >
+                                                  Routed
                                                 </Text>
                                               </View>
                                             ) : (
@@ -1479,8 +2038,7 @@ export default function VisitorsScreen({ navigation, route }: Props) {
                                         )}
                                         {/* Approve/Reject/Route Buttons for Approvers */}
                                         {(isApprover || isLegislative) &&
-                                          visitor.visitor_status ===
-                                            "pending" &&
+                                          displayStatus === "pending" &&
                                           visitor.is_suspended !== true && (
                                             <View
                                               style={
@@ -1647,6 +2205,23 @@ export default function VisitorsScreen({ navigation, route }: Props) {
               );
             })}
           </View>
+
+          {/* Loading More Indicator */}
+          {loadingMore && (
+            <View style={styles.loadingMoreContainer}>
+              <ActivityIndicator size="small" color="#457E51" />
+              <Text style={styles.loadingMoreText}>Loading more...</Text>
+            </View>
+          )}
+
+          {/* End of List Indicator */}
+          {!hasMore && displayedRequests.length > 0 && (
+            <View style={styles.endOfListContainer}>
+              <Text style={styles.endOfListText}>
+                Showing all {filteredRequests.length} requests
+              </Text>
+            </View>
+          )}
         </ScrollView>
       )}
 
@@ -1851,54 +2426,200 @@ export default function VisitorsScreen({ navigation, route }: Props) {
           activeOpacity={1}
           onPress={() => setShowRejectModal(false)}
         >
-          <View
-            style={styles.rejectModalContent}
+          <ScrollView
+            contentContainerStyle={styles.legislativeModalScrollContent}
             onStartShouldSetResponder={() => true}
           >
-            <TouchableOpacity
-              style={styles.modalCloseButtonTop}
-              onPress={() => setShowRejectModal(false)}
-            >
-              <CloseIcon width={20} height={20} />
-            </TouchableOpacity>
-            <Text style={styles.rejectModalTitle}>Reject Visitor</Text>
-            <Text style={styles.rejectModalSubtitle}>
-              Please provide a reason for rejection
-            </Text>
-            <TextInput
-              style={styles.modalTextInput}
-              placeholder="Please provide a reason for rejection..."
-              placeholderTextColor="#9CA3AF"
-              value={rejectReason}
-              onChangeText={setRejectReason}
-              multiline
-              numberOfLines={4}
-              textAlignVertical="top"
-            />
-            <View style={styles.modalButtonsContainer}>
+            <View style={styles.rejectModalContent}>
               <TouchableOpacity
-                style={styles.modalCancelButton}
-                onPress={() => {
-                  setShowRejectModal(false);
-                  setRejectReason("");
-                }}
-                disabled={processingStatus}
+                style={styles.modalCloseButtonTop}
+                onPress={() => setShowRejectModal(false)}
               >
-                <Text style={styles.modalCancelButtonText}>Cancel</Text>
+                <CloseIcon width={20} height={20} />
               </TouchableOpacity>
-              <TouchableOpacity
-                style={styles.modalRejectButton}
-                onPress={executeReject}
-                disabled={processingStatus}
-              >
-                {processingStatus ? (
-                  <ActivityIndicator color="#FFFFFF" />
-                ) : (
-                  <Text style={styles.modalRejectButtonText}>Reject</Text>
+              <View style={styles.legislativeModalHeader}>
+                <View style={styles.legislativeModalIconContainer}>
+                  <Ionicons name="close-circle" size={48} color="#EF4444" />
+                </View>
+                <Text style={styles.rejectModalTitle}>Reject Visitor Request</Text>
+                <Text style={styles.rejectModalSubtitle}>
+                  Provide a reason for rejection
+                </Text>
+              </View>
+
+              {/* Visitor Details Section */}
+              <View style={styles.legislativeModalSection}>
+                <Text style={styles.legislativeModalSectionTitle}>
+                  Visitor Details
+                </Text>
+                {selectedVisitor && (
+                  <>
+                    <View style={styles.legislativeModalDetailRow}>
+                      <Text style={styles.legislativeModalDetailLabel}>
+                        FULL NAME
+                      </Text>
+                      <Text style={styles.legislativeModalDetailValue}>
+                        {selectedVisitor.first_name || ""}{" "}
+                        {selectedVisitor.last_name || ""}
+                      </Text>
+                    </View>
+                    <View style={styles.legislativeModalDetailRow}>
+                      <Text style={styles.legislativeModalDetailLabel}>
+                        EMAIL
+                      </Text>
+                      <Text style={styles.legislativeModalDetailValue}>
+                        {selectedVisitor.email || "—"}
+                      </Text>
+                    </View>
+                    <View style={styles.legislativeModalDetailRow}>
+                      <Text style={styles.legislativeModalDetailLabel}>
+                        PHONE
+                      </Text>
+                      <Text style={styles.legislativeModalDetailValue}>
+                        {selectedVisitor.phone || "—"}
+                      </Text>
+                    </View>
+                    <View style={styles.legislativeModalDetailRow}>
+                      <Text style={styles.legislativeModalDetailLabel}>
+                        IDENTIFICATION
+                      </Text>
+                      <Text style={styles.legislativeModalDetailValue}>
+                        {selectedVisitor.identification_type || "—"}{" "}
+                        {selectedVisitor.identification_number || ""}
+                      </Text>
+                    </View>
+                    {selectedRequest && (
+                      <View style={styles.legislativeModalDetailRow}>
+                        <Text style={styles.legislativeModalDetailLabel}>
+                          REQUESTED BY
+                        </Text>
+                        <Text style={styles.legislativeModalDetailValue}>
+                          {userMap.get(selectedRequest.requested_by) || selectedRequest.requested_by || "—"}
+                        </Text>
+                      </View>
+                    )}
+                    {selectedRequest && (
+                      <View style={styles.legislativeModalDetailRow}>
+                        <Text style={styles.legislativeModalDetailLabel}>
+                          CATEGORY
+                        </Text>
+                        <Text style={styles.legislativeModalDetailValue}>
+                          {getCategoryName(selectedRequest.main_category_id) || "—"}{" "}
+                          {selectedRequest.sub_category_id &&
+                            `• ${getSubCategoryName(selectedRequest.sub_category_id)}`}
+                        </Text>
+                      </View>
+                    )}
+                    {selectedRequest && (
+                      <View style={styles.legislativeModalDetailRow}>
+                        <Text style={styles.legislativeModalDetailLabel}>
+                          PURPOSE
+                        </Text>
+                        <Text style={styles.legislativeModalDetailValue}>
+                          {selectedRequest.purpose || "—"}
+                        </Text>
+                      </View>
+                    )}
+                    {/* Car Passes Section */}
+                    {selectedVisitor.car_passes && selectedVisitor.car_passes.length > 0 && (
+                      <View style={styles.legislativeModalDetailRow}>
+                        <Text style={styles.legislativeModalDetailLabel}>
+                          CAR PASSES ({selectedVisitor.car_passes.length})
+                        </Text>
+                        <View style={{ marginTop: 8 }}>
+                          {selectedVisitor.car_passes.map((carPass: any, index: number) => (
+                            <View key={index} style={styles.carPassCard}>
+                              <Text style={styles.carPassLabel}>
+                                CAR PASS #{index + 1}
+                              </Text>
+                              <View style={styles.carPassDetails}>
+                                <View style={styles.legislativeModalDetailRow}>
+                                  <Text style={styles.legislativeModalDetailLabel}>MAKE</Text>
+                                  <Text style={styles.legislativeModalDetailValue}>
+                                    {carPass.car_make || "—"}
+                                  </Text>
+                                </View>
+                                <View style={styles.legislativeModalDetailRow}>
+                                  <Text style={styles.legislativeModalDetailLabel}>MODEL</Text>
+                                  <Text style={styles.legislativeModalDetailValue}>
+                                    {carPass.car_model || "—"}
+                                  </Text>
+                                </View>
+                                <View style={styles.legislativeModalDetailRow}>
+                                  <Text style={styles.legislativeModalDetailLabel}>COLOR</Text>
+                                  <Text style={styles.legislativeModalDetailValue}>
+                                    {carPass.car_color || "—"}
+                                  </Text>
+                                </View>
+                                <View style={styles.legislativeModalDetailRow}>
+                                  <Text style={styles.legislativeModalDetailLabel}>NUMBER</Text>
+                                  <Text style={styles.legislativeModalDetailValue}>
+                                    {carPass.car_number || "—"}
+                                  </Text>
+                                </View>
+                                {carPass.car_tag && (
+                                  <View style={styles.legislativeModalDetailRow}>
+                                    <Text style={styles.legislativeModalDetailLabel}>TAG</Text>
+                                    <Text style={styles.legislativeModalDetailValue}>
+                                      {carPass.car_tag}
+                                    </Text>
+                                  </View>
+                                )}
+                              </View>
+                            </View>
+                          ))}
+                        </View>
+                      </View>
+                    )}
+                  </>
                 )}
-              </TouchableOpacity>
+              </View>
+
+              {/* Comments Section */}
+              <View style={styles.legislativeModalSection}>
+                <Text style={styles.legislativeModalSectionTitle}>
+                  Comments<Text style={styles.requiredAsterisk}>*</Text>
+                </Text>
+                <TextInput
+                  style={styles.legislativeModalTextArea}
+                  placeholder="Please provide reason for rejection..."
+                  placeholderTextColor="#9CA3AF"
+                  value={rejectReason}
+                  onChangeText={setRejectReason}
+                  multiline
+                  numberOfLines={4}
+                  textAlignVertical="top"
+                />
+              </View>
+
+              {/* Action Buttons */}
+              <View style={styles.legislativeModalButtonsContainer}>
+                <TouchableOpacity
+                  style={styles.legislativeModalCancelButton}
+                  onPress={() => {
+                    setShowRejectModal(false);
+                    setRejectReason("");
+                  }}
+                  disabled={processingStatus}
+                >
+                  <Text style={styles.legislativeModalCancelButtonText}>
+                    Cancel
+                  </Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={styles.modalRejectButton}
+                  onPress={executeReject}
+                  disabled={processingStatus || !rejectReason.trim()}
+                >
+                  {processingStatus ? (
+                    <ActivityIndicator color="#FFFFFF" />
+                  ) : (
+                    <Text style={styles.modalRejectButtonText}>Reject</Text>
+                  )}
+                </TouchableOpacity>
+              </View>
             </View>
-          </View>
+          </ScrollView>
         </TouchableOpacity>
       </Modal>
 
@@ -1952,44 +2673,18 @@ export default function VisitorsScreen({ navigation, route }: Props) {
                     </View>
                     <View style={styles.legislativeModalDetailRow}>
                       <Text style={styles.legislativeModalDetailLabel}>
-                        PHONE
-                      </Text>
-                      <Text style={styles.legislativeModalDetailValue}>
-                        {selectedVisitor.phone || "—"}
-                      </Text>
-                    </View>
-                    <View style={styles.legislativeModalDetailRow}>
-                      <Text style={styles.legislativeModalDetailLabel}>
-                        CATEGORY
-                      </Text>
-                      <Text style={styles.legislativeModalDetailValue}>
-                        {getCategoryNameForLegislative(selectedCategoryId) ||
-                          "—"}{" "}
-                        {selectedSubCategoryId &&
-                          getSubCategoryNameForLegislative(
-                            selectedSubCategoryId,
-                          ) &&
-                          `• ${getSubCategoryNameForLegislative(
-                            selectedSubCategoryId,
-                          )}`}
-                      </Text>
-                    </View>
-                    {selectedRequest && (
-                      <View style={styles.legislativeModalDetailRow}>
-                        <Text style={styles.legislativeModalDetailLabel}>
-                          REQUESTED BY
-                        </Text>
-                        <Text style={styles.legislativeModalDetailValue}>
-                          {selectedRequest.requested_by || "—"}
-                        </Text>
-                      </View>
-                    )}
-                    <View style={styles.legislativeModalDetailRow}>
-                      <Text style={styles.legislativeModalDetailLabel}>
                         EMAIL
                       </Text>
                       <Text style={styles.legislativeModalDetailValue}>
                         {selectedVisitor.email || "—"}
+                      </Text>
+                    </View>
+                    <View style={styles.legislativeModalDetailRow}>
+                      <Text style={styles.legislativeModalDetailLabel}>
+                        PHONE
+                      </Text>
+                      <Text style={styles.legislativeModalDetailValue}>
+                        {selectedVisitor.phone || "—"}
                       </Text>
                     </View>
                     <View style={styles.legislativeModalDetailRow}>
@@ -2004,11 +2699,72 @@ export default function VisitorsScreen({ navigation, route }: Props) {
                     {selectedRequest && (
                       <View style={styles.legislativeModalDetailRow}>
                         <Text style={styles.legislativeModalDetailLabel}>
+                          REQUESTED BY
+                        </Text>
+                        <Text style={styles.legislativeModalDetailValue}>
+                          {userMap.get(selectedRequest.requested_by) || selectedRequest.requested_by || "—"}
+                        </Text>
+                      </View>
+                    )}
+                    {selectedRequest && (
+                      <View style={styles.legislativeModalDetailRow}>
+                        <Text style={styles.legislativeModalDetailLabel}>
                           PURPOSE
                         </Text>
                         <Text style={styles.legislativeModalDetailValue}>
                           {selectedRequest.purpose || "—"}
                         </Text>
+                      </View>
+                    )}
+                    {/* Car Passes Section */}
+                    {selectedVisitor.car_passes && selectedVisitor.car_passes.length > 0 && (
+                      <View style={styles.legislativeModalDetailRow}>
+                        <Text style={styles.legislativeModalDetailLabel}>
+                          CAR PASSES ({selectedVisitor.car_passes.length})
+                        </Text>
+                        <View style={{ marginTop: 8 }}>
+                          {selectedVisitor.car_passes.map((carPass: any, index: number) => (
+                            <View key={index} style={styles.carPassCard}>
+                              <Text style={styles.carPassLabel}>
+                                CAR PASS #{index + 1}
+                              </Text>
+                              <View style={styles.carPassDetails}>
+                                <View style={styles.legislativeModalDetailRow}>
+                                  <Text style={styles.legislativeModalDetailLabel}>MAKE</Text>
+                                  <Text style={styles.legislativeModalDetailValue}>
+                                    {carPass.car_make || "—"}
+                                  </Text>
+                                </View>
+                                <View style={styles.legislativeModalDetailRow}>
+                                  <Text style={styles.legislativeModalDetailLabel}>MODEL</Text>
+                                  <Text style={styles.legislativeModalDetailValue}>
+                                    {carPass.car_model || "—"}
+                                  </Text>
+                                </View>
+                                <View style={styles.legislativeModalDetailRow}>
+                                  <Text style={styles.legislativeModalDetailLabel}>COLOR</Text>
+                                  <Text style={styles.legislativeModalDetailValue}>
+                                    {carPass.car_color || "—"}
+                                  </Text>
+                                </View>
+                                <View style={styles.legislativeModalDetailRow}>
+                                  <Text style={styles.legislativeModalDetailLabel}>NUMBER</Text>
+                                  <Text style={styles.legislativeModalDetailValue}>
+                                    {carPass.car_number || "—"}
+                                  </Text>
+                                </View>
+                                {carPass.car_tag && (
+                                  <View style={styles.legislativeModalDetailRow}>
+                                    <Text style={styles.legislativeModalDetailLabel}>TAG</Text>
+                                    <Text style={styles.legislativeModalDetailValue}>
+                                      {carPass.car_tag}
+                                    </Text>
+                                  </View>
+                                )}
+                              </View>
+                            </View>
+                          ))}
+                        </View>
                       </View>
                     )}
                   </>
@@ -2021,55 +2777,33 @@ export default function VisitorsScreen({ navigation, route }: Props) {
                   Pass Configuration
                 </Text>
 
-                {/* Category */}
+                {/* Category - Read-only from request */}
                 <View style={styles.legislativeModalInputContainer}>
                   <Text style={styles.legislativeModalInputLabel}>
                     Category
                   </Text>
-                  <TouchableOpacity
-                    style={styles.legislativeModalDropdown}
-                    onPress={() => setShowCategoryModal(true)}
-                  >
-                    <Text
-                      style={[
-                        styles.legislativeModalDropdownText,
-                        !selectedCategoryId &&
-                          styles.legislativeModalDropdownPlaceholder,
-                      ]}
-                    >
-                      {selectedCategoryId
+                  <View style={[styles.legislativeModalDropdown, { backgroundColor: "#F3F4F6" }]}>
+                    <Text style={styles.legislativeModalDropdownText}>
+                      {selectedRequest && selectedRequest.main_category_id
+                        ? getCategoryNameForLegislative(selectedRequest.main_category_id)
+                        : selectedCategoryId
                         ? getCategoryNameForLegislative(selectedCategoryId)
-                        : "Select Category"}
+                        : "—"}
                     </Text>
-                    <ChevronDownIcon width={20} height={20} />
-                  </TouchableOpacity>
+                  </View>
                 </View>
 
-                {/* Sub-Category */}
-                {selectedCategoryId && (
+                {/* Sub-Category - Read-only from request */}
+                {selectedRequest && selectedRequest.sub_category_id && (
                   <View style={styles.legislativeModalInputContainer}>
                     <Text style={styles.legislativeModalInputLabel}>
                       Sub-Category
                     </Text>
-                    <TouchableOpacity
-                      style={styles.legislativeModalDropdown}
-                      onPress={() => setShowSubCategoryModal(true)}
-                    >
-                      <Text
-                        style={[
-                          styles.legislativeModalDropdownText,
-                          !selectedSubCategoryId &&
-                            styles.legislativeModalDropdownPlaceholder,
-                        ]}
-                      >
-                        {selectedSubCategoryId
-                          ? getSubCategoryNameForLegislative(
-                              selectedSubCategoryId,
-                            )
-                          : "Select Sub-Category"}
+                    <View style={[styles.legislativeModalDropdown, { backgroundColor: "#F3F4F6" }]}>
+                      <Text style={styles.legislativeModalDropdownText}>
+                        {getSubCategoryNameForLegislative(selectedRequest.sub_category_id)}
                       </Text>
-                      <ChevronDownIcon width={20} height={20} />
-                    </TouchableOpacity>
+                    </View>
                   </View>
                 )}
 
@@ -2112,14 +2846,16 @@ export default function VisitorsScreen({ navigation, route }: Props) {
                   </TouchableOpacity>
                 </View>
 
-                {/* Pass Type */}
+                {/* Pass Type - Based on category mapping */}
                 <View style={styles.legislativeModalInputContainer}>
                   <Text style={styles.legislativeModalInputLabel}>
                     Pass Type<Text style={styles.requiredAsterisk}>*</Text>
+                    {loadingPassTypes && <Text style={{ fontSize: 12, color: "#6B7280", marginLeft: 8 }}>(Loading...)</Text>}
                   </Text>
                   <TouchableOpacity
                     style={styles.legislativeModalDropdown}
                     onPress={() => setShowPassTypeModalLegislative(true)}
+                    disabled={loadingPassTypes || availablePassTypes.length === 0}
                   >
                     <Text
                       style={[
@@ -2129,12 +2865,26 @@ export default function VisitorsScreen({ navigation, route }: Props) {
                       ]}
                     >
                       {selectedPassTypeId
-                        ? passTypes.find((pt) => pt.id === selectedPassTypeId)
-                            ?.name || "Select Pass Type"
+                        ? availablePassTypes.find((pt) => pt.id === selectedPassTypeId)
+                            ?.name || passTypes.find((pt) => pt.id === selectedPassTypeId)?.name || "Select Pass Type"
+                        : loadingPassTypes
+                        ? "Loading pass types..."
+                        : availablePassTypes.length === 0
+                        ? "No pass types available"
                         : "Select Pass Type"}
                     </Text>
                     <ChevronDownIcon width={20} height={20} />
                   </TouchableOpacity>
+                  {!loadingPassTypes && availablePassTypes.length === 1 && (
+                    <Text style={{ fontSize: 12, color: "#10B981", marginTop: 4 }}>
+                      Auto-selected: {availablePassTypes[0].name}
+                    </Text>
+                  )}
+                  {!loadingPassTypes && availablePassTypes.length === 0 && selectedCategoryId && (
+                    <Text style={{ fontSize: 12, color: "#F59E0B", marginTop: 4 }}>
+                      No pass types are mapped to this category. Please map pass types in the admin portal.
+                    </Text>
+                  )}
                 </View>
 
                 {/* Session */}
@@ -2311,21 +3061,29 @@ export default function VisitorsScreen({ navigation, route }: Props) {
           >
             <Text style={styles.filterModalTitle}>Select Pass Type</Text>
             <ScrollView style={styles.filterModalList}>
-              {passTypes.map((type) => (
-                <TouchableOpacity
-                  key={type.id}
-                  style={styles.filterModalItem}
-                  onPress={() => {
-                    setSelectedPassTypeId(type.id);
-                    setShowPassTypeModalLegislative(false);
-                  }}
-                >
-                  <Text style={styles.filterModalItemText}>{type.name}</Text>
-                  {selectedPassTypeId === type.id && (
-                    <Ionicons name="checkmark" size={20} color="#457E51" />
-                  )}
-                </TouchableOpacity>
-              ))}
+              {availablePassTypes.length > 0 ? (
+                availablePassTypes.map((type) => (
+                  <TouchableOpacity
+                    key={type.id}
+                    style={styles.filterModalItem}
+                    onPress={() => {
+                      setSelectedPassTypeId(type.id);
+                      setShowPassTypeModalLegislative(false);
+                    }}
+                  >
+                    <Text style={styles.filterModalItemText}>{type.name}</Text>
+                    {selectedPassTypeId === type.id && (
+                      <Ionicons name="checkmark" size={20} color="#457E51" />
+                    )}
+                  </TouchableOpacity>
+                ))
+              ) : (
+                <View style={styles.filterModalItem}>
+                  <Text style={styles.filterModalItemText}>
+                    No pass types available for this category
+                  </Text>
+                </View>
+              )}
             </ScrollView>
           </View>
         </TouchableOpacity>
@@ -2814,27 +3572,32 @@ export default function VisitorsScreen({ navigation, route }: Props) {
                 "routed for approval",
                 "assigned to me",
                 "suspended",
-              ].map((status) => (
-                <TouchableOpacity
-                  key={status}
-                  style={[
-                    styles.modalItem,
-                    selectedStatus === status && styles.modalItemSelected,
-                  ]}
-                  onPress={() =>
-                    handleStatusSelect(status === "All Status" ? null : status)
-                  }
-                >
-                  <Text
+              ].map((status) => {
+                const displayLabel = status === "All Status" 
+                  ? "All Status"
+                  : getStatusLabel(status === "assigned to me" ? "assigned_to_me" : status);
+                return (
+                  <TouchableOpacity
+                    key={status}
                     style={[
-                      styles.modalItemText,
-                      selectedStatus === status && styles.modalItemTextSelected,
+                      styles.modalItem,
+                      selectedStatus === displayLabel && styles.modalItemSelected,
                     ]}
+                    onPress={() =>
+                      handleStatusSelect(status === "All Status" ? null : status)
+                    }
                   >
-                    {status.charAt(0).toUpperCase() + status.slice(1)}
-                  </Text>
-                </TouchableOpacity>
-              ))}
+                    <Text
+                      style={[
+                        styles.modalItemText,
+                        selectedStatus === displayLabel && styles.modalItemTextSelected,
+                      ]}
+                    >
+                      {displayLabel}
+                    </Text>
+                  </TouchableOpacity>
+                );
+              })}
             </ScrollView>
           </View>
         </TouchableOpacity>
@@ -2979,6 +3742,309 @@ export default function VisitorsScreen({ navigation, route }: Props) {
         </TouchableOpacity>
       </Modal>
 
+      {/* Route Modal */}
+      <Modal
+        visible={showRouteModal}
+        transparent={true}
+        animationType="fade"
+        onRequestClose={() => setShowRouteModal(false)}
+      >
+        <TouchableOpacity
+          style={styles.modalOverlay}
+          activeOpacity={1}
+          onPress={() => setShowRouteModal(false)}
+        >
+          <ScrollView
+            contentContainerStyle={styles.legislativeModalScrollContent}
+            onStartShouldSetResponder={() => true}
+          >
+            <View style={styles.legislativeModalContent}>
+              <TouchableOpacity
+                style={styles.modalCloseButtonTop}
+                onPress={() => setShowRouteModal(false)}
+              >
+                <CloseIcon width={20} height={20} />
+              </TouchableOpacity>
+              <View style={styles.legislativeModalHeader}>
+                <View style={styles.legislativeModalIconContainer}>
+                  <Ionicons name="arrow-forward-circle" size={48} color="#3B82F6" />
+                </View>
+                <Text style={styles.legislativeModalTitle}>
+                  Route for Superior Approval
+                </Text>
+                <Text style={styles.rejectModalSubtitle}>
+                  Forward to a superior for review
+                </Text>
+              </View>
+
+              {/* Visitor Details Section */}
+              <View style={styles.legislativeModalSection}>
+                <Text style={styles.legislativeModalSectionTitle}>
+                  Visitor Details
+                </Text>
+                {selectedVisitor && (
+                  <>
+                    <View style={styles.legislativeModalDetailRow}>
+                      <Text style={styles.legislativeModalDetailLabel}>
+                        FULL NAME
+                      </Text>
+                      <Text style={styles.legislativeModalDetailValue}>
+                        {selectedVisitor.first_name || ""}{" "}
+                        {selectedVisitor.last_name || ""}
+                      </Text>
+                    </View>
+                    <View style={styles.legislativeModalDetailRow}>
+                      <Text style={styles.legislativeModalDetailLabel}>
+                        EMAIL
+                      </Text>
+                      <Text style={styles.legislativeModalDetailValue}>
+                        {selectedVisitor.email || "—"}
+                      </Text>
+                    </View>
+                    <View style={styles.legislativeModalDetailRow}>
+                      <Text style={styles.legislativeModalDetailLabel}>
+                        PHONE
+                      </Text>
+                      <Text style={styles.legislativeModalDetailValue}>
+                        {selectedVisitor.phone || "—"}
+                      </Text>
+                    </View>
+                    <View style={styles.legislativeModalDetailRow}>
+                      <Text style={styles.legislativeModalDetailLabel}>
+                        IDENTIFICATION
+                      </Text>
+                      <Text style={styles.legislativeModalDetailValue}>
+                        {selectedVisitor.identification_type || "—"}{" "}
+                        {selectedVisitor.identification_number || ""}
+                      </Text>
+                    </View>
+                    {selectedRequest && (
+                      <View style={styles.legislativeModalDetailRow}>
+                        <Text style={styles.legislativeModalDetailLabel}>
+                          REQUESTED BY
+                        </Text>
+                        <Text style={styles.legislativeModalDetailValue}>
+                          {userMap.get(selectedRequest.requested_by) || selectedRequest.requested_by || "—"}
+                        </Text>
+                      </View>
+                    )}
+                    {selectedRequest && (
+                      <View style={styles.legislativeModalDetailRow}>
+                        <Text style={styles.legislativeModalDetailLabel}>
+                          CATEGORY
+                        </Text>
+                        <Text style={styles.legislativeModalDetailValue}>
+                          {getCategoryName(selectedRequest.main_category_id) || "—"}{" "}
+                          {selectedRequest.sub_category_id &&
+                            `• ${getSubCategoryName(selectedRequest.sub_category_id)}`}
+                        </Text>
+                      </View>
+                    )}
+                    {selectedRequest && (
+                      <View style={styles.legislativeModalDetailRow}>
+                        <Text style={styles.legislativeModalDetailLabel}>
+                          PURPOSE
+                        </Text>
+                        <Text style={styles.legislativeModalDetailValue}>
+                          {selectedRequest.purpose || "—"}
+                        </Text>
+                      </View>
+                    )}
+                    {/* Car Passes Section */}
+                    {selectedVisitor.car_passes && selectedVisitor.car_passes.length > 0 && (
+                      <View style={styles.legislativeModalDetailRow}>
+                        <Text style={styles.legislativeModalDetailLabel}>
+                          CAR PASSES ({selectedVisitor.car_passes.length})
+                        </Text>
+                        <View style={{ marginTop: 8 }}>
+                          {selectedVisitor.car_passes.map((carPass: any, index: number) => (
+                            <View key={index} style={styles.carPassCard}>
+                              <Text style={styles.carPassLabel}>
+                                CAR PASS #{index + 1}
+                              </Text>
+                              <View style={styles.carPassDetails}>
+                                <View style={styles.legislativeModalDetailRow}>
+                                  <Text style={styles.legislativeModalDetailLabel}>MAKE</Text>
+                                  <Text style={styles.legislativeModalDetailValue}>
+                                    {carPass.car_make || "—"}
+                                  </Text>
+                                </View>
+                                <View style={styles.legislativeModalDetailRow}>
+                                  <Text style={styles.legislativeModalDetailLabel}>MODEL</Text>
+                                  <Text style={styles.legislativeModalDetailValue}>
+                                    {carPass.car_model || "—"}
+                                  </Text>
+                                </View>
+                                <View style={styles.legislativeModalDetailRow}>
+                                  <Text style={styles.legislativeModalDetailLabel}>COLOR</Text>
+                                  <Text style={styles.legislativeModalDetailValue}>
+                                    {carPass.car_color || "—"}
+                                  </Text>
+                                </View>
+                                <View style={styles.legislativeModalDetailRow}>
+                                  <Text style={styles.legislativeModalDetailLabel}>NUMBER</Text>
+                                  <Text style={styles.legislativeModalDetailValue}>
+                                    {carPass.car_number || "—"}
+                                  </Text>
+                                </View>
+                                {carPass.car_tag && (
+                                  <View style={styles.legislativeModalDetailRow}>
+                                    <Text style={styles.legislativeModalDetailLabel}>TAG</Text>
+                                    <Text style={styles.legislativeModalDetailValue}>
+                                      {carPass.car_tag}
+                                    </Text>
+                                  </View>
+                                )}
+                              </View>
+                            </View>
+                          ))}
+                        </View>
+                      </View>
+                    )}
+                  </>
+                )}
+              </View>
+
+              {/* Superior Selection */}
+              <View style={styles.legislativeModalSection}>
+                <Text style={styles.legislativeModalSectionTitle}>
+                  Select Superior<Text style={styles.requiredAsterisk}>*</Text>
+                </Text>
+                <TouchableOpacity
+                  style={styles.legislativeModalDropdown}
+                  onPress={() => setShowSuperiorModal(true)}
+                >
+                  <Text
+                    style={[
+                      styles.legislativeModalDropdownText,
+                      !selectedSuperior &&
+                        styles.legislativeModalDropdownPlaceholder,
+                    ]}
+                  >
+                    {selectedSuperior
+                      ? superiors.find((s: any) => s.id === selectedSuperior)?.full_name || "Select Superior"
+                      : "Select Superior"}
+                  </Text>
+                  <ChevronDownIcon width={20} height={20} />
+                </TouchableOpacity>
+                {superiors.length === 0 && (
+                  <Text style={{ fontSize: 12, color: "#F59E0B", marginTop: 4 }}>
+                    No active superiors available. Please add superiors first.
+                  </Text>
+                )}
+              </View>
+
+              {/* Comments Section */}
+              <View style={styles.legislativeModalSection}>
+                <Text style={styles.legislativeModalSectionTitle}>
+                  Comments<Text style={styles.requiredAsterisk}>*</Text>
+                </Text>
+                <TextInput
+                  style={styles.legislativeModalTextArea}
+                  placeholder="Please provide comments for routing..."
+                  placeholderTextColor="#9CA3AF"
+                  value={routeComments}
+                  onChangeText={setRouteComments}
+                  multiline
+                  numberOfLines={4}
+                  textAlignVertical="top"
+                />
+              </View>
+
+              {/* Action Buttons */}
+              <View style={styles.legislativeModalButtonsContainer}>
+                <TouchableOpacity
+                  style={styles.legislativeModalCancelButton}
+                  onPress={() => {
+                    setShowRouteModal(false);
+                    setSelectedSuperior("");
+                    setRouteComments("");
+                  }}
+                  disabled={processingStatus}
+                >
+                  <Text style={styles.legislativeModalCancelButtonText}>
+                    Cancel
+                  </Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={styles.legislativeModalApproveButton}
+                  onPress={executeRoute}
+                  disabled={processingStatus || !selectedSuperior || !routeComments.trim()}
+                >
+                  {processingStatus ? (
+                    <ActivityIndicator color="#FFFFFF" />
+                  ) : (
+                    <Text style={styles.legislativeModalApproveButtonText}>
+                      Route for Approval
+                    </Text>
+                  )}
+                </TouchableOpacity>
+              </View>
+            </View>
+          </ScrollView>
+        </TouchableOpacity>
+      </Modal>
+
+      {/* Superior Selection Modal */}
+      <Modal
+        visible={showSuperiorModal}
+        transparent={true}
+        animationType="fade"
+        onRequestClose={() => setShowSuperiorModal(false)}
+      >
+        <TouchableOpacity
+          style={styles.modalOverlay}
+          activeOpacity={1}
+          onPress={() => setShowSuperiorModal(false)}
+        >
+          <View
+            style={styles.filterModalContent}
+            onStartShouldSetResponder={() => true}
+          >
+            <Text style={styles.filterModalTitle}>Select Superior</Text>
+            <ScrollView style={styles.filterModalList}>
+              {superiors.length > 0 ? (
+                superiors.map((superior: any) => (
+                  <TouchableOpacity
+                    key={superior.id}
+                    style={styles.filterModalItem}
+                    onPress={() => {
+                      setSelectedSuperior(superior.id);
+                      setShowSuperiorModal(false);
+                    }}
+                  >
+                    <View style={{ flex: 1 }}>
+                      <Text style={styles.filterModalItemText}>
+                        {superior.full_name}
+                      </Text>
+                      {superior.email && (
+                        <Text style={{ fontSize: 12, color: "#6B7280", marginTop: 2 }}>
+                          {superior.email}
+                        </Text>
+                      )}
+                      {superior.approval_level && (
+                        <Text style={{ fontSize: 11, color: "#9CA3AF", marginTop: 2 }}>
+                          Level: {superior.approval_level}
+                        </Text>
+                      )}
+                    </View>
+                    {selectedSuperior === superior.id && (
+                      <Ionicons name="checkmark" size={20} color="#457E51" />
+                    )}
+                  </TouchableOpacity>
+                ))
+              ) : (
+                <View style={styles.filterModalItem}>
+                  <Text style={styles.filterModalItemText}>
+                    No superiors available
+                  </Text>
+                </View>
+              )}
+            </ScrollView>
+          </View>
+        </TouchableOpacity>
+      </Modal>
+
       {/* Suspend Modal */}
       <Modal
         visible={showSuspendModal}
@@ -3001,13 +4067,17 @@ export default function VisitorsScreen({ navigation, route }: Props) {
             >
               <CloseIcon width={20} height={20} />
             </TouchableOpacity>
-            <Text style={styles.approveModalTitle}>Suspend Visitor Pass</Text>
-            <Text style={styles.approveModalSubtitle}>
-              Enter reason for suspending the pass
-            </Text>
+            <Text style={styles.approveModalTitle}>Suspend Pass</Text>
+            {selectedVisitorForSuspend && (
+              <Text style={styles.approveModalSubtitle}>
+                Suspend pass for {selectedVisitorForSuspend.first_name}{" "}
+                {selectedVisitorForSuspend.last_name}?
+              </Text>
+            )}
+            <Text style={styles.modalInputLabel}>Reason (Optional)</Text>
             <TextInput
               style={styles.modalTextInput}
-              placeholder="Enter suspend reason..."
+              placeholder="Enter reason..."
               placeholderTextColor="#9CA3AF"
               value={suspendReason}
               onChangeText={setSuspendReason}
@@ -3675,8 +4745,15 @@ const styles = StyleSheet.create({
   },
   approveModalSubtitle: {
     fontSize: 14,
-    color: "#6B7280",
+    color: "#111827",
     marginBottom: 16,
+    fontWeight: "500",
+  },
+  modalInputLabel: {
+    fontSize: 14,
+    fontWeight: "500",
+    color: "#111827",
+    marginBottom: 8,
   },
   rejectModalTitle: {
     fontSize: 20,
@@ -3704,9 +4781,10 @@ const styles = StyleSheet.create({
   modalButtonsContainer: {
     flexDirection: "row",
     gap: 12,
-    justifyContent: "flex-end",
+    justifyContent: "space-between",
   },
   modalCancelButton: {
+    flex: 1,
     backgroundColor: "#F3F4F6",
     paddingVertical: 12,
     paddingHorizontal: 24,
@@ -3734,13 +4812,13 @@ const styles = StyleSheet.create({
     fontWeight: "600",
   },
   modalSubmitButton: {
-    backgroundColor: "#F59E0B",
+    flex: 1,
+    backgroundColor: "#EF4444",
     paddingVertical: 12,
     paddingHorizontal: 24,
     borderRadius: 8,
     alignItems: "center",
     justifyContent: "center",
-    minWidth: 120,
   },
   modalSubmitButtonText: {
     color: "#FFFFFF",
@@ -4018,5 +5096,43 @@ const styles = StyleSheet.create({
   timePickerTextSelected: {
     color: "#FFFFFF",
     fontWeight: "600",
+  },
+  loadingMoreContainer: {
+    padding: 20,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  loadingMoreText: {
+    marginTop: 8,
+    fontSize: 14,
+    color: "#6B7280",
+  },
+  endOfListContainer: {
+    padding: 20,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  endOfListText: {
+    fontSize: 14,
+    color: "#9CA3AF",
+    fontStyle: "italic",
+  },
+  carPassCard: {
+    backgroundColor: "#FFF7ED",
+    borderRadius: 8,
+    padding: 12,
+    marginTop: 8,
+    borderWidth: 1,
+    borderColor: "#FED7AA",
+  },
+  carPassLabel: {
+    fontSize: 12,
+    fontWeight: "600",
+    color: "#EA580C",
+    marginBottom: 8,
+    textTransform: "uppercase",
+  },
+  carPassDetails: {
+    gap: 8,
   },
 });

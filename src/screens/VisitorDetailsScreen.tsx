@@ -136,11 +136,8 @@ export default function VisitorDetailsScreen({ navigation, route }: Props) {
   useEffect(() => {
     fetchCategories();
     fetchPassTypes();
-    fetchHODUsers(); // Always fetch HOD users
-    if (userRole) {
-      fetchUsers();
-    }
-  }, [userRole]);
+    fetchAllUsers(); // Fetch all users like portal does
+  }, []);
 
   const fetchCategories = async () => {
     try {
@@ -206,33 +203,41 @@ export default function VisitorDetailsScreen({ navigation, route }: Props) {
     return passTypeMap[passTypeId] || passTypeId;
   };
 
-  const fetchUsers = async () => {
+  // Fetch all users from all roles like portal does
+  const fetchAllUsers = async () => {
     try {
-      const users = await api.getUsersByRole(userRole);
+      const allUsers: User[] = [];
+      // Fetch users from different roles
+      const departmentUsers = await api.getUsersByRole("department");
+      const legislativeUsers = await api.getUsersByRole("legislative");
+      const peshiUsers = await api.getUsersByRole("peshi");
+      const adminUsers = await api.getUsersByRole("admin");
+
+      allUsers.push(
+        ...departmentUsers,
+        ...legislativeUsers,
+        ...peshiUsers,
+        ...adminUsers
+      );
+
+      // Create a comprehensive user map
       const userMapping: { [key: string]: string } = {};
-      users.forEach((user: User) => {
+      const hodUserMapping: { [key: string]: string } = {};
+
+      allUsers.forEach((user: User) => {
         if (user.id && user.full_name) {
           userMapping[user.id] = user.full_name;
+          // Also add to HOD map if department user
+          if (departmentUsers.some((u) => u.id === user.id)) {
+            hodUserMapping[user.id] = user.full_name;
+          }
         }
       });
-      setUserMap(userMapping);
-    } catch (error) {
-      // Error fetching users
-    }
-  };
 
-  const fetchHODUsers = async () => {
-    try {
-      const hodUsers = await api.getUsersByRole("department");
-      const hodUserMapping: { [key: string]: string } = {};
-      hodUsers.forEach((user: User) => {
-        if (user.id && user.full_name) {
-          hodUserMapping[user.id] = user.full_name;
-        }
-      });
+      setUserMap(userMapping);
       setHodUserMap(hodUserMapping);
     } catch (error) {
-      // Error fetching HOD users
+      // Error fetching users
     }
   };
 
@@ -255,6 +260,62 @@ export default function VisitorDetailsScreen({ navigation, route }: Props) {
     }
     return hodUserMap[userId] || userId;
   };
+
+  // Portal logic: Determine visitor status with priority
+  const getVisitorStatus = () => {
+    // Priority 1: If visitor is suspended, show as suspended (highest priority)
+    if (visitor.is_suspended) {
+      return "suspended";
+    }
+    // Priority 2: If pass has been generated, it's approved
+    if (visitor.pass_generated_at) {
+      return "approved";
+    }
+    // Priority 3: If visitor is individually routed to superior, show as routed
+    if (visitor.visitor_routed_to) {
+      return "routed_for_approval";
+    }
+    // Priority 4: If visitor is rejected, show rejected
+    if (visitor.visitor_status === "rejected") {
+      return "rejected";
+    }
+    // Priority 5: If request is approved, check if pass is generated
+    if (request.status === "approved") {
+      // Only show as approved if pass is generated, otherwise show as pending
+      if (visitor.pass_generated_at) {
+        return "approved";
+      } else {
+        return "pending"; // Approved but pass not generated yet
+      }
+    }
+    // Priority 6: If request is routed_for_approval, check routing type
+    if (request.status === "routed_for_approval") {
+      // Check if this was auto-routed from weblink (no routed_by means auto-routed)
+      if (!request.routed_by) {
+        // Auto-routed from weblink - show as pending (awaiting legislative approval)
+        return "pending";
+      } else {
+        // Manually routed by HOD - show as routed_for_approval
+        return "routed_for_approval";
+      }
+    }
+    // Priority 7: If request is pending but routed to legislative, show as pending
+    if (request.routed_to && request.status === "pending") {
+      // Request routed directly to legislative (non-department/peshi categories)
+      return "pending";
+    }
+    // Priority 8: Otherwise, use visitor status
+    return visitor.visitor_status || "pending";
+  };
+
+  const visitorStatus = getVisitorStatus();
+  const isSuspended = visitorStatus === "suspended";
+  const isApproved = visitorStatus === "approved";
+  const isRejected = visitorStatus === "rejected";
+
+  // Use visitor-specific dates if available, otherwise fall back to request-level dates
+  const validFrom = visitor.valid_from || request.valid_from;
+  const validTo = visitor.valid_to || request.valid_to;
 
   const extractUUIDFromQRString = (qrString: string | null | undefined) => {
     if (!qrString) return "—";
@@ -297,10 +358,6 @@ export default function VisitorDetailsScreen({ navigation, route }: Props) {
       },
     ]);
   };
-
-  const isSuspended = visitor.is_suspended === true;
-  const isApproved = !isSuspended && visitor.visitor_status === "approved";
-  const isRejected = !isSuspended && visitor.visitor_status === "rejected";
 
   return (
     <SafeAreaView style={styles.container} edges={["top"]}>
@@ -651,9 +708,9 @@ export default function VisitorDetailsScreen({ navigation, route }: Props) {
             <View style={styles.cardHeaderSeparator} />
 
             <View style={styles.cardContent}>
-              {/* Dates Cards */}
+              {/* Dates Cards - Use visitor-specific dates if available, otherwise request-level */}
               <View style={styles.datesCardsContainer}>
-                {request.valid_from && (
+                {validFrom && (
                   <View style={styles.dateCard}>
                     <View style={styles.dateCardIcon}>
                       <MaterialIcons name="event" size={20} color="#3B82F6" />
@@ -661,13 +718,13 @@ export default function VisitorDetailsScreen({ navigation, route }: Props) {
                     <View style={styles.dateCardContent}>
                       <Text style={styles.dateCardLabel}>Valid From</Text>
                       <Text style={styles.dateCardValue}>
-                        {formatDateOnly(request.valid_from)}
+                        {formatDateOnly(validFrom)}
                       </Text>
                     </View>
                   </View>
                 )}
 
-                {request.valid_to && (
+                {validTo && (
                   <View style={styles.dateCard}>
                     <View style={styles.dateCardIcon}>
                       <MaterialIcons name="event" size={20} color="#3B82F6" />
@@ -675,7 +732,7 @@ export default function VisitorDetailsScreen({ navigation, route }: Props) {
                     <View style={styles.dateCardContent}>
                       <Text style={styles.dateCardLabel}>Valid To</Text>
                       <Text style={styles.dateCardValue}>
-                        {formatDateOnly(request.valid_to)}
+                        {formatDateOnly(validTo)}
                       </Text>
                     </View>
                   </View>
@@ -700,9 +757,9 @@ export default function VisitorDetailsScreen({ navigation, route }: Props) {
                 {/* Vertical line connecting all dots */}
                 <View style={styles.approvalTimelineVerticalLine} />
 
-                {/* Timeline Items */}
+                {/* Timeline Items - Portal logic order */}
                 <View style={styles.approvalTimelineItemsWrapper}>
-                  {/* Request Submitted */}
+                  {/* Request Submitted - Always present */}
                   <View style={styles.approvalTimelineItem}>
                     <View style={styles.approvalTimelineDotBlue}>
                       <View style={styles.approvalTimelineDotInner} />
@@ -711,30 +768,16 @@ export default function VisitorDetailsScreen({ navigation, route }: Props) {
                       <Text style={styles.approvalTimelineTitleBlue}>
                         Request Submitted
                       </Text>
+                      {request.requested_by && (
+                        <Text style={styles.approvalTimelineSubtext}>
+                          Submitted by: {getUserName(request.requested_by) || "—"}
+                        </Text>
+                      )}
                       <Text style={styles.approvalTimelineDate}>
                         {formatDate(request.created_at)}
                       </Text>
                     </View>
                   </View>
-
-                  {/* Pending Approval - Show when status is pending and not approved/rejected */}
-                  {visitor.visitor_status === "pending" &&
-                    !visitor.visitor_approved_by &&
-                    !isRejected && (
-                      <View style={styles.approvalTimelineItem}>
-                        <View style={styles.approvalTimelineDotOrange}>
-                          <Ionicons name="trophy" size={16} color="#F97316" />
-                        </View>
-                        <View style={styles.approvalTimelineContent}>
-                          <Text style={styles.approvalTimelineTitleOrange}>
-                            Pending Approval
-                          </Text>
-                          <Text style={styles.approvalTimelineSubtext}>
-                            Awaiting HOD review
-                          </Text>
-                        </View>
-                      </View>
-                    )}
 
                   {/* HOD Approval */}
                   {visitor.visitor_approved_by &&
@@ -758,24 +801,69 @@ export default function VisitorDetailsScreen({ navigation, route }: Props) {
                       </View>
                     )}
 
-                  {/* Final/Legislative Approval */}
-                  {isApproved && visitor.visitor_legislative_approved_at && (
+                  {/* Visitor Routed to Supervisor */}
+                  {visitor.visitor_routed_at && (
                     <View style={styles.approvalTimelineItem}>
                       <View style={styles.approvalTimelineDotBlue}>
-                        <View style={styles.approvalTimelineDotInner} />
+                        <MaterialIcons
+                          name="forward"
+                          size={16}
+                          color="#FFFFFF"
+                        />
                       </View>
                       <View style={styles.approvalTimelineContent}>
                         <Text style={styles.approvalTimelineTitleBlue}>
-                          Final Approval
+                          Routed to Supervisor
                         </Text>
-                        <Text style={styles.approvalTimelineSubtext}>
-                          Approved by:{" "}
-                          {getUserName(
-                            visitor.visitor_legislative_approved_by,
-                          ) || "—"}
-                        </Text>
+                        {visitor.visitor_routed_by && (
+                          <Text style={styles.approvalTimelineSubtext}>
+                            Routed by:{" "}
+                            {getUserName(visitor.visitor_routed_by) || "—"}
+                          </Text>
+                        )}
+                        {visitor.visitor_routed_to && (
+                          <Text style={styles.approvalTimelineSubtext}>
+                            Routed to:{" "}
+                            {getUserName(visitor.visitor_routed_to) || "—"}
+                          </Text>
+                        )}
                         <Text style={styles.approvalTimelineDate}>
-                          {formatDate(visitor.visitor_legislative_approved_at)}
+                          {formatDate(visitor.visitor_routed_at)}
+                        </Text>
+                      </View>
+                    </View>
+                  )}
+
+                  {/* Routed for Approval */}
+                  {request.routed_at && (
+                    <View style={styles.approvalTimelineItem}>
+                      <View style={styles.approvalTimelineDotBlue}>
+                        <MaterialIcons
+                          name="forward"
+                          size={16}
+                          color="#FFFFFF"
+                        />
+                      </View>
+                      <View style={styles.approvalTimelineContent}>
+                        <Text style={styles.approvalTimelineTitleBlue}>
+                          Routed for Approval
+                        </Text>
+                        {request.routed_by && (
+                          <Text style={styles.approvalTimelineSubtext}>
+                            Routed by: {getUserName(request.routed_by) || "—"}
+                          </Text>
+                        )}
+                        {request.routed_to ? (
+                          <Text style={styles.approvalTimelineSubtext}>
+                            Assigned to: {getUserName(request.routed_to) || "—"}
+                          </Text>
+                        ) : (
+                          <Text style={styles.approvalTimelineSubtext}>
+                            Available for any Legislature user to approve
+                          </Text>
+                        )}
+                        <Text style={styles.approvalTimelineDate}>
+                          {formatDate(request.routed_at)}
                         </Text>
                       </View>
                     </View>
@@ -795,10 +883,12 @@ export default function VisitorDetailsScreen({ navigation, route }: Props) {
                         <Text style={styles.approvalTimelineTitleRed}>
                           Rejected
                         </Text>
-                        <Text style={styles.approvalTimelineSubtext}>
-                          Rejected by:{" "}
-                          {getUserName(visitor.visitor_rejected_by) || "—"}
-                        </Text>
+                        {visitor.visitor_rejected_by && (
+                          <Text style={styles.approvalTimelineSubtext}>
+                            Rejected by:{" "}
+                            {getUserName(visitor.visitor_rejected_by) || "—"}
+                          </Text>
+                        )}
                         {visitor.visitor_rejection_reason && (
                           <Text style={styles.approvalTimelineSubtext}>
                             Reason: {visitor.visitor_rejection_reason}
@@ -810,13 +900,70 @@ export default function VisitorDetailsScreen({ navigation, route }: Props) {
                       </View>
                     </View>
                   )}
+
+                  {/* Final Approval */}
+                  {visitor.pass_generated_at && (
+                    <View style={styles.approvalTimelineItem}>
+                      <View style={styles.approvalTimelineDotBlue}>
+                        <View style={styles.approvalTimelineDotInner} />
+                      </View>
+                      <View style={styles.approvalTimelineContent}>
+                        <Text style={styles.approvalTimelineTitleBlue}>
+                          Final Approval
+                        </Text>
+                        {visitor.visitor_legislative_approved_by && (
+                          <Text style={styles.approvalTimelineSubtext}>
+                            Approved by:{" "}
+                            {getUserName(
+                              visitor.visitor_legislative_approved_by,
+                            ) || "—"}
+                          </Text>
+                        )}
+                        <Text style={styles.approvalTimelineDate}>
+                          {formatDate(visitor.pass_generated_at)}
+                        </Text>
+                      </View>
+                    </View>
+                  )}
+
+                  {/* Suspended */}
+                  {isSuspended && visitor.suspended_at && (
+                    <View style={styles.approvalTimelineItem}>
+                      <View style={styles.approvalTimelineDotOrange}>
+                        <MaterialIcons
+                          name="block"
+                          size={16}
+                          color="#F97316"
+                        />
+                      </View>
+                      <View style={styles.approvalTimelineContent}>
+                        <Text style={styles.approvalTimelineTitleOrange}>
+                          Suspended
+                        </Text>
+                        {visitor.suspended_by && (
+                          <Text style={styles.approvalTimelineSubtext}>
+                            Suspended by:{" "}
+                            {getUserName(visitor.suspended_by) || "—"}
+                          </Text>
+                        )}
+                        {visitor.suspension_reason && (
+                          <Text style={styles.approvalTimelineSubtext}>
+                            Reason: {visitor.suspension_reason}
+                          </Text>
+                        )}
+                        <Text style={styles.approvalTimelineDate}>
+                          {formatDate(visitor.suspended_at)}
+                        </Text>
+                      </View>
+                    </View>
+                  )}
                 </View>
               </View>
             </View>
           </View>
 
-          {/* Card 5: Pass Information (only if approved or suspended) */}
-          {(isApproved || isSuspended) && visitor.pass_number && (
+          {/* Card 5: Pass Information (only if pass is generated) */}
+          {visitor.pass_generated_at && (visitor.pass_number || visitor.pass_qr_string || visitor.pass_qr_code) && (
             <View style={styles.card}>
               <View style={styles.cardHeader}>
                 <View style={styles.cardHeaderLeft}>

@@ -82,18 +82,29 @@ APAssemblySecurePass/
     ├── navigation/                  # Navigation setup
     │   └── index.tsx                # Navigation configuration with stack navigator
     ├── screens/                     # Screen components
-    │   ├── LoginMethodSelectionScreen.tsx  # Login method selection screen
-    │   ├── LoginScreen.tsx          # Username/password authentication screen
+    │   ├── LoginMethodSelectionScreen.tsx  # Initial screen to choose login method (Username/Password or Username/OTP)
+    │   ├── LoginScreen.tsx          # Username/password authentication screen for admin and security roles
     │   ├── UsernameOTPLoginScreen.tsx  # Username/OTP authentication screen
-    │   ├── SetPasswordScreen.tsx   # Set password screen for first-time login
-    │   ├── ForgotPasswordScreen.tsx  # Forgot password screen (step 1: enter username)
-    │   ├── ResetPasswordScreen.tsx  # Reset password screen (step 2: enter OTP and new password)
-    │   ├── PreCheckScreen.tsx       # Pre-check screen for security users
-    │   ├── QRScanScreen.tsx         # QR code scanner screen with gate/action selection
-    │   ├── ValidPassScreen.tsx      # Display valid pass details
-    │   ├── InvalidPassScreen.tsx    # Display invalid pass alert
-    │   ├── IssueVisitorPassScreen.tsx  # Form to create new visitor pass
-    │   └── PreviewPassScreen.tsx    # Preview generated pass
+    │   ├── SetPasswordScreen.tsx   # Set password screen for first-time login users
+    │   ├── ForgotPasswordScreen.tsx  # Forgot password screen (step 1: enter username to receive OTP)
+    │   ├── ResetPasswordScreen.tsx  # Reset password screen (step 2: enter OTP and set new password)
+    │   ├── PreCheckScreen.tsx       # Pre-check screen for security users to choose validation mode
+    │   ├── QRScanScreen.tsx         # QR code scanner screen with gate/action selection for pass validation
+    │   ├── ValidPassScreen.tsx      # Display valid pass details after successful validation
+    │   ├── InvalidPassScreen.tsx    # Display invalid pass alert when validation fails
+    │   ├── HomeScreen.tsx           # Dashboard screen showing statistics and quick actions (role-based)
+    │   ├── VisitorsScreen.tsx       # List of visitor requests with filtering, search, and status management (legislative users)
+    │   ├── VisitorDetailsScreen.tsx # Detailed view of a visitor pass with timeline and approval history
+    │   ├── StatusAndApprovalsScreen.tsx  # Pass requests and approval screen for department and peshi users
+    │   ├── RequestDetailsScreen.tsx # Request details screen showing visitor and request information
+    │   ├── IssueVisitorPassScreen.tsx  # Form to create new visitor pass (insta pass for legislative users)
+    │   ├── PreviewPassScreen.tsx    # Preview generated pass with QR code before sharing
+    │   ├── MyPassRequestsScreen.tsx # List of user's own pass requests (department/peshi users)
+    │   ├── RequestVisitorPassScreen.tsx  # Form to request a new visitor pass (department/peshi users)
+    │   ├── MyPassRequestDetailsScreen.tsx  # Details of user's own pass request
+    │   ├── LegislativeApproveScreen.tsx  # Screen for legislative users to approve visitor requests
+    │   ├── LegislativeRejectScreen.tsx  # Screen for legislative users to reject visitor requests
+    │   └── LegislativeRouteScreen.tsx  # Screen for legislative users to route requests to superiors
     ├── services/                    # API and business logic services
     │   └── api.ts                   # API client for backend communication
     └── types/                       # TypeScript type definitions
@@ -229,6 +240,95 @@ The app validates QR codes by sending the `qr_code_id` to the backend API. The Q
 - **Camera**: Required for QR code scanning
   - iOS: Configured in `app.json` infoPlist
   - Android: Configured in `app.json` permissions
+
+## Screens Overview
+
+The application consists of 23 screens organized by functionality:
+
+### Authentication Screens (6 screens)
+
+1. **LoginMethodSelectionScreen** - Initial entry point allowing users to choose between Username/Password or Username/OTP login methods
+2. **LoginScreen** - Username and password authentication for admin and security roles with role-based access control
+3. **UsernameOTPLoginScreen** - Username and OTP-based authentication flow
+4. **SetPasswordScreen** - First-time login screen for users who need to set their password (minimum 12 characters)
+5. **ForgotPasswordScreen** - Step 1 of password reset: enter username to receive OTP
+6. **ResetPasswordScreen** - Step 2 of password reset: enter OTP and set new password
+
+### Security & Validation Screens (4 screens)
+
+7. **PreCheckScreen** - Security user landing screen with options to choose validation mode (Gate Entry/Exit or Verify Visitor)
+8. **QRScanScreen** - QR code scanner with camera integration, gate selection, and action tracking (entry/exit)
+9. **ValidPassScreen** - Displays valid pass details after successful validation with visitor information
+10. **InvalidPassScreen** - Shows error alert when pass validation fails (expired, rejected, or invalid)
+
+### Dashboard & Navigation (1 screen)
+
+11. **HomeScreen** - Role-based dashboard showing:
+   - Statistics cards (Total Requests, Pending, Approved, Routed, Rejected, Visitors)
+   - Quick action cards (Insta Pass/Request Pass, Visitors/Status & Approvals)
+   - Different metrics and actions based on user role (legislative, department, peshi)
+
+### Visitor Management Screens (3 screens)
+
+12. **VisitorsScreen** - Comprehensive visitor request management for legislative users:
+   - Filtering by status, pass type, category, date
+   - Search functionality
+   - Lazy loading with infinite scroll
+   - Approve, reject, route for approval actions
+   - Suspend/activate visitor passes
+   - View visitor details
+
+13. **VisitorDetailsScreen** - Detailed visitor pass view showing:
+   - Visitor information (name, email, phone, identification, car passes)
+   - Request information
+   - Dates & timeline
+   - Approval timeline with status history
+   - Pass information (if generated)
+
+14. **RequestDetailsScreen** - Request details view showing:
+   - Visitor information with car pass details
+   - Request information
+   - Timeline of request status changes
+
+### Department & Peshi User Screens (4 screens)
+
+15. **StatusAndApprovalsScreen** - Pass requests and approval screen for department and peshi users:
+   - View all pass requests filtered by role (department/peshi)
+   - Filter by status, date, and search
+   - Approve/reject individual visitors or bulk actions
+   - HOD approval workflow
+   - Lazy loading support
+
+16. **MyPassRequestsScreen** - List of user's own pass requests (department/peshi users)
+17. **RequestVisitorPassScreen** - Form to request a new visitor pass (department/peshi users)
+18. **MyPassRequestDetailsScreen** - Details of user's own pass request
+
+### Legislative Approval Screens (3 screens)
+
+19. **LegislativeApproveScreen** - Screen for legislative users to approve visitor requests:
+   - View visitor and request details
+   - Select pass type and session
+   - Approve and generate pass
+   - Car pass information display
+
+20. **LegislativeRejectScreen** - Screen for legislative users to reject visitor requests with reason
+21. **LegislativeRouteScreen** - Screen for legislative users to route requests to superiors for approval
+
+### Pass Issuance Screens (2 screens)
+
+22. **IssueVisitorPassScreen** - Form to create new visitor pass instantly (legislative users):
+   - Category and sub-category selection
+   - Pass type selection
+   - Visitor information form
+   - Session selection
+   - Date and time selection
+   - File uploads (photos, documents)
+   - Car pass information
+
+23. **PreviewPassScreen** - Preview generated pass with QR code:
+   - Pass details display
+   - QR code visualization
+   - Share and print options
 
 ## Features & Functionality
 

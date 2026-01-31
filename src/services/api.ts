@@ -1269,14 +1269,15 @@ export const api = {
       valid_from?: string;
       valid_to?: string;
       pass_type_color?: string;
+      season?: string;
     },
   ): Promise<any> => {
     const url = `${VALIDATION_API_BASE_URL}/api/v1/pass-requests/${requestId}/generate-pass`;
 
     try {
       const formData = new FormData();
+      // Match curl command field order exactly
       formData.append("visitor_id", generateData.visitor_id);
-      formData.append("current_user_id", generateData.current_user_id);
       if (generateData.pass_category_id) {
         formData.append("pass_category_id", generateData.pass_category_id);
       }
@@ -1289,6 +1290,7 @@ export const api = {
       if (generateData.pass_type_id) {
         formData.append("pass_type_id", generateData.pass_type_id);
       }
+      formData.append("current_user_id", generateData.current_user_id);
       if (generateData.valid_from) {
         formData.append("valid_from", generateData.valid_from);
       }
@@ -1297,6 +1299,9 @@ export const api = {
       }
       if (generateData.pass_type_color) {
         formData.append("pass_type_color", generateData.pass_type_color);
+      }
+      if (generateData.season) {
+        formData.append("season", generateData.season);
       }
 
       const response = await fetch(url, {
@@ -1891,6 +1896,7 @@ export const api = {
     const url = `${VALIDATION_API_BASE_URL}/api/v1/pass-requests/superiors/${department}`;
 
     try {
+      console.log(`Fetching superiors from: ${url}`);
       const response = await fetch(url, {
         method: "GET",
         headers: {
@@ -1905,10 +1911,12 @@ export const api = {
         responseData = await response.json();
       } else {
         const text = await response.text();
+        console.error(`Non-JSON response from superiors API: ${text}`);
         throw new Error(`Server error: ${text || `Status ${response.status}`}`);
       }
 
       if (!response.ok) {
+        console.error(`Superiors API error - Status: ${response.status}, Response:`, responseData);
         const errorMessage =
           (Array.isArray(responseData?.detail)
             ? responseData.detail
@@ -1925,8 +1933,10 @@ export const api = {
         throw new Error(errorMessage);
       }
 
-      return responseData;
+      console.log(`Successfully fetched ${responseData?.length || 0} superiors`);
+      return responseData || [];
     } catch (error) {
+      console.error(`Error in getSuperiors for department "${department}":`, error);
       if (error instanceof Error) {
         throw error;
       }
@@ -1961,14 +1971,15 @@ export const api = {
     const url = `${VALIDATION_API_BASE_URL}/api/v1/pass-requests/${requestId}/status`;
 
     const formData = new FormData();
+    // Match exact order from portal curl command
     formData.append("status", "routed_for_approval");
+    if (data.comments) {
+      formData.append("comments", data.comments);
+    }
     formData.append("routed_to", data.routed_to);
     formData.append("routed_by", data.routed_by);
     formData.append("current_user_id", data.current_user_id);
     formData.append("visitor_id", data.visitor_id);
-    if (data.comments) {
-      formData.append("comments", data.comments);
-    }
 
     try {
       const response = await fetch(url, {

@@ -24,7 +24,7 @@ import {
   Session,
   SubCategory,
 } from "@/services/api";
-import { Ionicons } from "@expo/vector-icons";
+import { Ionicons, MaterialIcons } from "@expo/vector-icons";
 import BackButtonIcon from "../../assets/backButton.svg";
 import CloseIcon from "../../assets/close.svg";
 import ChevronDownIcon from "../../assets/chevronDown.svg";
@@ -61,6 +61,10 @@ export default function LegislativeApproveScreen({ navigation, route }: Props) {
   const [selectedSubCategoryId, setSelectedSubCategoryId] = useState<
     string | null
   >(request?.sub_category_id || null);
+  // Store initial pass type from visitor/request for later validation
+  const [initialPassTypeId] = useState<string | null>(
+    visitor?.pass_type_id || request?.pass_type_id || null,
+  );
   const [selectedPassTypeId, setSelectedPassTypeId] = useState<string | null>(
     visitor?.pass_type_id || request?.pass_type_id || null,
   );
@@ -69,6 +73,9 @@ export default function LegislativeApproveScreen({ navigation, route }: Props) {
   );
   const [selectedSessionName, setSelectedSessionName] = useState<string>("");
   const [passTypes, setPassTypes] = useState<PassTypeItem[]>([]);
+  const [availablePassTypes, setAvailablePassTypes] = useState<PassTypeItem[]>([]);
+  const [loadingPassTypes, setLoadingPassTypes] = useState(false);
+  const [userMap, setUserMap] = useState<Map<string, string>>(new Map());
 
   // Date/Time State
   const [validFrom, setValidFrom] = useState<Date>(() => {
@@ -89,8 +96,6 @@ export default function LegislativeApproveScreen({ navigation, route }: Props) {
   });
 
   // Modal States
-  const [showCategoryModal, setShowCategoryModal] = useState(false);
-  const [showSubCategoryModal, setShowSubCategoryModal] = useState(false);
   const [showPassTypeModal, setShowPassTypeModal] = useState(false);
   const [showSessionModal, setShowSessionModal] = useState(false);
   const [showValidFromPicker, setShowValidFromPicker] = useState(false);
@@ -110,7 +115,116 @@ export default function LegislativeApproveScreen({ navigation, route }: Props) {
     fetchCategories();
     fetchPassTypes();
     fetchSessions();
+    fetchUsers();
   }, []);
+
+  // Ensure category ID is set from request when available
+  useEffect(() => {
+    if (request?.main_category_id && !selectedCategoryId) {
+      setSelectedCategoryId(request.main_category_id);
+    }
+  }, [request?.main_category_id]);
+
+  // Fetch users for name mapping
+  const fetchUsers = async () => {
+    try {
+      const allUsers: any[] = [];
+      const departmentUsers = await api.getUsersByRole("department");
+      const legislativeUsers = await api.getUsersByRole("legislative");
+      const peshiUsers = await api.getUsersByRole("peshi");
+      const adminUsers = await api.getUsersByRole("admin");
+
+      allUsers.push(
+        ...departmentUsers,
+        ...legislativeUsers,
+        ...peshiUsers,
+        ...adminUsers,
+      );
+
+      const newUserMap = new Map<string, string>();
+      allUsers.forEach((user) => {
+        newUserMap.set(user.id, user.full_name || user.username);
+      });
+      setUserMap(newUserMap);
+    } catch (err) {
+      // Error fetching users
+    }
+  };
+
+  // Pre-populate session when sessions are loaded and request is available
+  useEffect(() => {
+    if (sessions.length > 0 && request) {
+      // Try to find session by name (season field) first
+      if (request.season) {
+        const matchingSession = sessions.find(
+          (s) => s.name.toLowerCase() === request.season.toLowerCase()
+        );
+        if (matchingSession && !selectedSessionId) {
+          setSelectedSessionId(matchingSession.id);
+          setSelectedSessionName(matchingSession.name);
+        }
+      } else if (request.session_id) {
+        // Try to find session by ID
+        const matchingSession = sessions.find((s) => s.id === request.session_id);
+        if (matchingSession && !selectedSessionId) {
+          setSelectedSessionId(matchingSession.id);
+          setSelectedSessionName(matchingSession.name);
+        }
+      } else if (!selectedSessionId && sessions.length > 0) {
+        // Auto-select first session if no session is set
+        setSelectedSessionId(sessions[0].id);
+        setSelectedSessionName(sessions[0].name);
+      }
+    }
+  }, [sessions, request]);
+
+  // Fetch pass types when category changes (for category mapping)
+  useEffect(() => {
+    const fetchCategoryPassTypes = async () => {
+      // Use request.main_category_id if selectedCategoryId is not set
+      const categoryIdToUse = selectedCategoryId || request?.main_category_id;
+      
+      if (!categoryIdToUse) {
+        setAvailablePassTypes([]);
+        // Don't clear selectedPassTypeId here, keep existing value
+        return;
+      }
+
+      setLoadingPassTypes(true);
+      try {
+        // Get mapped pass type IDs for the selected category
+        const passTypeIds = await api.getCategoryPassTypes(categoryIdToUse);
+        
+        // Filter pass types to only include mapped ones
+        const mappedPassTypes = passTypes.filter(pt => passTypeIds.includes(pt.id));
+        setAvailablePassTypes(mappedPassTypes);
+        
+        // Check if the initial pass type (from visitor/request) is in the available list
+        if (initialPassTypeId && mappedPassTypes.some(pt => pt.id === initialPassTypeId)) {
+          // Keep the existing pass type if it's valid
+          setSelectedPassTypeId(initialPassTypeId);
+        } else if (mappedPassTypes.length === 1) {
+          // Auto-select if only one pass type is available
+          setSelectedPassTypeId(mappedPassTypes[0].id);
+        } else if (mappedPassTypes.length === 0) {
+          // Only clear if no pass types available
+          setSelectedPassTypeId(null);
+        }
+        // If there are multiple pass types and initialPassTypeId is not valid,
+        // keep selectedPassTypeId as null (user needs to select)
+      } catch (error) {
+        setAvailablePassTypes([]);
+        // Don't clear selectedPassTypeId on error, keep existing value
+      } finally {
+        setLoadingPassTypes(false);
+      }
+    };
+
+    // Only fetch if we have pass types loaded and a category
+    if (passTypes.length > 0 && (selectedCategoryId || request?.main_category_id)) {
+      fetchCategoryPassTypes();
+    }
+  }, [selectedCategoryId, passTypes, request?.main_category_id, initialPassTypeId]);
 
   const fetchCategories = async () => {
     try {
@@ -134,6 +248,29 @@ export default function LegislativeApproveScreen({ navigation, route }: Props) {
     try {
       const sess = await api.getSessions();
       setSessions(sess);
+      
+      // Pre-populate session from request if available
+      if (request?.season) {
+        // Try to find session by name (season field)
+        const matchingSession = sess.find(
+          (s) => s.name.toLowerCase() === request.season.toLowerCase()
+        );
+        if (matchingSession) {
+          setSelectedSessionId(matchingSession.id);
+          setSelectedSessionName(matchingSession.name);
+        }
+      } else if (request?.session_id) {
+        // Try to find session by ID
+        const matchingSession = sess.find((s) => s.id === request.session_id);
+        if (matchingSession) {
+          setSelectedSessionId(matchingSession.id);
+          setSelectedSessionName(matchingSession.name);
+        }
+      } else if (sess.length > 0) {
+        // Auto-select first session if no session is set
+        setSelectedSessionId(sess[0].id);
+        setSelectedSessionName(sess[0].name);
+      }
     } catch (error) {
       // Failed to fetch sessions
     }
@@ -248,14 +385,15 @@ export default function LegislativeApproveScreen({ navigation, route }: Props) {
       return;
     }
 
-    if (!userId || !visitor?.id || !request?.id) {
+    if (!userId || !visitor?.id || !request?.request_id) {
       Alert.alert("Error", "Missing required information.");
       return;
     }
 
     setLoading(true);
     try {
-      const requestId = request.id;
+      // Use request.request_id (formatted ID like REQ-xxx) instead of request.id (UUID)
+      const requestId = request.request_id;
 
       // Format dates for API
       const formatLocalISOString = (dateObj: Date): string => {
@@ -275,7 +413,19 @@ export default function LegislativeApproveScreen({ navigation, route }: Props) {
       const passType = passTypes.find((pt) => pt.id === selectedPassTypeId);
       const passTypeColor = passType?.color || "#3B82F6";
 
-      // Call generate-pass API
+      // Check authorization: Only block if visitor is explicitly routed to another superior
+      // Allow if routed to current user or if not routed (general legislative routing)
+      if (visitor?.visitor_routed_to && visitor.visitor_routed_to !== userId) {
+        Alert.alert(
+          "Not Authorized",
+          "This visitor request is assigned to another superior and cannot be approved by you.",
+        );
+        setLoading(false);
+        return;
+      }
+
+      // Call generate-pass API directly (it handles status update internally)
+      // The generate-pass API will update the status to approved and generate the pass
       await api.generatePass(requestId, {
         visitor_id: visitor.id,
         pass_category_id: selectedCategoryId,
@@ -285,20 +435,64 @@ export default function LegislativeApproveScreen({ navigation, route }: Props) {
         valid_from: validFromISO,
         valid_to: validUntilISO || undefined,
         pass_type_color: passTypeColor,
+        season: selectedSessionName, // Pass session name as season
       });
 
-      // Get pass request details for PreviewPass
+      // Wait a brief moment for the backend to process the pass generation
+      await new Promise((resolve) => setTimeout(resolve, 500));
+
+      // Get pass request details for PreviewPass using request_id (formatted ID)
       const passRequestData = await api.getPassRequest(requestId);
+
+      // Verify that we have visitor data with pass information
+      if (!passRequestData || !passRequestData.visitors || passRequestData.visitors.length === 0) {
+        Alert.alert(
+          "Error",
+          "Pass was generated but visitor data could not be retrieved. Please check the visitors list.",
+        );
+        navigation.goBack();
+        return;
+      }
+
+      // Find the specific visitor that was approved
+      const approvedVisitor = passRequestData.visitors.find(
+        (v: any) => v.id === visitor.id,
+      ) || passRequestData.visitors[0];
+
+      // Ensure the visitor has pass data
+      if (!approvedVisitor.pass_number && !approvedVisitor.pass_qr_string) {
+        Alert.alert(
+          "Warning",
+          "Pass was generated but pass details are not yet available. Please try again in a moment.",
+        );
+        navigation.goBack();
+        return;
+      }
+
+      // Create updated pass request data with the approved visitor
+      const updatedPassRequestData = {
+        ...passRequestData,
+        visitors: [approvedVisitor], // Use only the approved visitor
+      };
 
       // Get category and pass type names
       const categoryName = getCategoryName(selectedCategoryId);
       const passTypeName = getPassTypeName(selectedPassTypeId);
 
-      // Navigate to PreviewPassScreen
+      // Get VisitorsScreen params from navigation state if available
+      const navigationState = navigation.getState();
+      const visitorsRoute = navigationState.routes.find(
+        (route) => route.name === "Visitors"
+      );
+      const visitorsParams = visitorsRoute?.params as any;
+
+      // Navigate to PreviewPassScreen with return information
       navigation.replace("PreviewPass", {
-        passData: passRequestData,
+        passData: updatedPassRequestData,
         categoryName: categoryName,
         passTypeName: passTypeName,
+        returnTo: "Visitors",
+        returnToParams: visitorsParams || {},
       });
     } catch (error) {
       const errorMessage =
@@ -311,8 +505,6 @@ export default function LegislativeApproveScreen({ navigation, route }: Props) {
     }
   };
 
-  const selectedCategory = categories.find((c) => c.id === selectedCategoryId);
-  const availableSubCategories = selectedCategory?.sub_categories || [];
 
   return (
     <SafeAreaView style={styles.container} edges={["top"]}>
@@ -341,7 +533,7 @@ export default function LegislativeApproveScreen({ navigation, route }: Props) {
           onPress={() => navigation.goBack()}
           style={styles.closeButton}
         >
-          <CloseIcon width={20} height={20} />
+          <CloseIcon width={16} height={16} />
         </TouchableOpacity>
       </View>
 
@@ -410,11 +602,67 @@ export default function LegislativeApproveScreen({ navigation, route }: Props) {
             <View style={styles.detailRow}>
               <Text style={styles.detailLabel}>REQUESTED BY</Text>
               <Text style={styles.detailValue}>
-                {request?.requested_by || "—"}
+                {request?.requested_by ? (userMap.get(request.requested_by) || request.requested_by) : "—"}
               </Text>
             </View>
           </View>
         </View>
+
+        {/* Car Passes Section */}
+        {visitor?.car_passes && visitor.car_passes.length > 0 && (
+          <View style={styles.section}>
+            <View style={styles.sectionHeader}>
+              <MaterialIcons name="directions-car" size={20} color="#F97316" />
+              <Text style={styles.sectionTitle}>
+                Car Passes ({visitor.car_passes.length})
+              </Text>
+            </View>
+
+            <View style={styles.detailsContainer}>
+              {visitor.car_passes.map((carPass: any, index: number) => (
+                <View key={index} style={styles.carPassCard}>
+                  <Text style={styles.carPassLabel}>
+                    CAR PASS #{index + 1}
+                  </Text>
+                  <View style={styles.carPassDetails}>
+                    <View style={styles.detailRow}>
+                      <Text style={styles.detailLabel}>MAKE</Text>
+                      <Text style={styles.detailValue}>
+                        {carPass.car_make || "—"}
+                      </Text>
+                    </View>
+                    <View style={styles.detailRow}>
+                      <Text style={styles.detailLabel}>MODEL</Text>
+                      <Text style={styles.detailValue}>
+                        {carPass.car_model || "—"}
+                      </Text>
+                    </View>
+                    <View style={styles.detailRow}>
+                      <Text style={styles.detailLabel}>COLOR</Text>
+                      <Text style={styles.detailValue}>
+                        {carPass.car_color || "—"}
+                      </Text>
+                    </View>
+                    <View style={styles.detailRow}>
+                      <Text style={styles.detailLabel}>NUMBER</Text>
+                      <Text style={styles.detailValue}>
+                        {carPass.car_number || "—"}
+                      </Text>
+                    </View>
+                    {carPass.car_tag && (
+                      <View style={styles.detailRow}>
+                        <Text style={styles.detailLabel}>TAG</Text>
+                        <Text style={styles.detailValue}>
+                          {carPass.car_tag}
+                        </Text>
+                      </View>
+                    )}
+                  </View>
+                </View>
+              ))}
+            </View>
+          </View>
+        )}
 
         {/* Pass Configuration Section */}
         <View style={styles.section}>
@@ -423,47 +671,31 @@ export default function LegislativeApproveScreen({ navigation, route }: Props) {
             <Text style={styles.sectionTitle}>Pass Configuration</Text>
           </View>
 
-          {/* Category */}
+          {/* Category - Read-only from request */}
           <View style={styles.inputGroup}>
             <Text style={styles.inputLabel}>Category</Text>
-            <TouchableOpacity
-              style={styles.inputContainer}
-              onPress={() => setShowCategoryModal(true)}
-            >
-              <Text
-                style={[
-                  styles.inputText,
-                  !selectedCategoryId && styles.placeholderText,
-                ]}
-              >
-                {getCategoryName(selectedCategoryId)}
+            <View style={[styles.inputContainer, { backgroundColor: "#F3F4F6" }]}>
+              <Text style={styles.inputText}>
+                {request?.main_category_id
+                  ? getCategoryName(request.main_category_id)
+                  : selectedCategoryId
+                  ? getCategoryName(selectedCategoryId)
+                  : "—"}
               </Text>
-              <ChevronDownIcon width={20} height={20} />
-            </TouchableOpacity>
+            </View>
           </View>
 
-          {/* Sub-Category */}
-          <View style={styles.inputGroup}>
-            <Text style={styles.inputLabel}>Sub-Category</Text>
-            <TouchableOpacity
-              style={styles.inputContainer}
-              onPress={() => setShowSubCategoryModal(true)}
-              disabled={!selectedCategoryId}
-            >
-              <Text
-                style={[
-                  styles.inputText,
-                  (!selectedSubCategoryId || !selectedCategoryId) &&
-                    styles.placeholderText,
-                ]}
-              >
-                {selectedCategoryId
-                  ? getSubCategoryName(selectedSubCategoryId)
-                  : "Select category first"}
-              </Text>
-              <ChevronDownIcon width={20} height={20} />
-            </TouchableOpacity>
-          </View>
+          {/* Sub-Category - Read-only from request */}
+          {request?.sub_category_id && (
+            <View style={styles.inputGroup}>
+              <Text style={styles.inputLabel}>Sub-Category</Text>
+              <View style={[styles.inputContainer, { backgroundColor: "#F3F4F6" }]}>
+                <Text style={styles.inputText}>
+                  {getSubCategoryName(request.sub_category_id)}
+                </Text>
+              </View>
+            </View>
+          )}
 
           {/* Valid From */}
           <View style={styles.inputGroup}>
@@ -538,25 +770,40 @@ export default function LegislativeApproveScreen({ navigation, route }: Props) {
             </TouchableOpacity>
           </View>
 
-          {/* Pass Type */}
+          {/* Pass Type - Based on category mapping */}
           <View style={styles.inputGroup}>
             <Text style={styles.inputLabel}>
               Pass Type<Text style={styles.required}>*</Text>
             </Text>
-            <TouchableOpacity
-              style={styles.inputContainer}
-              onPress={() => setShowPassTypeModal(true)}
-            >
-              <Text
-                style={[
-                  styles.inputText,
-                  !selectedPassTypeId && styles.placeholderText,
-                ]}
+            {loadingPassTypes ? (
+              <View style={styles.inputContainer}>
+                <ActivityIndicator size="small" color="#457E51" />
+                <Text style={[styles.inputText, styles.placeholderText]}>
+                  Loading pass types...
+                </Text>
+              </View>
+            ) : (
+              <TouchableOpacity
+                style={styles.inputContainer}
+                onPress={() => setShowPassTypeModal(true)}
+                disabled={availablePassTypes.length === 0}
               >
-                {getPassTypeName(selectedPassTypeId)}
-              </Text>
-              <ChevronDownIcon width={20} height={20} />
-            </TouchableOpacity>
+                <Text
+                  style={[
+                    styles.inputText,
+                    (!selectedPassTypeId || availablePassTypes.length === 0) &&
+                      styles.placeholderText,
+                  ]}
+                >
+                  {selectedPassTypeId
+                    ? getPassTypeName(selectedPassTypeId)
+                    : availablePassTypes.length === 0
+                    ? "No pass types available"
+                    : "Select pass type"}
+                </Text>
+                <ChevronDownIcon width={20} height={20} />
+              </TouchableOpacity>
+            )}
           </View>
 
           {/* Session */}
@@ -624,78 +871,6 @@ export default function LegislativeApproveScreen({ navigation, route }: Props) {
         </View>
       </ScrollView>
 
-      {/* Category Modal */}
-      <Modal
-        visible={showCategoryModal}
-        transparent={true}
-        animationType="slide"
-        onRequestClose={() => setShowCategoryModal(false)}
-      >
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
-            <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>Select Category</Text>
-              <TouchableOpacity onPress={() => setShowCategoryModal(false)}>
-                <CloseIcon width={24} height={24} />
-              </TouchableOpacity>
-            </View>
-            <ScrollView>
-              {categories.map((category) => (
-                <TouchableOpacity
-                  key={category.id}
-                  style={styles.modalItem}
-                  onPress={() => {
-                    setSelectedCategoryId(category.id);
-                    setSelectedSubCategoryId(null);
-                    setShowCategoryModal(false);
-                  }}
-                >
-                  <Text style={styles.modalItemText}>{category.name}</Text>
-                  {selectedCategoryId === category.id && (
-                    <Ionicons name="checkmark" size={20} color="#457E51" />
-                  )}
-                </TouchableOpacity>
-              ))}
-            </ScrollView>
-          </View>
-        </View>
-      </Modal>
-
-      {/* Sub-Category Modal */}
-      <Modal
-        visible={showSubCategoryModal}
-        transparent={true}
-        animationType="slide"
-        onRequestClose={() => setShowSubCategoryModal(false)}
-      >
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
-            <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>Select Sub-Category</Text>
-              <TouchableOpacity onPress={() => setShowSubCategoryModal(false)}>
-                <CloseIcon width={24} height={24} />
-              </TouchableOpacity>
-            </View>
-            <ScrollView>
-              {availableSubCategories.map((subCat) => (
-                <TouchableOpacity
-                  key={subCat.id}
-                  style={styles.modalItem}
-                  onPress={() => {
-                    setSelectedSubCategoryId(subCat.id);
-                    setShowSubCategoryModal(false);
-                  }}
-                >
-                  <Text style={styles.modalItemText}>{subCat.name}</Text>
-                  {selectedSubCategoryId === subCat.id && (
-                    <Ionicons name="checkmark" size={20} color="#457E51" />
-                  )}
-                </TouchableOpacity>
-              ))}
-            </ScrollView>
-          </View>
-        </View>
-      </Modal>
 
       {/* Pass Type Modal */}
       <Modal
@@ -709,25 +884,33 @@ export default function LegislativeApproveScreen({ navigation, route }: Props) {
             <View style={styles.modalHeader}>
               <Text style={styles.modalTitle}>Select Pass Type</Text>
               <TouchableOpacity onPress={() => setShowPassTypeModal(false)}>
-                <CloseIcon width={24} height={24} />
+                <CloseIcon width={18} height={18} />
               </TouchableOpacity>
             </View>
             <ScrollView>
-              {passTypes.map((passType) => (
-                <TouchableOpacity
-                  key={passType.id}
-                  style={styles.modalItem}
-                  onPress={() => {
-                    setSelectedPassTypeId(passType.id);
-                    setShowPassTypeModal(false);
-                  }}
-                >
-                  <Text style={styles.modalItemText}>{passType.name}</Text>
-                  {selectedPassTypeId === passType.id && (
-                    <Ionicons name="checkmark" size={20} color="#457E51" />
-                  )}
-                </TouchableOpacity>
-              ))}
+              {availablePassTypes.length > 0 ? (
+                availablePassTypes.map((passType) => (
+                  <TouchableOpacity
+                    key={passType.id}
+                    style={styles.modalItem}
+                    onPress={() => {
+                      setSelectedPassTypeId(passType.id);
+                      setShowPassTypeModal(false);
+                    }}
+                  >
+                    <Text style={styles.modalItemText}>{passType.name}</Text>
+                    {selectedPassTypeId === passType.id && (
+                      <Ionicons name="checkmark" size={20} color="#457E51" />
+                    )}
+                  </TouchableOpacity>
+                ))
+              ) : (
+                <View style={styles.modalItem}>
+                  <Text style={styles.modalItemText}>
+                    No pass types available for this category
+                  </Text>
+                </View>
+              )}
             </ScrollView>
           </View>
         </View>
@@ -745,7 +928,7 @@ export default function LegislativeApproveScreen({ navigation, route }: Props) {
             <View style={styles.modalHeader}>
               <Text style={styles.modalTitle}>Select Session</Text>
               <TouchableOpacity onPress={() => setShowSessionModal(false)}>
-                <CloseIcon width={24} height={24} />
+                <CloseIcon width={18} height={18} />
               </TouchableOpacity>
             </View>
             <ScrollView>
@@ -1408,5 +1591,24 @@ const styles = StyleSheet.create({
     color: "#111827",
     fontWeight: "600",
     fontSize: 24,
+  },
+  carPassCard: {
+    borderWidth: 1,
+    borderColor: "#F97316",
+    borderRadius: 8,
+    padding: 12,
+    marginBottom: 12,
+    backgroundColor: "#FFF7ED",
+  },
+  carPassLabel: {
+    fontSize: 11,
+    fontWeight: "600",
+    color: "#6B7280",
+    textTransform: "uppercase",
+    marginBottom: 8,
+    letterSpacing: 0.5,
+  },
+  carPassDetails: {
+    gap: 4,
   },
 });

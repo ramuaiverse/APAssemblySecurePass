@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import {
   View,
   Text,
@@ -15,7 +15,7 @@ import { RouteProp } from "@react-navigation/native";
 import { RootStackParamList } from "@/types";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { api } from "@/services/api";
-import { Ionicons } from "@expo/vector-icons";
+import { Ionicons, MaterialIcons } from "@expo/vector-icons";
 import BackButtonIcon from "../../assets/backButton.svg";
 import CloseIcon from "../../assets/close.svg";
 import Assembly from "../../assets/assembly.svg";
@@ -40,6 +40,47 @@ export default function LegislativeRejectScreen({ navigation, route }: Props) {
   const { visitor, request, userId } = route.params;
   const [rejectionReason, setRejectionReason] = useState("");
   const [loading, setLoading] = useState(false);
+  const [userMap, setUserMap] = useState<Map<string, string>>(new Map());
+  const [categories, setCategories] = useState<any[]>([]);
+
+  useEffect(() => {
+    fetchUsers();
+    fetchCategories();
+  }, []);
+
+  const fetchUsers = async () => {
+    try {
+      const allUsers: any[] = [];
+      const departmentUsers = await api.getUsersByRole("department");
+      const legislativeUsers = await api.getUsersByRole("legislative");
+      const peshiUsers = await api.getUsersByRole("peshi");
+      const adminUsers = await api.getUsersByRole("admin");
+
+      allUsers.push(
+        ...departmentUsers,
+        ...legislativeUsers,
+        ...peshiUsers,
+        ...adminUsers,
+      );
+
+      const newUserMap = new Map<string, string>();
+      allUsers.forEach((user) => {
+        newUserMap.set(user.id, user.full_name || user.username);
+      });
+      setUserMap(newUserMap);
+    } catch (err) {
+      // Error fetching users
+    }
+  };
+
+  const fetchCategories = async () => {
+    try {
+      const cats = await api.getMainCategories();
+      setCategories(cats);
+    } catch (error) {
+      // Error fetching categories
+    }
+  };
 
   const handleReject = async () => {
     if (!rejectionReason.trim()) {
@@ -78,17 +119,19 @@ export default function LegislativeRejectScreen({ navigation, route }: Props) {
     }
   };
 
-  const getCategoryName = () => {
-    if (request?.main_category_id) {
-      // Try to get from category map if available
-      return request.main_category_name || "—";
-    }
-    return "—";
+  const getCategoryName = (categoryId: string | null) => {
+    if (!categoryId) return "—";
+    const category = categories.find((c) => c.id === categoryId);
+    return category?.name || "—";
   };
 
-  const getSubCategoryName = () => {
-    if (request?.sub_category_id) {
-      return request.sub_category_name || "—";
+  const getSubCategoryName = (subCategoryId: string | null) => {
+    if (!subCategoryId) return "—";
+    for (const category of categories) {
+      const subCat = category.sub_categories?.find(
+        (sc) => sc.id === subCategoryId,
+      );
+      if (subCat) return subCat.name;
     }
     return "—";
   };
@@ -173,8 +216,9 @@ export default function LegislativeRejectScreen({ navigation, route }: Props) {
             <View style={styles.detailRow}>
               <Text style={styles.detailLabel}>CATEGORY</Text>
               <Text style={styles.detailValue}>
-                {getCategoryName()}
-                {getSubCategoryName() !== "—" && ` • ${getSubCategoryName()}`}
+                {getCategoryName(request?.main_category_id)}
+                {request?.sub_category_id && getSubCategoryName(request.sub_category_id) !== "—" &&
+                  ` • ${getSubCategoryName(request.sub_category_id)}`}
               </Text>
             </View>
 
@@ -186,11 +230,67 @@ export default function LegislativeRejectScreen({ navigation, route }: Props) {
             <View style={styles.detailRow}>
               <Text style={styles.detailLabel}>REQUESTED BY</Text>
               <Text style={styles.detailValue}>
-                {request?.requested_by || "—"}
+                {request?.requested_by ? (userMap.get(request.requested_by) || request.requested_by) : "—"}
               </Text>
             </View>
           </View>
         </View>
+
+        {/* Car Passes Section */}
+        {visitor?.car_passes && visitor.car_passes.length > 0 && (
+          <View style={styles.section}>
+            <View style={styles.sectionHeader}>
+              <MaterialIcons name="directions-car" size={20} color="#F97316" />
+              <Text style={styles.sectionTitle}>
+                Car Passes ({visitor.car_passes.length})
+              </Text>
+            </View>
+
+            <View style={styles.detailsContainer}>
+              {visitor.car_passes.map((carPass: any, index: number) => (
+                <View key={index} style={styles.carPassCard}>
+                  <Text style={styles.carPassLabel}>
+                    CAR PASS #{index + 1}
+                  </Text>
+                  <View style={styles.carPassDetails}>
+                    <View style={styles.detailRow}>
+                      <Text style={styles.detailLabel}>MAKE</Text>
+                      <Text style={styles.detailValue}>
+                        {carPass.car_make || "—"}
+                      </Text>
+                    </View>
+                    <View style={styles.detailRow}>
+                      <Text style={styles.detailLabel}>MODEL</Text>
+                      <Text style={styles.detailValue}>
+                        {carPass.car_model || "—"}
+                      </Text>
+                    </View>
+                    <View style={styles.detailRow}>
+                      <Text style={styles.detailLabel}>COLOR</Text>
+                      <Text style={styles.detailValue}>
+                        {carPass.car_color || "—"}
+                      </Text>
+                    </View>
+                    <View style={styles.detailRow}>
+                      <Text style={styles.detailLabel}>NUMBER</Text>
+                      <Text style={styles.detailValue}>
+                        {carPass.car_number || "—"}
+                      </Text>
+                    </View>
+                    {carPass.car_tag && (
+                      <View style={styles.detailRow}>
+                        <Text style={styles.detailLabel}>TAG</Text>
+                        <Text style={styles.detailValue}>
+                          {carPass.car_tag}
+                        </Text>
+                      </View>
+                    )}
+                  </View>
+                </View>
+              ))}
+            </View>
+          </View>
+        )}
 
         {/* Comments Section */}
         <View style={styles.section}>
@@ -429,5 +529,24 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: "600",
     color: "#FFFFFF",
+  },
+  carPassCard: {
+    borderWidth: 1,
+    borderColor: "#F97316",
+    borderRadius: 8,
+    padding: 12,
+    marginBottom: 12,
+    backgroundColor: "#FFF7ED",
+  },
+  carPassLabel: {
+    fontSize: 11,
+    fontWeight: "600",
+    color: "#6B7280",
+    textTransform: "uppercase",
+    marginBottom: 8,
+    letterSpacing: 0.5,
+  },
+  carPassDetails: {
+    gap: 4,
   },
 });

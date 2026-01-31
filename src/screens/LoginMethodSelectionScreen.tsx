@@ -165,18 +165,6 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
   },
-  optionIconContainer: {
-    width: 50,
-    height: 50,
-    borderRadius: 25,
-    backgroundColor: "#E3F7E8",
-    justifyContent: "center",
-    alignItems: "center",
-    marginRight: 15,
-  },
-  optionIcon: {
-    fontSize: 24,
-  },
   optionTextContainer: {
     flex: 1,
   },

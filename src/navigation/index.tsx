@@ -14,6 +14,8 @@ import InvalidPassScreen from "@/screens/InvalidPassScreen";
 import HomeScreen from "@/screens/HomeScreen";
 import VisitorsScreen from "@/screens/VisitorsScreen";
 import VisitorDetailsScreen from "@/screens/VisitorDetailsScreen";
+import StatusAndApprovalsScreen from "@/screens/StatusAndApprovalsScreen";
+import RequestDetailsScreen from "@/screens/RequestDetailsScreen";
 import IssueVisitorPassScreen from "@/screens/IssueVisitorPassScreen";
 import PreviewPassScreen from "@/screens/PreviewPassScreen";
 import LoginMethodSelectionScreen from "@/screens/LoginMethodSelectionScreen";
@@ -60,6 +62,14 @@ export const setUpNavigation = (
         <Stack.Screen name="Home" component={HomeScreen} />
         <Stack.Screen name="Visitors" component={VisitorsScreen} />
         <Stack.Screen name="VisitorDetails" component={VisitorDetailsScreen} />
+        <Stack.Screen
+          name="StatusAndApprovals"
+          component={StatusAndApprovalsScreen}
+        />
+        <Stack.Screen
+          name="RequestDetails"
+          component={RequestDetailsScreen}
+        />
         <Stack.Screen
           name="IssueVisitorPass"
           component={IssueVisitorPassScreen}

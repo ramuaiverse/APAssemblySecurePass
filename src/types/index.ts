@@ -110,6 +110,14 @@ export type RootStackParamList = {
     hod_approver?: boolean;
     sub_categories?: Array<any>;
   };
+  StatusAndApprovals: {
+    userId?: string;
+    hod_approver?: boolean;
+    sub_categories?: Array<any>;
+    username?: string;
+    userFullName?: string;
+    role?: string;
+  };
   VisitorDetails: {
     request: any; // Full pass request object
     visitor: any; // Visitor object from the request
@@ -123,6 +131,8 @@ export type RootStackParamList = {
     passData: any; // Full API response from /api/v1/pass-requests/{request_id}
     categoryName?: string; // Category name
     passTypeName?: string; // Pass type name
+    returnTo?: string; // Screen to navigate back to (e.g., "Visitors")
+    returnToParams?: any; // Params for the return screen
   };
   MyPassRequests: {
     userId?: string;
@@ -135,6 +145,10 @@ export type RootStackParamList = {
     sub_categories?: Array<any>;
   };
   MyPassRequestDetails: {
+    request: any; // Full pass request object
+    visitor: any; // Visitor object from the request
+  };
+  RequestDetails: {
     request: any; // Full pass request object
     visitor: any; // Visitor object from the request
   };
