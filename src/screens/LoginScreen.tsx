@@ -332,7 +332,9 @@ export default function LoginScreen({ navigation }: Props) {
               ) : null}
 
               {/* Password Field - Optional */}
-              <Text style={styles.inputLabel}>Password</Text>
+              <Text style={styles.inputLabel}>
+                Password <Text style={styles.helperTextInline}>(Optional for first time login)</Text>
+              </Text>
               <View
                 style={[
                   styles.inputContainer,
@@ -473,8 +475,15 @@ const styles = StyleSheet.create({
   inputLabel: {
     fontSize: 14,
     color: "#111827",
-    marginVertical: 10,
+    marginTop: 10,
+    marginBottom: 10,
     textAlign: "left",
+  },
+  helperTextInline: {
+    fontSize: 12,
+    color: "#6B7280",
+    fontStyle: "italic",
+    fontWeight: "normal",
   },
   inputContainer: {
     flexDirection: "row",
@@ -485,6 +494,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 15,
     marginBottom: 5,
     backgroundColor: "#f9f9f9",
+    minHeight: 50,
   },
   inputContainerError: {
     borderColor: "#EF4444",
@@ -498,6 +508,7 @@ const styles = StyleSheet.create({
     height: 50,
     fontSize: 16,
     color: "#333",
+    paddingRight: 8,
   },
   eyeIcon: {
     padding: 5,
