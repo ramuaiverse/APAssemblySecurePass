@@ -221,7 +221,18 @@ export default function IssueVisitorPassScreen({ navigation, route }: Props) {
   );
 
   const handleLogout = () => {
-    navigation.replace("LoginMethodSelection");
+    Alert.alert("Logout", "Do you want to log out?", [
+      {
+        text: "Cancel",
+        style: "cancel",
+      },
+      {
+        text: "Yes",
+        onPress: () => {
+          navigation.replace("LoginMethodSelection");
+        },
+      },
+    ]);
   };
 
   // Format date and time together

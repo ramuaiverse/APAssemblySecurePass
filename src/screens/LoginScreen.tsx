@@ -92,10 +92,11 @@ export default function LoginScreen({ navigation }: Props) {
           return;
         }
 
-        if ((activeTab === "login"||activeTab === "security") && userRole === "admin") {
-          setRoleError(
-            "Access denied, this login is not for admin personnel",
-          );
+        if (
+          (activeTab === "login" || activeTab === "security") &&
+          userRole === "admin"
+        ) {
+          setRoleError("Access denied, this login is not for admin personnel");
           setLoading(false);
           return;
         }
@@ -116,7 +117,7 @@ export default function LoginScreen({ navigation }: Props) {
             userId: response.id,
             role: response.role,
             hod_approver: response.hod_approver,
-            legislative_approver: response.legislative_approver,
+            sub_categories: response.sub_categories || [],
           });
         } else {
           navigation.replace("PreCheck");
@@ -217,7 +218,7 @@ export default function LoginScreen({ navigation }: Props) {
       >
         <BackButtonIcon width={20} height={20} />
       </TouchableOpacity>
-      
+
       <KeyboardAvoidingView
         behavior={Platform.OS === "ios" ? "padding" : "height"}
         style={styles.keyboardView}
@@ -229,172 +230,171 @@ export default function LoginScreen({ navigation }: Props) {
             keyboardShouldPersistTaps="handled"
             showsVerticalScrollIndicator={false}
           >
-          {/* Header */}
-          <View style={styles.header}>
-            <View style={styles.logoContainer}>
-              <DigitalPass width={110} height={150} />
-              <Assembly width={110} height={150} />
+            {/* Header */}
+            <View style={styles.header}>
+              <View style={styles.logoContainer}>
+                <DigitalPass width={110} height={150} />
+                <Assembly width={110} height={150} />
+              </View>
             </View>
-          </View>
 
-          {/* Login Card */}
-          <View style={styles.loginCard}>
-            {/* Tab Selection - Commented out for now */}
-            <View style={styles.tabWrapper}>
-              <View style={styles.tabContainer}>
-                <TouchableOpacity
-                  style={[
-                    styles.tab,
-                    activeTab === "login"
-                      ? styles.tabActive
-                      : styles.tabInactive,
-                  ]}
-                  onPress={() => {
-                    setActiveTab("login");
-                    setRoleError("");
-                    setUsername("");
-                    setPassword("");
-                    setUsernameError("");
-                    setPasswordError("");
-                  }}
-                >
-                  <Text
+            {/* Login Card */}
+            <View style={styles.loginCard}>
+              {/* Tab Selection - Commented out for now */}
+              <View style={styles.tabWrapper}>
+                <View style={styles.tabContainer}>
+                  <TouchableOpacity
                     style={[
-                      styles.tabText,
+                      styles.tab,
                       activeTab === "login"
-                        ? styles.tabTextActive
-                        : styles.tabTextInactive,
+                        ? styles.tabActive
+                        : styles.tabInactive,
                     ]}
+                    onPress={() => {
+                      setActiveTab("login");
+                      setRoleError("");
+                      setUsername("");
+                      setPassword("");
+                      setUsernameError("");
+                      setPasswordError("");
+                    }}
                   >
-                    Login
-                  </Text>
-                </TouchableOpacity>
-                <TouchableOpacity
-                  style={[
-                    styles.tab,
-                    activeTab === "security"
-                      ? styles.tabActive
-                      : styles.tabInactive,
-                  ]}
-                  onPress={() => {
-                    setActiveTab("security");
-                    setRoleError("");
-                    setUsername("");
-                    setPassword("");
-                    setUsernameError("");
-                    setPasswordError("");
-                  }}
-                >
-                  <Text
+                    <Text
+                      style={[
+                        styles.tabText,
+                        activeTab === "login"
+                          ? styles.tabTextActive
+                          : styles.tabTextInactive,
+                      ]}
+                    >
+                      Login
+                    </Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
                     style={[
-                      styles.tabText,
+                      styles.tab,
                       activeTab === "security"
-                        ? styles.tabTextActive
-                        : styles.tabTextInactive,
+                        ? styles.tabActive
+                        : styles.tabInactive,
                     ]}
+                    onPress={() => {
+                      setActiveTab("security");
+                      setRoleError("");
+                      setUsername("");
+                      setPassword("");
+                      setUsernameError("");
+                      setPasswordError("");
+                    }}
                   >
-                    Security Login
-                  </Text>
+                    <Text
+                      style={[
+                        styles.tabText,
+                        activeTab === "security"
+                          ? styles.tabTextActive
+                          : styles.tabTextInactive,
+                      ]}
+                    >
+                      Security Login
+                    </Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+
+              <Text style={styles.cardTitle}>
+                {activeTab === "login" ? "Login" : "Security Login"}
+              </Text>
+              <Text style={styles.cardSubtitle}>
+                Enter your credentials to access the system.
+              </Text>
+
+              {/* Username Field */}
+              <Text style={styles.inputLabel}>Username</Text>
+              <View
+                style={[
+                  styles.inputContainer,
+                  usernameError && styles.inputContainerError,
+                ]}
+              >
+                <View style={styles.inputIcon}>
+                  <UserNameIcon width={13} height={14} />
+                </View>
+                <TextInput
+                  style={styles.input}
+                  placeholder="Enter username"
+                  placeholderTextColor="#ADAEBC"
+                  value={username}
+                  onChangeText={handleUsernameChange}
+                  autoCapitalize="none"
+                />
+              </View>
+              {usernameError ? (
+                <Text style={styles.errorText}>{usernameError}</Text>
+              ) : null}
+
+              {/* Password Field - Optional */}
+              <Text style={styles.inputLabel}>Password</Text>
+              <View
+                style={[
+                  styles.inputContainer,
+                  passwordError && styles.inputContainerError,
+                ]}
+              >
+                <View style={styles.inputIcon}>
+                  <PasswordIcon width={13} height={14} />
+                </View>
+                <TextInput
+                  style={styles.input}
+                  placeholder="Enter password"
+                  placeholderTextColor="#ADAEBC"
+                  value={password}
+                  onChangeText={handlePasswordChange}
+                  secureTextEntry={!showPassword}
+                />
+                <TouchableOpacity
+                  onPress={() => setShowPassword(!showPassword)}
+                  style={styles.eyeIcon}
+                >
+                  <EyeIcon width={16} height={13} />
                 </TouchableOpacity>
               </View>
-            </View>
+              {passwordError ? (
+                <Text style={styles.errorText}>{passwordError}</Text>
+              ) : null}
+              {roleError ? (
+                <Text style={styles.errorText}>{roleError}</Text>
+              ) : null}
 
-            <Text style={styles.cardTitle}>
-              {activeTab === "login" ? "Login" : "Security Login"}
-            </Text>
-            <Text style={styles.cardSubtitle}>
-              Enter your credentials to access the system.
-            </Text>
-
-            {/* Username Field */}
-            <Text style={styles.inputLabel}>Username</Text>
-            <View
-              style={[
-                styles.inputContainer,
-                usernameError && styles.inputContainerError,
-              ]}
-            >
-              <View style={styles.inputIcon}>
-                <UserNameIcon width={13} height={14} />
-              </View>
-              <TextInput
-                style={styles.input}
-                placeholder="Enter username"
-                placeholderTextColor="#ADAEBC"
-                value={username}
-                onChangeText={handleUsernameChange}
-                autoCapitalize="none"
-              />
-            </View>
-            {usernameError ? (
-              <Text style={styles.errorText}>{usernameError}</Text>
-            ) : null}
-
-            {/* Password Field - Optional */}
-            <Text style={styles.inputLabel}>Password</Text>
-            <View
-              style={[
-                styles.inputContainer,
-                passwordError && styles.inputContainerError,
-              ]}
-            >
-              <View style={styles.inputIcon}>
-                <PasswordIcon width={13} height={14} />
-              </View>
-              <TextInput
-                style={styles.input}
-                placeholder="Enter password"
-                placeholderTextColor="#ADAEBC"
-                value={password}
-                onChangeText={handlePasswordChange}
-                secureTextEntry={!showPassword}
-              />
+              {/* Login Button */}
               <TouchableOpacity
-                onPress={() => setShowPassword(!showPassword)}
-                style={styles.eyeIcon}
+                style={[
+                  styles.loginButton,
+                  loading && styles.loginButtonDisabled,
+                ]}
+                onPress={handleLogin}
+                disabled={loading}
               >
-                <EyeIcon width={16} height={13} />
+                {loading ? (
+                  <ActivityIndicator color="#FFFFFF" />
+                ) : (
+                  <>
+                    <Text style={styles.loginButtonText}>Login</Text>
+                    <LoginIcon width={16} height={14} />
+                  </>
+                )}
+              </TouchableOpacity>
+
+              {/* Forgot Password */}
+              <TouchableOpacity
+                style={styles.forgotPassword}
+                onPress={() => navigation.navigate("ForgotPassword")}
+              >
+                <Text style={styles.forgotPasswordText}>Forgot Password?</Text>
               </TouchableOpacity>
             </View>
-            {passwordError ? (
-              <Text style={styles.errorText}>{passwordError}</Text>
-            ) : null}
-            {roleError ? (
-              <Text style={styles.errorText}>{roleError}</Text>
-            ) : null}
-
-            {/* Login Button */}
-            <TouchableOpacity
-              style={[
-                styles.loginButton,
-                loading && styles.loginButtonDisabled,
-              ]}
-              onPress={handleLogin}
-              disabled={loading}
-            >
-              {loading ? (
-                <ActivityIndicator color="#FFFFFF" />
-              ) : (
-                <>
-                  <Text style={styles.loginButtonText}>Login</Text>
-                  <LoginIcon width={16} height={14} />
-                </>
-              )}
-            </TouchableOpacity>
-
-            {/* Forgot Password */}
-            <TouchableOpacity
-              style={styles.forgotPassword}
-              onPress={() => navigation.navigate("ForgotPassword")}
-            >
-              <Text style={styles.forgotPasswordText}>Forgot Password?</Text>
-            </TouchableOpacity>
-          </View>
-
           </ScrollView>
         </View>
       </KeyboardAvoidingView>
-      
+
       {/* Footer - Fixed at Bottom */}
       <View style={styles.footer}>
         <View style={styles.footerTextContainer}>
@@ -402,8 +402,8 @@ export default function LoginScreen({ navigation }: Props) {
           <Text style={styles.footerText}>Authorized Personnel Only</Text>
         </View>
         <Text style={styles.footerSubtext}>
-          This system is for official use only. All activities are monitored
-          and logged.
+          This system is for official use only. All activities are monitored and
+          logged.
         </Text>
       </View>
     </SafeAreaView>
@@ -431,9 +431,10 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   backButton: {
+    minWidth: 36,
+    minHeight: 36,
     paddingHorizontal: 16,
-    paddingTop: 0,
-    paddingBottom: 0,
+    paddingVertical: 6,
     zIndex: 10,
   },
   logoContainer: {

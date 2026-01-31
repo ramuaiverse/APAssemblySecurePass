@@ -24,6 +24,7 @@ import ReferenceIcon from "../../assets/reference.svg";
 import BackButtonIcon from "../../assets/backButton.svg";
 import ScanIcon from "../../assets/scan.svg";
 import CameraIcon from "../../assets/camera.svg";
+import CloseIcon from "../../assets/close.svg";
 import { SafeAreaView } from "react-native-safe-area-context";
 import AssemblyIcon from "../../assets/assembly.svg";
 import BackGroundIcon from "../../assets/backGround.svg";
@@ -193,7 +194,18 @@ export default function ValidPassScreen({ navigation, route }: Props) {
   };
 
   const handleLogout = () => {
-    navigation.replace("LoginMethodSelection");
+    Alert.alert("Logout", "Do you want to log out?", [
+      {
+        text: "Cancel",
+        style: "cancel",
+      },
+      {
+        text: "Yes",
+        onPress: () => {
+          navigation.replace("LoginMethodSelection");
+        },
+      },
+    ]);
   };
 
   const handleTakePhoto = async () => {
@@ -457,16 +469,6 @@ export default function ValidPassScreen({ navigation, route }: Props) {
             </View>
           </>
 
-          {/* Report Button */}
-          <View style={styles.fullSeparator} />
-          <TouchableOpacity
-            style={styles.reportButton}
-            onPress={handleReportPress}
-            activeOpacity={0.7}
-          >
-            <Text style={styles.reportButtonText}>Report</Text>
-          </TouchableOpacity>
-
           {/* Buttons */}
           <TouchableOpacity
             style={styles.scanNextButton}
@@ -475,6 +477,15 @@ export default function ValidPassScreen({ navigation, route }: Props) {
           >
             <ScanIcon width={20} height={20} />
             <Text style={styles.scanNextButtonText}>Scan Next</Text>
+          </TouchableOpacity>
+
+          {/* Report Button */}
+          <TouchableOpacity
+            style={styles.reportButton}
+            onPress={handleReportPress}
+            activeOpacity={0.7}
+          >
+            <Text style={styles.reportButtonText}>Report</Text>
           </TouchableOpacity>
 
           {!visitorPhoto ? (
@@ -519,11 +530,11 @@ export default function ValidPassScreen({ navigation, route }: Props) {
         <BackGroundIcon height={200} />
       </View>
 
-      {/* Suspend Modal - Bottom Action Sheet */}
+      {/* Suspend Modal - Centered Modal */}
       <Modal
         visible={showSuspendModal}
         transparent={true}
-        animationType="slide"
+        animationType="fade"
         onRequestClose={handleSuspendCancel}
       >
         <View style={styles.modalOverlay}>
@@ -537,9 +548,14 @@ export default function ValidPassScreen({ navigation, route }: Props) {
             style={styles.keyboardAvoidingView}
             keyboardVerticalOffset={Platform.OS === "ios" ? 0 : 20}
           >
-            <View style={styles.actionSheetContent}>
-              {/* Handle bar */}
-              <View style={styles.actionSheetHandle} />
+            <View style={styles.modalContent}>
+              {/* Close Icon */}
+              <TouchableOpacity
+                style={styles.modalCloseButton}
+                onPress={handleSuspendCancel}
+              >
+                <CloseIcon width={20} height={20} />
+              </TouchableOpacity>
 
               <Text style={styles.modalTitle}>Suspend Visitor</Text>
               <Text style={styles.modalSubtitle}>
@@ -775,28 +791,25 @@ const styles = StyleSheet.create({
   },
   reportButton: {
     backgroundColor: "#FEE2E2",
-    borderRadius: 10,
-    padding: 15,
-    width: "100%",
+    borderRadius: 8,
+    padding: 8,
+    width: "40%",
     alignItems: "center",
     justifyContent: "center",
-    marginTop: 20,
-    borderWidth: 2,
+    marginTop: 12,
+    alignSelf: "center",
+    borderWidth: 1,
     borderColor: "#EF4444",
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.2,
-    shadowRadius: 4,
-    elevation: 4,
   },
   reportButtonText: {
     color: "#DC2626",
-    fontSize: 18,
+    fontSize: 14,
     fontWeight: "600",
   },
   modalOverlay: {
     flex: 1,
-    justifyContent: "flex-end",
+    justifyContent: "center",
+    alignItems: "center",
   },
   modalBackdrop: {
     position: "absolute",
@@ -808,27 +821,28 @@ const styles = StyleSheet.create({
   },
   keyboardAvoidingView: {
     width: "100%",
+    justifyContent: "center",
+    alignItems: "center",
   },
-  actionSheetContent: {
+  modalContent: {
     backgroundColor: "#FFFFFF",
-    borderTopLeftRadius: 20,
-    borderTopRightRadius: 20,
+    borderRadius: 12,
     padding: 24,
-    paddingBottom: Platform.OS === "ios" ? 34 : 24,
-    width: "100%",
+    width: "85%",
+    maxWidth: 400,
     shadowColor: "#000",
-    shadowOffset: { width: 0, height: -2 },
+    shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.25,
-    shadowRadius: 3.84,
+    shadowRadius: 4,
     elevation: 5,
+    position: "relative",
   },
-  actionSheetHandle: {
-    width: 40,
-    height: 4,
-    backgroundColor: "#D1D5DB",
-    borderRadius: 2,
-    alignSelf: "center",
-    marginBottom: 16,
+  modalCloseButton: {
+    position: "absolute",
+    top: 16,
+    right: 16,
+    padding: 4,
+    zIndex: 1,
   },
   modalTitle: {
     fontSize: 20,

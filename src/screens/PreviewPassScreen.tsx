@@ -7,7 +7,6 @@ import {
   ScrollView,
   Share,
   Alert,
-  Platform,
   Image,
 } from "react-native";
 import * as FileSystem from "expo-file-system";

@@ -183,7 +183,7 @@ export default function UsernameOTPLoginScreen({ navigation }: Props) {
       >
         <BackButtonIcon width={20} height={20} />
       </TouchableOpacity>
-      
+
       <KeyboardAvoidingView
         behavior={Platform.OS === "ios" ? "padding" : "height"}
         style={styles.keyboardView}
@@ -195,171 +195,170 @@ export default function UsernameOTPLoginScreen({ navigation }: Props) {
             keyboardShouldPersistTaps="handled"
             showsVerticalScrollIndicator={false}
           >
-          {/* Header */}
-          <View style={styles.header}>
-            <View style={styles.logoContainer}>
-              <DigitalPass width={110} height={150} />
-              <Assembly width={110} height={150} />
-            </View>
-          </View>
-
-          {/* Login Card */}
-          <View style={styles.loginCard}>
-            {/* Tab Selection */}
-            <View style={styles.tabWrapper}>
-              <View style={styles.tabContainer}>
-                <TouchableOpacity
-                  style={[
-                    styles.tab,
-                    activeTab === "admin"
-                      ? styles.tabActive
-                      : styles.tabInactive,
-                  ]}
-                  onPress={() => setActiveTab("admin")}
-                >
-                  <Text
-                    style={[
-                      styles.tabText,
-                      activeTab === "admin"
-                        ? styles.tabTextActive
-                        : styles.tabTextInactive,
-                    ]}
-                  >
-                    Admin Login
-                  </Text>
-                </TouchableOpacity>
-                <TouchableOpacity
-                  style={[
-                    styles.tab,
-                    activeTab === "security"
-                      ? styles.tabActive
-                      : styles.tabInactive,
-                  ]}
-                  onPress={() => setActiveTab("security")}
-                >
-                  <Text
-                    style={[
-                      styles.tabText,
-                      activeTab === "security"
-                        ? styles.tabTextActive
-                        : styles.tabTextInactive,
-                    ]}
-                  >
-                    Security Login
-                  </Text>
-                </TouchableOpacity>
+            {/* Header */}
+            <View style={styles.header}>
+              <View style={styles.logoContainer}>
+                <DigitalPass width={110} height={150} />
+                <Assembly width={110} height={150} />
               </View>
             </View>
 
-            <Text style={styles.cardTitle}>
-              {activeTab === "admin" ? "Admin Login" : "Security Login"}
-            </Text>
-            <Text style={styles.cardSubtitle}>
-              Enter your username to receive an OTP code.
-            </Text>
-
-            {/* Username Field */}
-            <Text style={styles.inputLabel}>Username</Text>
-            <View
-              style={[
-                styles.inputContainer,
-                usernameError && styles.inputContainerError,
-              ]}
-            >
-              <TextInput
-                style={styles.input}
-                placeholder="Enter username"
-                placeholderTextColor="#ADAEBC"
-                value={username}
-                onChangeText={handleUsernameChange}
-                keyboardType="default"
-                autoCapitalize="none"
-                autoCorrect={false}
-              />
-            </View>
-            {usernameError ? (
-              <Text style={styles.errorText}>{usernameError}</Text>
-            ) : null}
-
-            {/* Send OTP Button */}
-            {!otpSent && (
-              <TouchableOpacity
-                style={[
-                  styles.sendOtpButton,
-                  sendingOtp && styles.sendOtpButtonDisabled,
-                ]}
-                onPress={handleSendOTP}
-                disabled={sendingOtp}
-              >
-                {sendingOtp ? (
-                  <ActivityIndicator color="#FFFFFF" />
-                ) : (
-                  <Text style={styles.sendOtpButtonText}>Send OTP</Text>
-                )}
-              </TouchableOpacity>
-            )}
-
-            {/* OTP Field */}
-            {otpSent && (
-              <>
-                <Text style={styles.inputLabel}>Enter OTP</Text>
-                <View
-                  style={[
-                    styles.inputContainer,
-                    otpError && styles.inputContainerError,
-                  ]}
-                >
-                  <TextInput
-                    style={styles.input}
-                    placeholder="Enter 6-digit OTP"
-                    placeholderTextColor="#ADAEBC"
-                    value={otp}
-                    onChangeText={handleOtpChange}
-                    keyboardType="number-pad"
-                    maxLength={6}
-                  />
+            {/* Login Card */}
+            <View style={styles.loginCard}>
+              {/* Tab Selection */}
+              <View style={styles.tabWrapper}>
+                <View style={styles.tabContainer}>
+                  <TouchableOpacity
+                    style={[
+                      styles.tab,
+                      activeTab === "admin"
+                        ? styles.tabActive
+                        : styles.tabInactive,
+                    ]}
+                    onPress={() => setActiveTab("admin")}
+                  >
+                    <Text
+                      style={[
+                        styles.tabText,
+                        activeTab === "admin"
+                          ? styles.tabTextActive
+                          : styles.tabTextInactive,
+                      ]}
+                    >
+                      Admin Login
+                    </Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={[
+                      styles.tab,
+                      activeTab === "security"
+                        ? styles.tabActive
+                        : styles.tabInactive,
+                    ]}
+                    onPress={() => setActiveTab("security")}
+                  >
+                    <Text
+                      style={[
+                        styles.tabText,
+                        activeTab === "security"
+                          ? styles.tabTextActive
+                          : styles.tabTextInactive,
+                      ]}
+                    >
+                      Security Login
+                    </Text>
+                  </TouchableOpacity>
                 </View>
-                {otpError ? (
-                  <Text style={styles.errorText}>{otpError}</Text>
-                ) : null}
+              </View>
 
-                {/* Resend OTP */}
+              <Text style={styles.cardTitle}>
+                {activeTab === "admin" ? "Admin Login" : "Security Login"}
+              </Text>
+              <Text style={styles.cardSubtitle}>
+                Enter your username to receive an OTP code.
+              </Text>
+
+              {/* Username Field */}
+              <Text style={styles.inputLabel}>Username</Text>
+              <View
+                style={[
+                  styles.inputContainer,
+                  usernameError && styles.inputContainerError,
+                ]}
+              >
+                <TextInput
+                  style={styles.input}
+                  placeholder="Enter username"
+                  placeholderTextColor="#ADAEBC"
+                  value={username}
+                  onChangeText={handleUsernameChange}
+                  keyboardType="default"
+                  autoCapitalize="none"
+                  autoCorrect={false}
+                />
+              </View>
+              {usernameError ? (
+                <Text style={styles.errorText}>{usernameError}</Text>
+              ) : null}
+
+              {/* Send OTP Button */}
+              {!otpSent && (
                 <TouchableOpacity
-                  style={styles.resendOtpButton}
+                  style={[
+                    styles.sendOtpButton,
+                    sendingOtp && styles.sendOtpButtonDisabled,
+                  ]}
                   onPress={handleSendOTP}
                   disabled={sendingOtp}
                 >
-                  <Text style={styles.resendOtpText}>
-                    {sendingOtp ? "Sending..." : "Resend OTP"}
-                  </Text>
-                </TouchableOpacity>
-
-                {/* Login Button */}
-                <TouchableOpacity
-                  style={[
-                    styles.loginButton,
-                    loading && styles.loginButtonDisabled,
-                  ]}
-                  onPress={handleLogin}
-                  disabled={loading}
-                >
-                  {loading ? (
+                  {sendingOtp ? (
                     <ActivityIndicator color="#FFFFFF" />
                   ) : (
-                    <>
-                      <Text style={styles.loginButtonText}>Login</Text>
-                      <LoginIcon width={16} height={14} />
-                    </>
+                    <Text style={styles.sendOtpButtonText}>Send OTP</Text>
                   )}
                 </TouchableOpacity>
-              </>
-            )}
-          </View>
+              )}
 
+              {/* OTP Field */}
+              {otpSent && (
+                <>
+                  <Text style={styles.inputLabel}>Enter OTP</Text>
+                  <View
+                    style={[
+                      styles.inputContainer,
+                      otpError && styles.inputContainerError,
+                    ]}
+                  >
+                    <TextInput
+                      style={styles.input}
+                      placeholder="Enter 6-digit OTP"
+                      placeholderTextColor="#ADAEBC"
+                      value={otp}
+                      onChangeText={handleOtpChange}
+                      keyboardType="number-pad"
+                      maxLength={6}
+                    />
+                  </View>
+                  {otpError ? (
+                    <Text style={styles.errorText}>{otpError}</Text>
+                  ) : null}
+
+                  {/* Resend OTP */}
+                  <TouchableOpacity
+                    style={styles.resendOtpButton}
+                    onPress={handleSendOTP}
+                    disabled={sendingOtp}
+                  >
+                    <Text style={styles.resendOtpText}>
+                      {sendingOtp ? "Sending..." : "Resend OTP"}
+                    </Text>
+                  </TouchableOpacity>
+
+                  {/* Login Button */}
+                  <TouchableOpacity
+                    style={[
+                      styles.loginButton,
+                      loading && styles.loginButtonDisabled,
+                    ]}
+                    onPress={handleLogin}
+                    disabled={loading}
+                  >
+                    {loading ? (
+                      <ActivityIndicator color="#FFFFFF" />
+                    ) : (
+                      <>
+                        <Text style={styles.loginButtonText}>Login</Text>
+                        <LoginIcon width={16} height={14} />
+                      </>
+                    )}
+                  </TouchableOpacity>
+                </>
+              )}
+            </View>
           </ScrollView>
         </View>
       </KeyboardAvoidingView>
-      
+
       {/* Footer - Fixed at Bottom */}
       <View style={styles.footer}>
         <View style={styles.footerTextContainer}>
@@ -367,8 +366,8 @@ export default function UsernameOTPLoginScreen({ navigation }: Props) {
           <Text style={styles.footerText}>Authorized Personnel Only</Text>
         </View>
         <Text style={styles.footerSubtext}>
-          This system is for official use only. All activities are monitored
-          and logged.
+          This system is for official use only. All activities are monitored and
+          logged.
         </Text>
       </View>
     </SafeAreaView>

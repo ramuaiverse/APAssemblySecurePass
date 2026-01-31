@@ -38,62 +38,61 @@ export default function LoginMethodSelectionScreen({ navigation }: Props) {
         keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={false}
       >
-      {/* Header */}
-      <View style={styles.header}>
-        <View style={styles.logoContainer}>
-          <DigitalPass width={110} height={150} />
-          <Assembly width={110} height={150} />
+        {/* Header */}
+        <View style={styles.header}>
+          <View style={styles.logoContainer}>
+            <DigitalPass width={110} height={150} />
+            <Assembly width={110} height={150} />
+          </View>
         </View>
-      </View>
 
-      {/* Selection Card */}
-      <View style={styles.selectionCard}>
-        <Text style={styles.cardTitle}>Choose Login Method</Text>
-        <Text style={styles.cardSubtitle}>
-          Select your preferred method to access the system.
-        </Text>
+        {/* Selection Card */}
+        <View style={styles.selectionCard}>
+          <Text style={styles.cardTitle}>Choose Login Method</Text>
+          <Text style={styles.cardSubtitle}>
+            Select your preferred method to access the system.
+          </Text>
 
-        {/* Username & Password Option */}
-        <TouchableOpacity
-          style={styles.optionButton}
-          onPress={handleUsernamePasswordLogin}
-        >
-          <View style={styles.optionContent}>
-            {/* <View style={styles.optionIconContainer}>
+          {/* Username & Password Option */}
+          <TouchableOpacity
+            style={styles.optionButton}
+            onPress={handleUsernamePasswordLogin}
+          >
+            <View style={styles.optionContent}>
+              {/* <View style={styles.optionIconContainer}>
               <Text style={styles.optionIcon}>👤</Text>
             </View> */}
-            <View style={styles.optionTextContainer}>
-              <Text style={styles.optionTitle}>Username & Password</Text>
-              <Text style={styles.optionDescription}>
-                Login with your username and password
-              </Text>
+              <View style={styles.optionTextContainer}>
+                <Text style={styles.optionTitle}>Username & Password</Text>
+                <Text style={styles.optionDescription}>
+                  Login with your username and password
+                </Text>
+              </View>
+              <Text style={styles.arrowIcon}>→</Text>
             </View>
-            <Text style={styles.arrowIcon}>→</Text>
-          </View>
-        </TouchableOpacity>
+          </TouchableOpacity>
 
-        {/* Username & OTP Option */}
-        <TouchableOpacity
-          style={styles.optionButton}
-          onPress={handleUsernameOTPLogin}
-        >
-          <View style={styles.optionContent}>
-            {/* <View style={styles.optionIconContainer}>
+          {/* Username & OTP Option */}
+          <TouchableOpacity
+            style={styles.optionButton}
+            onPress={handleUsernameOTPLogin}
+          >
+            <View style={styles.optionContent}>
+              {/* <View style={styles.optionIconContainer}>
               <Text style={styles.optionIcon}>📱</Text>
             </View> */}
-            <View style={styles.optionTextContainer}>
-              <Text style={styles.optionTitle}>Username & OTP</Text>
-              <Text style={styles.optionDescription}>
-                Login with your username and OTP
-              </Text>
+              <View style={styles.optionTextContainer}>
+                <Text style={styles.optionTitle}>Username & OTP</Text>
+                <Text style={styles.optionDescription}>
+                  Login with your username and OTP
+                </Text>
+              </View>
+              <Text style={styles.arrowIcon}>→</Text>
             </View>
-            <Text style={styles.arrowIcon}>→</Text>
-          </View>
-        </TouchableOpacity>
-      </View>
-
+          </TouchableOpacity>
+        </View>
       </ScrollView>
-      
+
       {/* Footer */}
       <View style={styles.footer}>
         <View style={styles.footerTextContainer}>
