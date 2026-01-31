@@ -57,9 +57,17 @@ export default function QRScanScreen({ navigation, route }: Props) {
   const [lastScannedCode, setLastScannedCode] = useState<string | null>(null);
   const isProcessingRef = useRef(false);
   const [activeTab, setActiveTab] = useState<TabType>("scan");
-  const [uniqueId, setUniqueId] = useState<string[]>(["", "", "", "", ""]);
+  const [uniqueId, setUniqueId] = useState<string[]>([
+    "",
+    "",
+    "",
+    "",
+    "",
+    "",
+  ]);
   const [errorMessage, setErrorMessage] = useState<string>("");
   const inputRefs = useRef<(TextInput | null)[]>([
+    null,
     null,
     null,
     null,
@@ -88,13 +96,24 @@ export default function QRScanScreen({ navigation, route }: Props) {
   };
 
   const handleLogout = async () => {
-    navigation.replace("LoginMethodSelection");
+    Alert.alert("Logout", "Do you want to log out?", [
+      {
+        text: "Cancel",
+        style: "cancel",
+      },
+      {
+        text: "Yes",
+        onPress: () => {
+          navigation.replace("LoginMethodSelection");
+        },
+      },
+    ]);
   };
 
   const handleUniqueIdValidation = async () => {
     const idString = uniqueId.join("");
-    if (idString.length !== 5) {
-      setErrorMessage("Please enter a 5-digit ID");
+    if (idString.length !== 6) {
+      setErrorMessage("Please enter a 6-digit ID");
       return;
     }
 
@@ -133,7 +152,7 @@ export default function QRScanScreen({ navigation, route }: Props) {
         ? selectedGate || undefined
         : undefined;
 
-      // Call the validate API with the 5-digit ID (no authentication required) with all parameters
+      // Call the validate API with the 6-digit ID (no authentication required) with all parameters
       const validationResponse = await api.validatePassNumber(idString, {
         auto_record_scan: true,
         gate_location: gateLocation,
@@ -206,7 +225,7 @@ export default function QRScanScreen({ navigation, route }: Props) {
       setUniqueId(newId);
 
       // Move to next input if available
-      if (index < 4 && inputRefs.current[index + 1]) {
+      if (index < 5 && inputRefs.current[index + 1]) {
         inputRefs.current[index + 1]?.focus();
       }
       return;
@@ -217,7 +236,7 @@ export default function QRScanScreen({ navigation, route }: Props) {
     setUniqueId(newId);
 
     // Auto-focus next input when a digit is entered
-    if (numericValue && index < 4 && inputRefs.current[index + 1]) {
+    if (numericValue && index < 5 && inputRefs.current[index + 1]) {
       inputRefs.current[index + 1]?.focus();
     }
   };
@@ -232,7 +251,7 @@ export default function QRScanScreen({ navigation, route }: Props) {
   const handleTabChange = (tab: TabType) => {
     if (validating) return;
     setActiveTab(tab);
-    setUniqueId(["", "", "", "", ""]);
+    setUniqueId(["", "", "", "", "", ""]);
     setErrorMessage("");
     setScanned(false);
     setLastScannedCode(null);
@@ -337,6 +356,11 @@ export default function QRScanScreen({ navigation, route }: Props) {
         qrData,
         gateLocation,
         gateAction,
+      );
+
+      console.log(
+        "validationResponse QR Code",
+        JSON.stringify(validationResponse, null, 2),
       );
 
       // Navigate based on valid field from API response
@@ -717,7 +741,7 @@ export default function QRScanScreen({ navigation, route }: Props) {
             {/* Unique ID Input Section */}
             <View style={styles.contentCard}>
               <View style={styles.uniqueIdContainer}>
-                <Text style={styles.uniqueIdLabel}>Enter 5-digit ID</Text>
+                <Text style={styles.uniqueIdLabel}>Enter 6-digit ID</Text>
                 {showGateAndAction && (!selectedGate || !actionType) && (
                   <View style={styles.selectionRequiredContainer}>
                     <Text style={styles.selectionRequiredText}>
