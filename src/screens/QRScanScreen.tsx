@@ -358,11 +358,6 @@ export default function QRScanScreen({ navigation, route }: Props) {
         gateAction,
       );
 
-      console.log(
-        "validationResponse QR Code",
-        JSON.stringify(validationResponse, null, 2),
-      );
-
       // Navigate based on valid field from API response
       if (validationResponse.valid === true) {
         // Reset ref before navigation

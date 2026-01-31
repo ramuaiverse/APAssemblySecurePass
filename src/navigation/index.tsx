@@ -21,6 +21,12 @@ import UsernameOTPLoginScreen from "@/screens/UsernameOTPLoginScreen";
 import SetPasswordScreen from "@/screens/SetPasswordScreen";
 import ForgotPasswordScreen from "@/screens/ForgotPasswordScreen";
 import ResetPasswordScreen from "@/screens/ResetPasswordScreen";
+import MyPassRequestsScreen from "@/screens/MyPassRequestsScreen";
+import RequestVisitorPassScreen from "@/screens/RequestVisitorPassScreen";
+import MyPassRequestDetailsScreen from "@/screens/MyPassRequestDetailsScreen";
+import LegislativeRejectScreen from "@/screens/LegislativeRejectScreen";
+import LegislativeApproveScreen from "@/screens/LegislativeApproveScreen";
+import LegislativeRouteScreen from "@/screens/LegislativeRouteScreen";
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
 
@@ -59,6 +65,27 @@ export const setUpNavigation = (
           component={IssueVisitorPassScreen}
         />
         <Stack.Screen name="PreviewPass" component={PreviewPassScreen} />
+        <Stack.Screen name="MyPassRequests" component={MyPassRequestsScreen} />
+        <Stack.Screen
+          name="RequestVisitorPass"
+          component={RequestVisitorPassScreen}
+        />
+        <Stack.Screen
+          name="MyPassRequestDetails"
+          component={MyPassRequestDetailsScreen}
+        />
+        <Stack.Screen
+          name="LegislativeReject"
+          component={LegislativeRejectScreen}
+        />
+        <Stack.Screen
+          name="LegislativeApprove"
+          component={LegislativeApproveScreen}
+        />
+        <Stack.Screen
+          name="LegislativeRoute"
+          component={LegislativeRouteScreen}
+        />
       </Stack.Navigator>
     </NavigationContainer>
   );

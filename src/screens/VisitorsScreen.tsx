@@ -12,11 +12,18 @@ import {
   Dimensions,
   Alert,
 } from "react-native";
+import { Calendar } from "react-native-calendars";
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
-import { RouteProp } from "@react-navigation/native";
+import { RouteProp, useFocusEffect } from "@react-navigation/native";
 import { RootStackParamList } from "@/types";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { api, MainCategory, PassTypeItem } from "@/services/api";
+import {
+  api,
+  MainCategory,
+  PassTypeItem,
+  Session,
+  SubCategory,
+} from "@/services/api";
 import { Ionicons } from "@expo/vector-icons";
 import BackButtonIcon from "../../assets/backButton.svg";
 import ChevronDownIcon from "../../assets/chevronDown.svg";
@@ -24,6 +31,7 @@ import Assembly from "../../assets/assembly.svg";
 import BackGround from "../../assets/backGround.svg";
 import LogOutIcon from "../../assets/logOut.svg";
 import CloseIcon from "../../assets/close.svg";
+import CalendarIcon from "../../assets/calendar.svg";
 
 type VisitorsScreenNavigationProp = NativeStackNavigationProp<
   RootStackParamList,
@@ -56,8 +64,9 @@ export default function VisitorsScreen({ navigation, route }: Props) {
   const userRole = route.params?.role || "";
   const userId = route.params?.userId || "";
   const hodApprover = route.params?.hod_approver || false;
-  const legislativeApprover = route.params?.legislative_approver || false;
-  const isApprover = hodApprover || legislativeApprover;
+  const isApprover = hodApprover;
+  const isLegislative = userRole === "legislative";
+  const userSubCategories = route.params?.sub_categories || [];
 
   const [passRequests, setPassRequests] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -83,6 +92,20 @@ export default function VisitorsScreen({ navigation, route }: Props) {
   const [showPassTypeModal, setShowPassTypeModal] = useState(false);
   const [showStatusModal, setShowStatusModal] = useState(false);
 
+  // Category filter state
+  const [selectedCategoryFilter, setSelectedCategoryFilter] =
+    useState("All Categories");
+  const [selectedCategoryFilterId, setSelectedCategoryFilterId] = useState<
+    string | null
+  >(null);
+  const [showCategoryFilterModal, setShowCategoryFilterModal] = useState(false);
+
+  // Date filter state
+  const [selectedDateFilter, setSelectedDateFilter] = useState("All Dates");
+  const [selectedDate, setSelectedDate] = useState<Date | null>(null);
+  const [showDatePickerModal, setShowDatePickerModal] = useState(false);
+  const [tempSelectedDate, setTempSelectedDate] = useState<Date>(new Date());
+
   // Approve/Reject modals state
   const [showApproveAllModal, setShowApproveAllModal] = useState(false);
   const [showRejectAllModal, setShowRejectAllModal] = useState(false);
@@ -94,6 +117,14 @@ export default function VisitorsScreen({ navigation, route }: Props) {
   const [selectedVisitor, setSelectedVisitor] = useState<any>(null);
   const [processingStatus, setProcessingStatus] = useState(false);
 
+  // Suspend modal state
+  const [showSuspendModal, setShowSuspendModal] = useState(false);
+  const [suspendReason, setSuspendReason] = useState("");
+  const [selectedVisitorForSuspend, setSelectedVisitorForSuspend] =
+    useState<any>(null);
+  const [selectedRequestForSuspend, setSelectedRequestForSuspend] =
+    useState<any>(null);
+
   // Category mappings
   const [categoryMap, setCategoryMap] = useState<{ [key: string]: string }>({});
   const [subCategoryMap, setSubCategoryMap] = useState<{
@@ -103,11 +134,64 @@ export default function VisitorsScreen({ navigation, route }: Props) {
   // Pass types
   const [passTypes, setPassTypes] = useState<PassTypeItem[]>([]);
 
+  // Legislative approve modal state
+  const [showLegislativeApproveModal, setShowLegislativeApproveModal] =
+    useState(false);
+  const [categories, setCategories] = useState<MainCategory[]>([]);
+  const [sessions, setSessions] = useState<Session[]>([]);
+  const [selectedCategoryId, setSelectedCategoryId] = useState<string | null>(
+    null,
+  );
+  const [selectedSubCategoryId, setSelectedSubCategoryId] = useState<
+    string | null
+  >(null);
+  const [selectedSessionId, setSelectedSessionId] = useState<string | null>(
+    null,
+  );
+  const [selectedSessionName, setSelectedSessionName] = useState<string>("");
+  const [validFrom, setValidFrom] = useState<Date>(() => {
+    const date = new Date();
+    date.setHours(8, 0, 0, 0);
+    return date;
+  });
+  const [validTo, setValidTo] = useState<Date | null>(() => {
+    const date = new Date();
+    date.setHours(17, 0, 0, 0);
+    return date;
+  });
+  const [legislativeComments, setLegislativeComments] = useState("");
+  const [showCategoryModal, setShowCategoryModal] = useState(false);
+  const [showSubCategoryModal, setShowSubCategoryModal] = useState(false);
+  const [showPassTypeModalLegislative, setShowPassTypeModalLegislative] =
+    useState(false);
+  const [showSessionModal, setShowSessionModal] = useState(false);
+  const [showValidFromPicker, setShowValidFromPicker] = useState(false);
+  const [showValidToPicker, setShowValidToPicker] = useState(false);
+  const [tempValidFromDate, setTempValidFromDate] = useState<Date>(new Date());
+  const [tempValidFromHour, setTempValidFromHour] = useState(8);
+  const [tempValidFromMinute, setTempValidFromMinute] = useState(0);
+  const [tempValidFromAmPm, setTempValidFromAmPm] = useState<"AM" | "PM">("AM");
+  const [tempValidToDate, setTempValidToDate] = useState<Date | null>(null);
+  const [tempValidToHour, setTempValidToHour] = useState(17);
+  const [tempValidToMinute, setTempValidToMinute] = useState(0);
+  const [tempValidToAmPm, setTempValidToAmPm] = useState<"AM" | "PM">("PM");
+
   useEffect(() => {
     fetchCategories();
     fetchPassTypes();
     fetchVisitors();
-  }, []);
+    fetchCategoriesForLegislative(); // Always fetch categories for filter dropdown
+    if (isLegislative) {
+      fetchSessions();
+    }
+  }, [isLegislative]);
+
+  // Refresh visitors when screen comes into focus (e.g., returning from legislative screens)
+  useFocusEffect(
+    React.useCallback(() => {
+      fetchVisitors();
+    }, []),
+  );
 
   const fetchCategories = async () => {
     try {
@@ -131,7 +215,7 @@ export default function VisitorsScreen({ navigation, route }: Props) {
       setCategoryMap(catMap);
       setSubCategoryMap(subCatMap);
     } catch (error) {
-      console.error("Error fetching categories:", error);
+      // Error fetching categories
     }
   };
 
@@ -150,14 +234,49 @@ export default function VisitorsScreen({ navigation, route }: Props) {
       const types = await api.getAllPassTypes();
       setPassTypes(types);
     } catch (error) {
-      console.error("Error fetching pass types:", error);
+      // Error fetching pass types
+    }
+  };
+
+  const fetchSessions = async () => {
+    try {
+      const fetchedSessions = await api.getSessions();
+      setSessions(fetchedSessions);
+    } catch (error) {
+      // Error fetching sessions
+    }
+  };
+
+  const fetchCategoriesForLegislative = async () => {
+    try {
+      const fetchedCategories = await api.getMainCategories();
+      setCategories(fetchedCategories);
+    } catch (error) {
+      // Error fetching categories
     }
   };
 
   const fetchVisitors = async () => {
     try {
       setLoading(true);
-      const requests = await api.getAllPassRequests(10000);
+      let requests = await api.getAllPassRequests(10000);
+
+      // Filter requests by sub_category_id if role is department or peshi
+      if (
+        (userRole === "department" || userRole === "peshi") &&
+        userSubCategories.length > 0
+      ) {
+        const allowedSubCategoryIds = userSubCategories.map(
+          (subCat: any) => subCat.id,
+        );
+        requests = requests.filter((req: any) => {
+          return (
+            req.sub_category_id &&
+            allowedSubCategoryIds.includes(req.sub_category_id)
+          );
+        });
+      }
+
       setPassRequests(requests);
 
       // Initialize all cards as expanded (open) by default
@@ -194,10 +313,10 @@ export default function VisitorsScreen({ navigation, route }: Props) {
               routed++;
             } else if (visitor.visitor_status === "approved") {
               approved++;
-            } else if (visitor.visitor_status === "rejected") {
-              rejected++;
             } else if (visitor.visitor_status === "pending") {
               pending++;
+            } else if (visitor.visitor_status === "rejected") {
+              rejected++;
             }
           });
         }
@@ -215,7 +334,7 @@ export default function VisitorsScreen({ navigation, route }: Props) {
         suspended,
       });
     } catch (error) {
-      console.error("Error fetching visitors:", error);
+      // Error fetching visitors
     } finally {
       setLoading(false);
     }
@@ -326,12 +445,51 @@ export default function VisitorsScreen({ navigation, route }: Props) {
     .filter((req) => {
       if (!req) return false;
 
+      // Category filter
+      if (selectedCategoryFilterId) {
+        if (req.main_category_id !== selectedCategoryFilterId) {
+          return false;
+        }
+      }
+
+      // Date filter
+      if (selectedDate) {
+        const filterDate = new Date(selectedDate);
+        filterDate.setHours(0, 0, 0, 0);
+
+        // Check if request's valid_from or valid_to matches the selected date
+        if (req.valid_from) {
+          const validFromDate = new Date(req.valid_from);
+          validFromDate.setHours(0, 0, 0, 0);
+          if (validFromDate.getTime() === filterDate.getTime()) {
+            // Date matches, continue to other filters
+          } else if (req.valid_to) {
+            const validToDate = new Date(req.valid_to);
+            validToDate.setHours(0, 0, 0, 0);
+            if (validToDate.getTime() !== filterDate.getTime()) {
+              return false;
+            }
+          } else {
+            return false;
+          }
+        } else {
+          return false;
+        }
+      }
+
+      // Text search filter
       const searchLower = searchQuery.toLowerCase();
       const matchesSearch =
         !searchQuery ||
         req.request_id?.toLowerCase().includes(searchLower) ||
         req.requested_by?.toLowerCase().includes(searchLower) ||
         req.purpose?.toLowerCase().includes(searchLower) ||
+        getCategoryName(req.main_category_id)
+          ?.toLowerCase()
+          .includes(searchLower) ||
+        getSubCategoryName(req.sub_category_id)
+          ?.toLowerCase()
+          .includes(searchLower) ||
         req.visitors?.some(
           (v: any) =>
             `${v.first_name} ${v.last_name}`
@@ -370,13 +528,169 @@ export default function VisitorsScreen({ navigation, route }: Props) {
     setSearchQuery("");
   };
 
+  const formatDateForFilter = (date: Date): string => {
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, "0");
+    const day = String(date.getDate()).padStart(2, "0");
+    return `${year}-${month}-${day}`;
+  };
+
+  const formatDateForDisplay = (date: Date): string => {
+    const days = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+    const months = [
+      "Jan",
+      "Feb",
+      "Mar",
+      "Apr",
+      "May",
+      "Jun",
+      "Jul",
+      "Aug",
+      "Sep",
+      "Oct",
+      "Nov",
+      "Dec",
+    ];
+    const dayName = days[date.getDay()];
+    const day = date.getDate().toString().padStart(2, "0");
+    const month = months[date.getMonth()];
+    const year = date.getFullYear();
+    return `${dayName}, ${day}/${month}/${year}`;
+  };
+
+  const handleCategoryFilterSelect = (category: MainCategory | null) => {
+    if (category) {
+      setSelectedCategoryFilter(category.name);
+      setSelectedCategoryFilterId(category.id);
+    } else {
+      setSelectedCategoryFilter("All Categories");
+      setSelectedCategoryFilterId(null);
+    }
+    setShowCategoryFilterModal(false);
+  };
+
+  const handleDateSelect = (day: any) => {
+    const selectedDate = new Date(day.year, day.month - 1, day.day);
+    setTempSelectedDate(selectedDate);
+  };
+
+  const handleDateFilterDone = () => {
+    setSelectedDate(tempSelectedDate);
+    setSelectedDateFilter(formatDateForDisplay(tempSelectedDate));
+    setShowDatePickerModal(false);
+  };
+
   const handleVisitorClick = (request: any, visitor: any) => {
     navigation.navigate("VisitorDetails", { request, visitor, role: userRole });
   };
 
   const handleLogout = () => {
-    // Navigate back to login method selection
-    navigation.replace("LoginMethodSelection");
+    Alert.alert("Logout", "Do you want to log out?", [
+      {
+        text: "Cancel",
+        style: "cancel",
+      },
+      {
+        text: "Yes",
+        onPress: () => {
+          navigation.replace("LoginMethodSelection");
+        },
+      },
+    ]);
+  };
+
+  // Handler for Resend WhatsApp
+  const handleResendWhatsApp = async (request: any, visitor: any) => {
+    try {
+      setProcessingStatus(true);
+      await api.resendWhatsApp(request.request_id, visitor.id);
+      Alert.alert("Success", "Pass has been resent to WhatsApp successfully.");
+      // Refresh the data
+      await fetchVisitors();
+    } catch (error) {
+      const errorMessage =
+        error instanceof Error
+          ? error.message
+          : "Failed to resend pass to WhatsApp. Please try again.";
+      Alert.alert("Error", errorMessage);
+    } finally {
+      setProcessingStatus(false);
+    }
+  };
+
+  // Handler for Suspend Click
+  const handleSuspendClick = (visitor: any, request: any) => {
+    setSelectedVisitorForSuspend(visitor);
+    setSelectedRequestForSuspend(request);
+    setSuspendReason("");
+    setShowSuspendModal(true);
+  };
+
+  // Handler for Suspend Submit
+  const handleSuspendSubmit = async () => {
+    if (!suspendReason.trim()) {
+      Alert.alert("Error", "Please enter a suspend reason.");
+      return;
+    }
+
+    if (!selectedVisitorForSuspend) {
+      Alert.alert("Error", "Visitor information not found.");
+      return;
+    }
+
+    try {
+      setProcessingStatus(true);
+      await api.suspendVisitor(selectedVisitorForSuspend.id, {
+        suspended_by: userId,
+        reason: suspendReason.trim(),
+      });
+      Alert.alert("Success", "Visitor pass has been suspended successfully.");
+      setShowSuspendModal(false);
+      setSuspendReason("");
+      setSelectedVisitorForSuspend(null);
+      setSelectedRequestForSuspend(null);
+      // Refresh the data
+      await fetchVisitors();
+    } catch (error) {
+      const errorMessage =
+        error instanceof Error
+          ? error.message
+          : "Failed to suspend visitor. Please try again.";
+      Alert.alert("Error", errorMessage);
+    } finally {
+      setProcessingStatus(false);
+    }
+  };
+
+  // Handler for Activate Click
+  const handleActivateClick = async (visitor: any) => {
+    if (!visitor?.id) {
+      Alert.alert("Error", "Visitor information not found.");
+      return;
+    }
+
+    if (!userId) {
+      Alert.alert("Error", "User information not found.");
+      return;
+    }
+
+    try {
+      setProcessingStatus(true);
+      await api.activateVisitor(visitor.id, {
+        activated_by: userId,
+      });
+      Alert.alert("Success", "Visitor pass has been activated successfully.");
+      // Refresh the data
+      await fetchVisitors();
+    } catch (error) {
+      const errorMessage =
+        error instanceof Error
+          ? error.message
+          : "Failed to activate visitor. Please try again.";
+      Alert.alert("Error", errorMessage);
+    } finally {
+      setProcessingStatus(false);
+    }
   };
 
   // Handler for Approve All
@@ -394,8 +708,19 @@ export default function VisitorsScreen({ navigation, route }: Props) {
   };
 
   // Handler for individual Approve
-  const handleApproveClick = (visitor: any) => {
+  const handleApproveClick = (visitor: any, request: any) => {
     setSelectedVisitor(visitor);
+    setSelectedRequest(request);
+    if (isLegislative) {
+      // For legislative role, navigate to approve screen
+      navigation.navigate("LegislativeApprove", {
+        visitor,
+        request,
+        userId: userId,
+      });
+      return;
+    }
+    // For HOD approvers, show simple approve modal
     setApproveComment("");
     setShowApproveModal(true);
   };
@@ -403,8 +728,34 @@ export default function VisitorsScreen({ navigation, route }: Props) {
   // Handler for individual Reject
   const handleRejectClick = (visitor: any) => {
     setSelectedVisitor(visitor);
+    if (isLegislative) {
+      // For legislative role, navigate to reject screen
+      const request = passRequests.find((req) =>
+        req.visitors?.some((v: any) => v.id === visitor.id),
+      );
+      if (request) {
+        navigation.navigate("LegislativeReject", {
+          visitor,
+          request,
+          userId: userId,
+        });
+      }
+      return;
+    }
+    // For non-legislative users, show reject modal
     setRejectReason("");
     setShowRejectModal(true);
+  };
+
+  // Handler for Route for Superior Approval
+  const handleRouteClick = (visitor: any, request: any) => {
+    if (isLegislative) {
+      navigation.navigate("LegislativeRoute", {
+        visitor,
+        request,
+        userId: userId,
+      });
+    }
   };
 
   // Execute Approve All
@@ -416,7 +767,10 @@ export default function VisitorsScreen({ navigation, route }: Props) {
     );
 
     if (!pendingVisitors || pendingVisitors.length === 0) {
-      Alert.alert("No Pending Visitors", "There are no pending visitors to approve.");
+      Alert.alert(
+        "No Pending Visitors",
+        "There are no pending visitors to approve.",
+      );
       setShowApproveAllModal(false);
       return;
     }
@@ -465,7 +819,10 @@ export default function VisitorsScreen({ navigation, route }: Props) {
     );
 
     if (!pendingVisitors || pendingVisitors.length === 0) {
-      Alert.alert("No Pending Visitors", "There are no pending visitors to reject.");
+      Alert.alert(
+        "No Pending Visitors",
+        "There are no pending visitors to reject.",
+      );
       setShowRejectAllModal(false);
       return;
     }
@@ -474,12 +831,7 @@ export default function VisitorsScreen({ navigation, route }: Props) {
     try {
       // Reject all pending visitors
       const promises = pendingVisitors.map((visitor: any) =>
-        api.updateVisitorStatus(
-          visitor.id,
-          "rejected",
-          userId,
-          rejectReason,
-        ),
+        api.updateVisitorStatus(visitor.id, "rejected", userId, rejectReason),
       );
 
       await Promise.all(promises);
@@ -563,6 +915,185 @@ export default function VisitorsScreen({ navigation, route }: Props) {
     }
   };
 
+  // Execute Legislative Approve & Generate Pass
+  const executeLegislativeApprove = async () => {
+    if (!selectedRequest || !selectedVisitor || !userId) return;
+
+    // Validate required fields
+    if (!selectedCategoryId) {
+      Alert.alert("Required", "Please select a category.");
+      return;
+    }
+    if (!selectedPassTypeId) {
+      Alert.alert("Required", "Please select a pass type.");
+      return;
+    }
+    if (!selectedSessionName) {
+      Alert.alert("Required", "Please select a session.");
+      return;
+    }
+
+    setProcessingStatus(true);
+    try {
+      const requestId = selectedRequest.id;
+
+      // Step 1: Update pass request status
+      await api.updatePassRequestStatus(requestId, {
+        status: "approved",
+        comments: legislativeComments || undefined,
+        current_user_id: userId,
+        pass_category_id: selectedCategoryId,
+        pass_sub_category_id: selectedSubCategoryId || undefined,
+        pass_type_id: selectedPassTypeId || undefined,
+        season: selectedSessionName,
+      });
+
+      // Step 2: Generate pass
+      await api.generatePass(requestId, {
+        visitor_id: selectedVisitor.id,
+        pass_category_id: selectedCategoryId,
+        pass_sub_category_id: selectedSubCategoryId || undefined,
+        pass_type_id: selectedPassTypeId || undefined,
+        current_user_id: userId,
+      });
+
+      // Step 3: Get pass request details
+      const passRequestData = await api.getPassRequest(requestId);
+
+      // Get category and pass type names
+      const categoryName = getCategoryName(selectedCategoryId);
+      const passTypeName =
+        passTypes.find((pt) => pt.id === selectedPassTypeId)?.name || "";
+
+      // Navigate to PreviewPassScreen
+      navigation.navigate("PreviewPass", {
+        passData: passRequestData,
+        categoryName: categoryName,
+        passTypeName: passTypeName,
+      });
+
+      // Close modal and refresh
+      setShowLegislativeApproveModal(false);
+      await fetchVisitors();
+    } catch (error) {
+      const errorMessage =
+        error instanceof Error
+          ? error.message
+          : "Failed to approve and generate pass. Please try again.";
+      Alert.alert("Error", errorMessage);
+    } finally {
+      setProcessingStatus(false);
+    }
+  };
+
+  // Format date for display
+  const formatDateTimeForDisplay = (date: Date) => {
+    const day = date.getDate().toString().padStart(2, "0");
+    const month = (date.getMonth() + 1).toString().padStart(2, "0");
+    const year = date.getFullYear();
+    const hours = date.getHours();
+    const minutes = date.getMinutes().toString().padStart(2, "0");
+    const ampm = hours >= 12 ? "PM" : "AM";
+    const displayHours = hours % 12 || 12;
+    return `${day}/${month}/${year} ${displayHours}:${minutes} ${ampm}`;
+  };
+
+  // Format date for calendar
+  const formatDateForCalendar = (date: Date) => {
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, "0");
+    const day = String(date.getDate()).padStart(2, "0");
+    return `${year}-${month}-${day}`;
+  };
+
+  // Handle valid from date/time selection
+  const openValidFromPicker = () => {
+    setTempValidFromDate(new Date(validFrom));
+    const hours = validFrom.getHours();
+    const minutes = validFrom.getMinutes();
+    setTempValidFromHour(hours % 12 || 12);
+    setTempValidFromMinute(minutes);
+    setTempValidFromAmPm(hours >= 12 ? "PM" : "AM");
+    setShowValidFromPicker(true);
+  };
+
+  const handleValidFromDone = () => {
+    const hours24 =
+      tempValidFromAmPm === "PM" && tempValidFromHour !== 12
+        ? tempValidFromHour + 12
+        : tempValidFromAmPm === "AM" && tempValidFromHour === 12
+          ? 0
+          : tempValidFromHour;
+    const newDate = new Date(tempValidFromDate);
+    newDate.setHours(hours24, tempValidFromMinute, 0, 0);
+    setValidFrom(newDate);
+    setShowValidFromPicker(false);
+  };
+
+  // Handle valid to date/time selection
+  const openValidToPicker = () => {
+    if (validTo) {
+      setTempValidToDate(new Date(validTo));
+      const hours = validTo.getHours();
+      const minutes = validTo.getMinutes();
+      setTempValidToHour(hours % 12 || 12);
+      setTempValidToMinute(minutes);
+      setTempValidToAmPm(hours >= 12 ? "PM" : "AM");
+    }
+    setShowValidToPicker(true);
+  };
+
+  const handleValidToDone = () => {
+    if (tempValidToDate) {
+      const hours24 =
+        tempValidToAmPm === "PM" && tempValidToHour !== 12
+          ? tempValidToHour + 12
+          : tempValidToAmPm === "AM" && tempValidToHour === 12
+            ? 0
+            : tempValidToHour;
+      const newDate = new Date(tempValidToDate);
+      newDate.setHours(hours24, tempValidToMinute, 0, 0);
+      setValidTo(newDate);
+      setShowValidToPicker(false);
+    }
+  };
+
+  const onValidFromDateSelect = (day: any) => {
+    const selectedDate = new Date(day.year, day.month - 1, day.day);
+    setTempValidFromDate(selectedDate);
+  };
+
+  const onValidToDateSelect = (day: any) => {
+    const selectedDate = new Date(day.year, day.month - 1, day.day);
+    setTempValidToDate(selectedDate);
+  };
+
+  // Get subcategories for selected category
+  const getSubCategoriesForCategory = (categoryId: string | null) => {
+    if (!categoryId) return [];
+    const category = categories.find((cat) => cat.id === categoryId);
+    return category?.sub_categories || [];
+  };
+
+  // Get category name
+  const getCategoryNameForLegislative = (categoryId: string | null) => {
+    if (!categoryId) return "";
+    const category = categories.find((cat) => cat.id === categoryId);
+    return category?.name || "";
+  };
+
+  // Get subcategory name
+  const getSubCategoryNameForLegislative = (subCategoryId: string | null) => {
+    if (!subCategoryId) return "";
+    for (const category of categories) {
+      const subCat = category.sub_categories?.find(
+        (sc) => sc.id === subCategoryId,
+      );
+      if (subCat) return subCat.name;
+    }
+    return "";
+  };
+
   return (
     <SafeAreaView style={styles.container} edges={["top"]}>
       {/* Background Assembly Image - Center */}
@@ -642,6 +1173,24 @@ export default function VisitorsScreen({ navigation, route }: Props) {
                 onPress={() => setShowPassTypeModal(true)}
               >
                 <Text style={styles.filterText}>{selectedPassType}</Text>
+                <ChevronDownIcon width={16} height={16} />
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={styles.filterButton}
+                onPress={() => setShowCategoryFilterModal(true)}
+              >
+                <Text style={styles.filterText} numberOfLines={1}>
+                  {selectedCategoryFilter}
+                </Text>
+                <ChevronDownIcon width={16} height={16} />
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={styles.filterButton}
+                onPress={() => setShowDatePickerModal(true)}
+              >
+                <Text style={styles.filterText} numberOfLines={1}>
+                  {selectedDateFilter}
+                </Text>
                 <ChevronDownIcon width={16} height={16} />
               </TouchableOpacity>
             </View>
@@ -749,6 +1298,7 @@ export default function VisitorsScreen({ navigation, route }: Props) {
 
                         {/* Approve All / Reject All Buttons for Approvers */}
                         {isApprover &&
+                          !isLegislative &&
                           request.visitors &&
                           request.visitors.length > 0 &&
                           request.visitors.some(
@@ -927,9 +1477,11 @@ export default function VisitorsScreen({ navigation, route }: Props) {
                                             </View>
                                           </View>
                                         )}
-                                        {/* Approve/Reject Buttons for Approvers */}
-                                        {isApprover &&
-                                          visitor.visitor_status === "pending" && (
+                                        {/* Approve/Reject/Route Buttons for Approvers */}
+                                        {(isApprover || isLegislative) &&
+                                          visitor.visitor_status ===
+                                            "pending" &&
+                                          visitor.is_suspended !== true && (
                                             <View
                                               style={
                                                 styles.approveRejectButtonsContainer
@@ -938,7 +1490,10 @@ export default function VisitorsScreen({ navigation, route }: Props) {
                                               <TouchableOpacity
                                                 style={styles.approveButton}
                                                 onPress={() =>
-                                                  handleApproveClick(visitor)
+                                                  handleApproveClick(
+                                                    visitor,
+                                                    request,
+                                                  )
                                                 }
                                                 disabled={processingStatus}
                                               >
@@ -963,6 +1518,103 @@ export default function VisitorsScreen({ navigation, route }: Props) {
                                                   }
                                                 >
                                                   Reject
+                                                </Text>
+                                              </TouchableOpacity>
+                                              {isLegislative && (
+                                                <TouchableOpacity
+                                                  style={styles.routeButton}
+                                                  onPress={() =>
+                                                    handleRouteClick(
+                                                      visitor,
+                                                      request,
+                                                    )
+                                                  }
+                                                  disabled={processingStatus}
+                                                >
+                                                  <Text
+                                                    style={
+                                                      styles.routeButtonText
+                                                    }
+                                                  >
+                                                    Route
+                                                  </Text>
+                                                </TouchableOpacity>
+                                              )}
+                                            </View>
+                                          )}
+
+                                        {/* Activate Button for Suspended Passes */}
+                                        {visitor.is_suspended === true && (
+                                          <View
+                                            style={
+                                              styles.approveRejectButtonsContainer
+                                            }
+                                          >
+                                            <TouchableOpacity
+                                              style={styles.activateButton}
+                                              onPress={() =>
+                                                handleActivateClick(visitor)
+                                              }
+                                              disabled={processingStatus}
+                                            >
+                                              <Text
+                                                style={
+                                                  styles.activateButtonText
+                                                }
+                                              >
+                                                Activate
+                                              </Text>
+                                            </TouchableOpacity>
+                                          </View>
+                                        )}
+
+                                        {/* Resend WhatsApp and Suspend Buttons for Approved Passes */}
+                                        {visitor.visitor_status ===
+                                          "approved" &&
+                                          visitor.pass_number &&
+                                          !visitor.is_suspended && (
+                                            <View
+                                              style={
+                                                styles.approveRejectButtonsContainer
+                                              }
+                                            >
+                                              <TouchableOpacity
+                                                style={
+                                                  styles.resendWhatsAppButton
+                                                }
+                                                onPress={() =>
+                                                  handleResendWhatsApp(
+                                                    request,
+                                                    visitor,
+                                                  )
+                                                }
+                                                disabled={processingStatus}
+                                              >
+                                                <Text
+                                                  style={
+                                                    styles.resendWhatsAppButtonText
+                                                  }
+                                                  numberOfLines={1}
+                                                >
+                                                  Resend to WhatsApp
+                                                </Text>
+                                              </TouchableOpacity>
+                                              <TouchableOpacity
+                                                style={styles.suspendButton}
+                                                onPress={() =>
+                                                  handleSuspendClick(
+                                                    visitor,
+                                                    request,
+                                                  )
+                                                }
+                                                disabled={processingStatus}
+                                              >
+                                                <Text
+                                                  style={
+                                                    styles.suspendButtonText
+                                                  }
+                                                >
+                                                  Suspend
                                                 </Text>
                                               </TouchableOpacity>
                                             </View>
@@ -1020,9 +1672,7 @@ export default function VisitorsScreen({ navigation, route }: Props) {
             >
               <CloseIcon width={20} height={20} />
             </TouchableOpacity>
-            <Text style={styles.approveModalTitle}>
-              Approve All Visitors
-            </Text>
+            <Text style={styles.approveModalTitle}>Approve All Visitors</Text>
             <Text style={styles.approveModalSubtitle}>
               Add optional comments for approval
             </Text>
@@ -1055,9 +1705,7 @@ export default function VisitorsScreen({ navigation, route }: Props) {
                 {processingStatus ? (
                   <ActivityIndicator color="#FFFFFF" />
                 ) : (
-                  <Text style={styles.modalApproveButtonText}>
-                    Approve All
-                  </Text>
+                  <Text style={styles.modalApproveButtonText}>Approve All</Text>
                 )}
               </TouchableOpacity>
             </View>
@@ -1254,6 +1902,822 @@ export default function VisitorsScreen({ navigation, route }: Props) {
         </TouchableOpacity>
       </Modal>
 
+      {/* Legislative Approve Modal */}
+      <Modal
+        visible={showLegislativeApproveModal}
+        transparent={true}
+        animationType="fade"
+        onRequestClose={() => setShowLegislativeApproveModal(false)}
+      >
+        <TouchableOpacity
+          style={styles.modalOverlay}
+          activeOpacity={1}
+          onPress={() => setShowLegislativeApproveModal(false)}
+        >
+          <ScrollView
+            contentContainerStyle={styles.legislativeModalScrollContent}
+            onStartShouldSetResponder={() => true}
+          >
+            <View style={styles.legislativeModalContent}>
+              <TouchableOpacity
+                style={styles.modalCloseButtonTop}
+                onPress={() => setShowLegislativeApproveModal(false)}
+              >
+                <CloseIcon width={20} height={20} />
+              </TouchableOpacity>
+              <View style={styles.legislativeModalHeader}>
+                <View style={styles.legislativeModalIconContainer}>
+                  <Ionicons name="checkmark-circle" size={48} color="#457E51" />
+                </View>
+                <Text style={styles.legislativeModalTitle}>
+                  Approve Visitor Request
+                </Text>
+              </View>
+
+              {/* Visitor Details Section */}
+              <View style={styles.legislativeModalSection}>
+                <Text style={styles.legislativeModalSectionTitle}>
+                  Visitor Details
+                </Text>
+                {selectedVisitor && (
+                  <>
+                    <View style={styles.legislativeModalDetailRow}>
+                      <Text style={styles.legislativeModalDetailLabel}>
+                        FULL NAME
+                      </Text>
+                      <Text style={styles.legislativeModalDetailValue}>
+                        {selectedVisitor.first_name || ""}{" "}
+                        {selectedVisitor.last_name || ""}
+                      </Text>
+                    </View>
+                    <View style={styles.legislativeModalDetailRow}>
+                      <Text style={styles.legislativeModalDetailLabel}>
+                        PHONE
+                      </Text>
+                      <Text style={styles.legislativeModalDetailValue}>
+                        {selectedVisitor.phone || "—"}
+                      </Text>
+                    </View>
+                    <View style={styles.legislativeModalDetailRow}>
+                      <Text style={styles.legislativeModalDetailLabel}>
+                        CATEGORY
+                      </Text>
+                      <Text style={styles.legislativeModalDetailValue}>
+                        {getCategoryNameForLegislative(selectedCategoryId) ||
+                          "—"}{" "}
+                        {selectedSubCategoryId &&
+                          getSubCategoryNameForLegislative(
+                            selectedSubCategoryId,
+                          ) &&
+                          `• ${getSubCategoryNameForLegislative(
+                            selectedSubCategoryId,
+                          )}`}
+                      </Text>
+                    </View>
+                    {selectedRequest && (
+                      <View style={styles.legislativeModalDetailRow}>
+                        <Text style={styles.legislativeModalDetailLabel}>
+                          REQUESTED BY
+                        </Text>
+                        <Text style={styles.legislativeModalDetailValue}>
+                          {selectedRequest.requested_by || "—"}
+                        </Text>
+                      </View>
+                    )}
+                    <View style={styles.legislativeModalDetailRow}>
+                      <Text style={styles.legislativeModalDetailLabel}>
+                        EMAIL
+                      </Text>
+                      <Text style={styles.legislativeModalDetailValue}>
+                        {selectedVisitor.email || "—"}
+                      </Text>
+                    </View>
+                    <View style={styles.legislativeModalDetailRow}>
+                      <Text style={styles.legislativeModalDetailLabel}>
+                        IDENTIFICATION
+                      </Text>
+                      <Text style={styles.legislativeModalDetailValue}>
+                        {selectedVisitor.identification_type || "—"}{" "}
+                        {selectedVisitor.identification_number || ""}
+                      </Text>
+                    </View>
+                    {selectedRequest && (
+                      <View style={styles.legislativeModalDetailRow}>
+                        <Text style={styles.legislativeModalDetailLabel}>
+                          PURPOSE
+                        </Text>
+                        <Text style={styles.legislativeModalDetailValue}>
+                          {selectedRequest.purpose || "—"}
+                        </Text>
+                      </View>
+                    )}
+                  </>
+                )}
+              </View>
+
+              {/* Pass Configuration Section */}
+              <View style={styles.legislativeModalSection}>
+                <Text style={styles.legislativeModalSectionTitle}>
+                  Pass Configuration
+                </Text>
+
+                {/* Category */}
+                <View style={styles.legislativeModalInputContainer}>
+                  <Text style={styles.legislativeModalInputLabel}>
+                    Category
+                  </Text>
+                  <TouchableOpacity
+                    style={styles.legislativeModalDropdown}
+                    onPress={() => setShowCategoryModal(true)}
+                  >
+                    <Text
+                      style={[
+                        styles.legislativeModalDropdownText,
+                        !selectedCategoryId &&
+                          styles.legislativeModalDropdownPlaceholder,
+                      ]}
+                    >
+                      {selectedCategoryId
+                        ? getCategoryNameForLegislative(selectedCategoryId)
+                        : "Select Category"}
+                    </Text>
+                    <ChevronDownIcon width={20} height={20} />
+                  </TouchableOpacity>
+                </View>
+
+                {/* Sub-Category */}
+                {selectedCategoryId && (
+                  <View style={styles.legislativeModalInputContainer}>
+                    <Text style={styles.legislativeModalInputLabel}>
+                      Sub-Category
+                    </Text>
+                    <TouchableOpacity
+                      style={styles.legislativeModalDropdown}
+                      onPress={() => setShowSubCategoryModal(true)}
+                    >
+                      <Text
+                        style={[
+                          styles.legislativeModalDropdownText,
+                          !selectedSubCategoryId &&
+                            styles.legislativeModalDropdownPlaceholder,
+                        ]}
+                      >
+                        {selectedSubCategoryId
+                          ? getSubCategoryNameForLegislative(
+                              selectedSubCategoryId,
+                            )
+                          : "Select Sub-Category"}
+                      </Text>
+                      <ChevronDownIcon width={20} height={20} />
+                    </TouchableOpacity>
+                  </View>
+                )}
+
+                {/* Valid From */}
+                <View style={styles.legislativeModalInputContainer}>
+                  <Text style={styles.legislativeModalInputLabel}>
+                    Valid From<Text style={styles.requiredAsterisk}>*</Text>
+                  </Text>
+                  <TouchableOpacity
+                    style={styles.legislativeModalDropdown}
+                    onPress={openValidFromPicker}
+                  >
+                    <Text style={styles.legislativeModalDropdownText}>
+                      {formatDateTimeForDisplay(validFrom)}
+                    </Text>
+                    <CalendarIcon width={20} height={20} />
+                  </TouchableOpacity>
+                </View>
+
+                {/* Valid To */}
+                <View style={styles.legislativeModalInputContainer}>
+                  <Text style={styles.legislativeModalInputLabel}>
+                    Valid To (Optional)
+                  </Text>
+                  <TouchableOpacity
+                    style={styles.legislativeModalDropdown}
+                    onPress={openValidToPicker}
+                  >
+                    <Text
+                      style={[
+                        styles.legislativeModalDropdownText,
+                        !validTo && styles.legislativeModalDropdownPlaceholder,
+                      ]}
+                    >
+                      {validTo
+                        ? formatDateTimeForDisplay(validTo)
+                        : "Select Valid To"}
+                    </Text>
+                    <CalendarIcon width={20} height={20} />
+                  </TouchableOpacity>
+                </View>
+
+                {/* Pass Type */}
+                <View style={styles.legislativeModalInputContainer}>
+                  <Text style={styles.legislativeModalInputLabel}>
+                    Pass Type<Text style={styles.requiredAsterisk}>*</Text>
+                  </Text>
+                  <TouchableOpacity
+                    style={styles.legislativeModalDropdown}
+                    onPress={() => setShowPassTypeModalLegislative(true)}
+                  >
+                    <Text
+                      style={[
+                        styles.legislativeModalDropdownText,
+                        !selectedPassTypeId &&
+                          styles.legislativeModalDropdownPlaceholder,
+                      ]}
+                    >
+                      {selectedPassTypeId
+                        ? passTypes.find((pt) => pt.id === selectedPassTypeId)
+                            ?.name || "Select Pass Type"
+                        : "Select Pass Type"}
+                    </Text>
+                    <ChevronDownIcon width={20} height={20} />
+                  </TouchableOpacity>
+                </View>
+
+                {/* Session */}
+                <View style={styles.legislativeModalInputContainer}>
+                  <Text style={styles.legislativeModalInputLabel}>
+                    Session<Text style={styles.requiredAsterisk}>*</Text>
+                  </Text>
+                  <TouchableOpacity
+                    style={styles.legislativeModalDropdown}
+                    onPress={() => setShowSessionModal(true)}
+                  >
+                    <Text
+                      style={[
+                        styles.legislativeModalDropdownText,
+                        !selectedSessionName &&
+                          styles.legislativeModalDropdownPlaceholder,
+                      ]}
+                    >
+                      {selectedSessionName || "Select Session"}
+                    </Text>
+                    <ChevronDownIcon width={20} height={20} />
+                  </TouchableOpacity>
+                </View>
+              </View>
+
+              {/* Comments Section */}
+              <View style={styles.legislativeModalSection}>
+                <Text style={styles.legislativeModalSectionTitle}>
+                  Comments
+                </Text>
+                <TextInput
+                  style={styles.legislativeModalTextArea}
+                  placeholder="Add any comments (optional)..."
+                  placeholderTextColor="#9CA3AF"
+                  value={legislativeComments}
+                  onChangeText={setLegislativeComments}
+                  multiline
+                  numberOfLines={4}
+                  textAlignVertical="top"
+                />
+              </View>
+
+              {/* Action Buttons */}
+              <View style={styles.legislativeModalButtonsContainer}>
+                <TouchableOpacity
+                  style={styles.legislativeModalCancelButton}
+                  onPress={() => {
+                    setShowLegislativeApproveModal(false);
+                    setLegislativeComments("");
+                  }}
+                  disabled={processingStatus}
+                >
+                  <Text style={styles.legislativeModalCancelButtonText}>
+                    Cancel
+                  </Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={styles.legislativeModalApproveButton}
+                  onPress={executeLegislativeApprove}
+                  disabled={processingStatus}
+                >
+                  {processingStatus ? (
+                    <ActivityIndicator color="#FFFFFF" />
+                  ) : (
+                    <Text style={styles.legislativeModalApproveButtonText}>
+                      Approve & Generate Pass
+                    </Text>
+                  )}
+                </TouchableOpacity>
+              </View>
+            </View>
+          </ScrollView>
+        </TouchableOpacity>
+      </Modal>
+
+      {/* Category Modal for Legislative */}
+      <Modal
+        visible={showCategoryModal}
+        transparent={true}
+        animationType="fade"
+        onRequestClose={() => setShowCategoryModal(false)}
+      >
+        <TouchableOpacity
+          style={styles.modalOverlay}
+          activeOpacity={1}
+          onPress={() => setShowCategoryModal(false)}
+        >
+          <View
+            style={styles.filterModalContent}
+            onStartShouldSetResponder={() => true}
+          >
+            <Text style={styles.filterModalTitle}>Select Category</Text>
+            <ScrollView style={styles.filterModalList}>
+              {categories.map((category) => (
+                <TouchableOpacity
+                  key={category.id}
+                  style={styles.filterModalItem}
+                  onPress={() => {
+                    setSelectedCategoryId(category.id);
+                    setSelectedSubCategoryId(null);
+                    setShowCategoryModal(false);
+                  }}
+                >
+                  <Text style={styles.filterModalItemText}>
+                    {category.name}
+                  </Text>
+                  {selectedCategoryId === category.id && (
+                    <Ionicons name="checkmark" size={20} color="#457E51" />
+                  )}
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
+          </View>
+        </TouchableOpacity>
+      </Modal>
+
+      {/* Sub-Category Modal for Legislative */}
+      <Modal
+        visible={showSubCategoryModal}
+        transparent={true}
+        animationType="fade"
+        onRequestClose={() => setShowSubCategoryModal(false)}
+      >
+        <TouchableOpacity
+          style={styles.modalOverlay}
+          activeOpacity={1}
+          onPress={() => setShowSubCategoryModal(false)}
+        >
+          <View
+            style={styles.filterModalContent}
+            onStartShouldSetResponder={() => true}
+          >
+            <Text style={styles.filterModalTitle}>Select Sub-Category</Text>
+            <ScrollView style={styles.filterModalList}>
+              {getSubCategoriesForCategory(selectedCategoryId).map(
+                (subCat: SubCategory) => (
+                  <TouchableOpacity
+                    key={subCat.id}
+                    style={styles.filterModalItem}
+                    onPress={() => {
+                      setSelectedSubCategoryId(subCat.id);
+                      setShowSubCategoryModal(false);
+                    }}
+                  >
+                    <Text style={styles.filterModalItemText}>
+                      {subCat.name}
+                    </Text>
+                    {selectedSubCategoryId === subCat.id && (
+                      <Ionicons name="checkmark" size={20} color="#457E51" />
+                    )}
+                  </TouchableOpacity>
+                ),
+              )}
+            </ScrollView>
+          </View>
+        </TouchableOpacity>
+      </Modal>
+
+      {/* Pass Type Modal for Legislative */}
+      <Modal
+        visible={showPassTypeModalLegislative}
+        transparent={true}
+        animationType="fade"
+        onRequestClose={() => setShowPassTypeModalLegislative(false)}
+      >
+        <TouchableOpacity
+          style={styles.modalOverlay}
+          activeOpacity={1}
+          onPress={() => setShowPassTypeModalLegislative(false)}
+        >
+          <View
+            style={styles.filterModalContent}
+            onStartShouldSetResponder={() => true}
+          >
+            <Text style={styles.filterModalTitle}>Select Pass Type</Text>
+            <ScrollView style={styles.filterModalList}>
+              {passTypes.map((type) => (
+                <TouchableOpacity
+                  key={type.id}
+                  style={styles.filterModalItem}
+                  onPress={() => {
+                    setSelectedPassTypeId(type.id);
+                    setShowPassTypeModalLegislative(false);
+                  }}
+                >
+                  <Text style={styles.filterModalItemText}>{type.name}</Text>
+                  {selectedPassTypeId === type.id && (
+                    <Ionicons name="checkmark" size={20} color="#457E51" />
+                  )}
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
+          </View>
+        </TouchableOpacity>
+      </Modal>
+
+      {/* Session Modal for Legislative */}
+      <Modal
+        visible={showSessionModal}
+        transparent={true}
+        animationType="fade"
+        onRequestClose={() => setShowSessionModal(false)}
+      >
+        <TouchableOpacity
+          style={styles.modalOverlay}
+          activeOpacity={1}
+          onPress={() => setShowSessionModal(false)}
+        >
+          <View
+            style={styles.filterModalContent}
+            onStartShouldSetResponder={() => true}
+          >
+            <Text style={styles.filterModalTitle}>Select Session</Text>
+            <ScrollView style={styles.filterModalList}>
+              {sessions.map((session) => (
+                <TouchableOpacity
+                  key={session.id}
+                  style={styles.filterModalItem}
+                  onPress={() => {
+                    setSelectedSessionId(session.id);
+                    setSelectedSessionName(session.name);
+                    setShowSessionModal(false);
+                  }}
+                >
+                  <Text style={styles.filterModalItemText}>{session.name}</Text>
+                  {selectedSessionId === session.id && (
+                    <Ionicons name="checkmark" size={20} color="#457E51" />
+                  )}
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
+          </View>
+        </TouchableOpacity>
+      </Modal>
+
+      {/* Valid From Date/Time Picker */}
+      {showValidFromPicker && (
+        <Modal
+          transparent={true}
+          animationType="slide"
+          visible={showValidFromPicker}
+          onRequestClose={() => setShowValidFromPicker(false)}
+        >
+          <TouchableOpacity
+            style={styles.datePickerModalOverlay}
+            activeOpacity={1}
+            onPress={() => setShowValidFromPicker(false)}
+          >
+            <TouchableOpacity
+              activeOpacity={1}
+              onPress={(e) => e.stopPropagation()}
+            >
+              <View style={styles.datePickerModalContent}>
+                <View style={styles.datePickerModalHeader}>
+                  <TouchableOpacity
+                    onPress={() => setShowValidFromPicker(false)}
+                    style={styles.datePickerCancelButton}
+                  >
+                    <Text style={styles.datePickerCancelText}>Cancel</Text>
+                  </TouchableOpacity>
+                  <Text style={styles.datePickerModalTitle}>
+                    Select Valid From
+                  </Text>
+                  <TouchableOpacity
+                    onPress={handleValidFromDone}
+                    style={styles.datePickerDoneButton}
+                  >
+                    <Text style={styles.datePickerDoneText}>Done</Text>
+                  </TouchableOpacity>
+                </View>
+                <Calendar
+                  current={formatDateForCalendar(tempValidFromDate)}
+                  onDayPress={onValidFromDateSelect}
+                  markedDates={{
+                    [formatDateForCalendar(tempValidFromDate)]: {
+                      selected: true,
+                      selectedColor: "#457E51",
+                      selectedTextColor: "#FFFFFF",
+                    },
+                  }}
+                  minDate={formatDateForCalendar(new Date())}
+                  theme={{
+                    backgroundColor: "#FFFFFF",
+                    calendarBackground: "#FFFFFF",
+                    textSectionTitleColor: "#111827",
+                    selectedDayBackgroundColor: "#457E51",
+                    selectedDayTextColor: "#FFFFFF",
+                    todayTextColor: "#457E51",
+                    dayTextColor: "#111827",
+                    textDisabledColor: "#D1D5DB",
+                    dotColor: "#457E51",
+                    selectedDotColor: "#FFFFFF",
+                    arrowColor: "#457E51",
+                    monthTextColor: "#111827",
+                    indicatorColor: "#457E51",
+                    textDayFontWeight: "500",
+                    textMonthFontWeight: "bold",
+                    textDayHeaderFontWeight: "600",
+                    textDayFontSize: 16,
+                    textMonthFontSize: 18,
+                    textDayHeaderFontSize: 14,
+                  }}
+                  enableSwipeMonths={true}
+                />
+                <View style={styles.timePickerContainer}>
+                  <View style={styles.customTimePicker}>
+                    {/* Hours */}
+                    <View style={styles.timePickerColumn}>
+                      <ScrollView
+                        style={styles.timePickerScroll}
+                        showsVerticalScrollIndicator={false}
+                      >
+                        {Array.from({ length: 12 }, (_, i) => i + 1).map(
+                          (hour) => (
+                            <TouchableOpacity
+                              key={hour}
+                              style={[
+                                styles.timePickerItem,
+                                tempValidFromHour === hour &&
+                                  styles.timePickerItemSelected,
+                              ]}
+                              onPress={() => setTempValidFromHour(hour)}
+                            >
+                              <Text
+                                style={[
+                                  styles.timePickerText,
+                                  tempValidFromHour === hour &&
+                                    styles.timePickerTextSelected,
+                                ]}
+                              >
+                                {hour.toString().padStart(2, "0")}
+                              </Text>
+                            </TouchableOpacity>
+                          ),
+                        )}
+                      </ScrollView>
+                    </View>
+                    {/* Minutes */}
+                    <View style={styles.timePickerColumn}>
+                      <ScrollView
+                        style={styles.timePickerScroll}
+                        showsVerticalScrollIndicator={false}
+                      >
+                        {Array.from({ length: 60 }, (_, i) => i).map(
+                          (minute) => (
+                            <TouchableOpacity
+                              key={minute}
+                              style={[
+                                styles.timePickerItem,
+                                tempValidFromMinute === minute &&
+                                  styles.timePickerItemSelected,
+                              ]}
+                              onPress={() => setTempValidFromMinute(minute)}
+                            >
+                              <Text
+                                style={[
+                                  styles.timePickerText,
+                                  tempValidFromMinute === minute &&
+                                    styles.timePickerTextSelected,
+                                ]}
+                              >
+                                {minute.toString().padStart(2, "0")}
+                              </Text>
+                            </TouchableOpacity>
+                          ),
+                        )}
+                      </ScrollView>
+                    </View>
+                    {/* AM/PM */}
+                    <View style={styles.timePickerColumn}>
+                      <ScrollView
+                        style={styles.timePickerScroll}
+                        showsVerticalScrollIndicator={false}
+                      >
+                        {["AM", "PM"].map((ampm) => (
+                          <TouchableOpacity
+                            key={ampm}
+                            style={[
+                              styles.timePickerItem,
+                              tempValidFromAmPm === ampm &&
+                                styles.timePickerItemSelected,
+                            ]}
+                            onPress={() =>
+                              setTempValidFromAmPm(ampm as "AM" | "PM")
+                            }
+                          >
+                            <Text
+                              style={[
+                                styles.timePickerText,
+                                tempValidFromAmPm === ampm &&
+                                  styles.timePickerTextSelected,
+                              ]}
+                            >
+                              {ampm}
+                            </Text>
+                          </TouchableOpacity>
+                        ))}
+                      </ScrollView>
+                    </View>
+                  </View>
+                </View>
+              </View>
+            </TouchableOpacity>
+          </TouchableOpacity>
+        </Modal>
+      )}
+
+      {/* Valid To Date/Time Picker */}
+      {showValidToPicker && (
+        <Modal
+          transparent={true}
+          animationType="slide"
+          visible={showValidToPicker}
+          onRequestClose={() => setShowValidToPicker(false)}
+        >
+          <TouchableOpacity
+            style={styles.datePickerModalOverlay}
+            activeOpacity={1}
+            onPress={() => setShowValidToPicker(false)}
+          >
+            <TouchableOpacity
+              activeOpacity={1}
+              onPress={(e) => e.stopPropagation()}
+            >
+              <View style={styles.datePickerModalContent}>
+                <View style={styles.datePickerModalHeader}>
+                  <TouchableOpacity
+                    onPress={() => setShowValidToPicker(false)}
+                    style={styles.datePickerCancelButton}
+                  >
+                    <Text style={styles.datePickerCancelText}>Cancel</Text>
+                  </TouchableOpacity>
+                  <Text style={styles.datePickerModalTitle}>
+                    Select Valid To
+                  </Text>
+                  <TouchableOpacity
+                    onPress={handleValidToDone}
+                    style={styles.datePickerDoneButton}
+                  >
+                    <Text style={styles.datePickerDoneText}>Done</Text>
+                  </TouchableOpacity>
+                </View>
+                {tempValidToDate && (
+                  <>
+                    <Calendar
+                      current={formatDateForCalendar(tempValidToDate)}
+                      onDayPress={onValidToDateSelect}
+                      markedDates={{
+                        [formatDateForCalendar(tempValidToDate)]: {
+                          selected: true,
+                          selectedColor: "#457E51",
+                          selectedTextColor: "#FFFFFF",
+                        },
+                      }}
+                      minDate={formatDateForCalendar(validFrom)}
+                      theme={{
+                        backgroundColor: "#FFFFFF",
+                        calendarBackground: "#FFFFFF",
+                        textSectionTitleColor: "#111827",
+                        selectedDayBackgroundColor: "#457E51",
+                        selectedDayTextColor: "#FFFFFF",
+                        todayTextColor: "#457E51",
+                        dayTextColor: "#111827",
+                        textDisabledColor: "#D1D5DB",
+                        dotColor: "#457E51",
+                        selectedDotColor: "#FFFFFF",
+                        arrowColor: "#457E51",
+                        monthTextColor: "#111827",
+                        indicatorColor: "#457E51",
+                        textDayFontWeight: "500",
+                        textMonthFontWeight: "bold",
+                        textDayHeaderFontWeight: "600",
+                        textDayFontSize: 16,
+                        textMonthFontSize: 18,
+                        textDayHeaderFontSize: 14,
+                      }}
+                      enableSwipeMonths={true}
+                    />
+                    <View style={styles.timePickerContainer}>
+                      <View style={styles.customTimePicker}>
+                        {/* Hours */}
+                        <View style={styles.timePickerColumn}>
+                          <ScrollView
+                            style={styles.timePickerScroll}
+                            showsVerticalScrollIndicator={false}
+                          >
+                            {Array.from({ length: 12 }, (_, i) => i + 1).map(
+                              (hour) => (
+                                <TouchableOpacity
+                                  key={hour}
+                                  style={[
+                                    styles.timePickerItem,
+                                    tempValidToHour === hour &&
+                                      styles.timePickerItemSelected,
+                                  ]}
+                                  onPress={() => setTempValidToHour(hour)}
+                                >
+                                  <Text
+                                    style={[
+                                      styles.timePickerText,
+                                      tempValidToHour === hour &&
+                                        styles.timePickerTextSelected,
+                                    ]}
+                                  >
+                                    {hour.toString().padStart(2, "0")}
+                                  </Text>
+                                </TouchableOpacity>
+                              ),
+                            )}
+                          </ScrollView>
+                        </View>
+                        {/* Minutes */}
+                        <View style={styles.timePickerColumn}>
+                          <ScrollView
+                            style={styles.timePickerScroll}
+                            showsVerticalScrollIndicator={false}
+                          >
+                            {Array.from({ length: 60 }, (_, i) => i).map(
+                              (minute) => (
+                                <TouchableOpacity
+                                  key={minute}
+                                  style={[
+                                    styles.timePickerItem,
+                                    tempValidToMinute === minute &&
+                                      styles.timePickerItemSelected,
+                                  ]}
+                                  onPress={() => setTempValidToMinute(minute)}
+                                >
+                                  <Text
+                                    style={[
+                                      styles.timePickerText,
+                                      tempValidToMinute === minute &&
+                                        styles.timePickerTextSelected,
+                                    ]}
+                                  >
+                                    {minute.toString().padStart(2, "0")}
+                                  </Text>
+                                </TouchableOpacity>
+                              ),
+                            )}
+                          </ScrollView>
+                        </View>
+                        {/* AM/PM */}
+                        <View style={styles.timePickerColumn}>
+                          <ScrollView
+                            style={styles.timePickerScroll}
+                            showsVerticalScrollIndicator={false}
+                          >
+                            {["AM", "PM"].map((ampm) => (
+                              <TouchableOpacity
+                                key={ampm}
+                                style={[
+                                  styles.timePickerItem,
+                                  tempValidToAmPm === ampm &&
+                                    styles.timePickerItemSelected,
+                                ]}
+                                onPress={() =>
+                                  setTempValidToAmPm(ampm as "AM" | "PM")
+                                }
+                              >
+                                <Text
+                                  style={[
+                                    styles.timePickerText,
+                                    tempValidToAmPm === ampm &&
+                                      styles.timePickerTextSelected,
+                                  ]}
+                                >
+                                  {ampm}
+                                </Text>
+                              </TouchableOpacity>
+                            ))}
+                          </ScrollView>
+                        </View>
+                      </View>
+                    </View>
+                  </>
+                )}
+              </View>
+            </TouchableOpacity>
+          </TouchableOpacity>
+        </Modal>
+      )}
+
       {/* Pass Type Filter Modal */}
       <Modal
         visible={showPassTypeModal}
@@ -1375,6 +2839,210 @@ export default function VisitorsScreen({ navigation, route }: Props) {
           </View>
         </TouchableOpacity>
       </Modal>
+
+      {/* Category Filter Modal */}
+      <Modal
+        visible={showCategoryFilterModal}
+        transparent={true}
+        animationType="fade"
+        onRequestClose={() => setShowCategoryFilterModal(false)}
+      >
+        <TouchableOpacity
+          style={styles.modalOverlay}
+          activeOpacity={1}
+          onPress={() => setShowCategoryFilterModal(false)}
+        >
+          <View style={styles.modalContent}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Select Category</Text>
+              <TouchableOpacity
+                onPress={() => setShowCategoryFilterModal(false)}
+                style={styles.modalCloseButton}
+              >
+                <Text style={styles.modalCloseText}>✕</Text>
+              </TouchableOpacity>
+            </View>
+            <ScrollView style={styles.modalScrollView}>
+              <TouchableOpacity
+                style={[
+                  styles.modalItem,
+                  selectedCategoryFilter === "All Categories" &&
+                    styles.modalItemSelected,
+                ]}
+                onPress={() => handleCategoryFilterSelect(null)}
+              >
+                <Text
+                  style={[
+                    styles.modalItemText,
+                    selectedCategoryFilter === "All Categories" &&
+                      styles.modalItemTextSelected,
+                  ]}
+                >
+                  All Categories
+                </Text>
+              </TouchableOpacity>
+              {Object.keys(categoryMap).map((categoryId) => (
+                <TouchableOpacity
+                  key={categoryId}
+                  style={[
+                    styles.modalItem,
+                    selectedCategoryFilterId === categoryId &&
+                      styles.modalItemSelected,
+                  ]}
+                  onPress={() => {
+                    const category =
+                      categories.find((c) => c.id === categoryId) || null;
+                    handleCategoryFilterSelect(category);
+                  }}
+                >
+                  <Text
+                    style={[
+                      styles.modalItemText,
+                      selectedCategoryFilterId === categoryId &&
+                        styles.modalItemTextSelected,
+                    ]}
+                  >
+                    {categoryMap[categoryId]}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
+          </View>
+        </TouchableOpacity>
+      </Modal>
+
+      {/* Date Filter Modal */}
+      <Modal
+        visible={showDatePickerModal}
+        transparent={true}
+        animationType="slide"
+        onRequestClose={() => setShowDatePickerModal(false)}
+      >
+        <TouchableOpacity
+          style={styles.datePickerModalOverlay}
+          activeOpacity={1}
+          onPress={() => setShowDatePickerModal(false)}
+        >
+          <View
+            style={styles.datePickerModalContent}
+            onStartShouldSetResponder={() => true}
+          >
+            <View style={styles.datePickerModalHeader}>
+              <TouchableOpacity
+                onPress={() => setShowDatePickerModal(false)}
+                style={styles.datePickerCancelButton}
+              >
+                <Text style={styles.datePickerCancelText}>Cancel</Text>
+              </TouchableOpacity>
+              <Text style={styles.datePickerModalTitle}>Select Date</Text>
+              <TouchableOpacity
+                onPress={handleDateFilterDone}
+                style={styles.datePickerDoneButton}
+              >
+                <Text style={styles.datePickerDoneText}>Done</Text>
+              </TouchableOpacity>
+            </View>
+            <Calendar
+              current={formatDateForFilter(tempSelectedDate)}
+              onDayPress={handleDateSelect}
+              markedDates={{
+                [formatDateForFilter(tempSelectedDate)]: {
+                  selected: true,
+                  selectedColor: "#457E51",
+                  selectedTextColor: "#FFFFFF",
+                },
+              }}
+              theme={{
+                backgroundColor: "#FFFFFF",
+                calendarBackground: "#FFFFFF",
+                textSectionTitleColor: "#111827",
+                selectedDayBackgroundColor: "#457E51",
+                selectedDayTextColor: "#FFFFFF",
+                todayTextColor: "#457E51",
+                dayTextColor: "#111827",
+                textDisabledColor: "#D1D5DB",
+                dotColor: "#457E51",
+                selectedDotColor: "#FFFFFF",
+                arrowColor: "#457E51",
+                monthTextColor: "#111827",
+                indicatorColor: "#457E51",
+                textDayFontWeight: "500",
+                textMonthFontWeight: "bold",
+                textDayHeaderFontWeight: "600",
+                textDayFontSize: 16,
+                textMonthFontSize: 18,
+                textDayHeaderFontSize: 14,
+              }}
+              enableSwipeMonths={true}
+            />
+          </View>
+        </TouchableOpacity>
+      </Modal>
+
+      {/* Suspend Modal */}
+      <Modal
+        visible={showSuspendModal}
+        transparent={true}
+        animationType="fade"
+        onRequestClose={() => setShowSuspendModal(false)}
+      >
+        <TouchableOpacity
+          style={styles.modalOverlay}
+          activeOpacity={1}
+          onPress={() => setShowSuspendModal(false)}
+        >
+          <View
+            style={styles.approveModalContent}
+            onStartShouldSetResponder={() => true}
+          >
+            <TouchableOpacity
+              style={styles.modalCloseButtonTop}
+              onPress={() => setShowSuspendModal(false)}
+            >
+              <CloseIcon width={20} height={20} />
+            </TouchableOpacity>
+            <Text style={styles.approveModalTitle}>Suspend Visitor Pass</Text>
+            <Text style={styles.approveModalSubtitle}>
+              Enter reason for suspending the pass
+            </Text>
+            <TextInput
+              style={styles.modalTextInput}
+              placeholder="Enter suspend reason..."
+              placeholderTextColor="#9CA3AF"
+              value={suspendReason}
+              onChangeText={setSuspendReason}
+              multiline
+              numberOfLines={4}
+              textAlignVertical="top"
+            />
+            <View style={styles.modalButtonsContainer}>
+              <TouchableOpacity
+                style={styles.modalCancelButton}
+                onPress={() => {
+                  setShowSuspendModal(false);
+                  setSuspendReason("");
+                  setSelectedVisitorForSuspend(null);
+                  setSelectedRequestForSuspend(null);
+                }}
+                disabled={processingStatus}
+              >
+                <Text style={styles.modalCancelButtonText}>Cancel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={styles.modalSubmitButton}
+                onPress={handleSuspendSubmit}
+                disabled={processingStatus}
+              >
+                {processingStatus ? (
+                  <ActivityIndicator size="small" color="#FFFFFF" />
+                ) : (
+                  <Text style={styles.modalSubmitButtonText}>Suspend</Text>
+                )}
+              </TouchableOpacity>
+            </View>
+          </View>
+        </TouchableOpacity>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -1416,15 +3084,18 @@ const styles = StyleSheet.create({
     zIndex: 1,
   },
   backButton: {
-    width: 40,
+    minWidth: 36,
+    minHeight: 36,
+    padding: 6,
     justifyContent: "center",
     alignItems: "center",
   },
   logoutButton: {
-    width: 40,
+    minWidth: 36,
+    minHeight: 36,
+    padding: 6,
     justifyContent: "center",
     alignItems: "center",
-    padding: 8,
   },
   headerTitleContainer: {
     flex: 1,
@@ -1902,6 +3573,62 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontWeight: "600",
   },
+  routeButton: {
+    flex: 1,
+    backgroundColor: "#457E51",
+    paddingVertical: 10,
+    paddingHorizontal: 16,
+    borderRadius: 8,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  routeButtonText: {
+    color: "#FFFFFF",
+    fontSize: 13,
+    fontWeight: "600",
+  },
+  resendWhatsAppButton: {
+    flex: 1,
+    backgroundColor: "#457E51",
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    borderRadius: 8,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  resendWhatsAppButtonText: {
+    color: "#FFFFFF",
+    fontSize: 13,
+    fontWeight: "600",
+  },
+  suspendButton: {
+    flex: 1,
+    backgroundColor: "#EF4444",
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    borderRadius: 8,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  suspendButtonText: {
+    color: "#FFFFFF",
+    fontSize: 13,
+    fontWeight: "600",
+  },
+  activateButton: {
+    flex: 1,
+    backgroundColor: "#457E51",
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    borderRadius: 8,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  activateButtonText: {
+    color: "#FFFFFF",
+    fontSize: 13,
+    fontWeight: "600",
+  },
   approveModalContent: {
     backgroundColor: "#FFFFFF",
     borderRadius: 12,
@@ -2006,6 +3733,20 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: "600",
   },
+  modalSubmitButton: {
+    backgroundColor: "#F59E0B",
+    paddingVertical: 12,
+    paddingHorizontal: 24,
+    borderRadius: 8,
+    alignItems: "center",
+    justifyContent: "center",
+    minWidth: 120,
+  },
+  modalSubmitButtonText: {
+    color: "#FFFFFF",
+    fontSize: 14,
+    fontWeight: "600",
+  },
   modalRejectButton: {
     backgroundColor: "#EF4444",
     paddingVertical: 12,
@@ -2018,6 +3759,264 @@ const styles = StyleSheet.create({
   modalRejectButtonText: {
     color: "#FFFFFF",
     fontSize: 14,
+    fontWeight: "600",
+  },
+  // Legislative Modal Styles
+  legislativeModalScrollContent: {
+    flexGrow: 1,
+    justifyContent: "center",
+    alignItems: "center",
+    paddingVertical: 40,
+  },
+  legislativeModalContent: {
+    backgroundColor: "#FFFFFF",
+    borderRadius: 12,
+    width: "90%",
+    maxWidth: 500,
+    padding: 24,
+    shadowColor: "#000",
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.25,
+    shadowRadius: 4,
+    elevation: 5,
+    maxHeight: "90%",
+  },
+  legislativeModalHeader: {
+    alignItems: "center",
+    marginBottom: 24,
+  },
+  legislativeModalIconContainer: {
+    marginBottom: 12,
+  },
+  legislativeModalTitle: {
+    fontSize: 20,
+    fontWeight: "bold",
+    color: "#111827",
+    textAlign: "center",
+  },
+  legislativeModalSection: {
+    marginBottom: 24,
+  },
+  legislativeModalSectionTitle: {
+    fontSize: 16,
+    fontWeight: "600",
+    color: "#111827",
+    marginBottom: 16,
+  },
+  legislativeModalDetailRow: {
+    marginBottom: 12,
+  },
+  legislativeModalDetailLabel: {
+    fontSize: 12,
+    fontWeight: "600",
+    color: "#6B7280",
+    marginBottom: 4,
+    textTransform: "uppercase",
+  },
+  legislativeModalDetailValue: {
+    fontSize: 14,
+    color: "#111827",
+  },
+  legislativeModalInputContainer: {
+    marginBottom: 16,
+  },
+  legislativeModalInputLabel: {
+    fontSize: 14,
+    fontWeight: "500",
+    color: "#111827",
+    marginBottom: 8,
+  },
+  requiredAsterisk: {
+    color: "#EF4444",
+  },
+  legislativeModalDropdown: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    backgroundColor: "#F9FAFB",
+    borderWidth: 1,
+    borderColor: "#E5E7EB",
+    borderRadius: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 12,
+  },
+  legislativeModalDropdownText: {
+    fontSize: 14,
+    color: "#111827",
+    flex: 1,
+  },
+  legislativeModalDropdownPlaceholder: {
+    color: "#9CA3AF",
+  },
+  legislativeModalTextArea: {
+    backgroundColor: "#F9FAFB",
+    borderWidth: 1,
+    borderColor: "#E5E7EB",
+    borderRadius: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 12,
+    fontSize: 14,
+    color: "#111827",
+    minHeight: 100,
+    textAlignVertical: "top",
+  },
+  legislativeModalButtonsContainer: {
+    flexDirection: "row",
+    gap: 12,
+    marginTop: 8,
+  },
+  legislativeModalCancelButton: {
+    flex: 1,
+    backgroundColor: "#F3F4F6",
+    paddingVertical: 12,
+    paddingHorizontal: 24,
+    borderRadius: 8,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  legislativeModalCancelButtonText: {
+    color: "#374151",
+    fontSize: 14,
+    fontWeight: "600",
+  },
+  legislativeModalApproveButton: {
+    flex: 1,
+    backgroundColor: "#457E51",
+    paddingVertical: 12,
+    paddingHorizontal: 24,
+    borderRadius: 8,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  legislativeModalApproveButtonText: {
+    color: "#FFFFFF",
+    fontSize: 14,
+    fontWeight: "600",
+  },
+  // Filter Modal Styles
+  filterModalContent: {
+    backgroundColor: "#FFFFFF",
+    borderRadius: 12,
+    width: "85%",
+    maxWidth: 400,
+    maxHeight: "70%",
+    padding: 24,
+    shadowColor: "#000",
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.25,
+    shadowRadius: 4,
+    elevation: 5,
+  },
+  filterModalTitle: {
+    fontSize: 18,
+    fontWeight: "bold",
+    color: "#111827",
+    marginBottom: 16,
+  },
+  filterModalList: {
+    maxHeight: 400,
+  },
+  filterModalItem: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: "#E5E7EB",
+  },
+  filterModalItemText: {
+    fontSize: 14,
+    color: "#111827",
+    flex: 1,
+  },
+  // Date Picker Modal Styles
+  datePickerModalOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0, 0, 0, 0.5)",
+    justifyContent: "flex-end",
+  },
+  datePickerModalContent: {
+    backgroundColor: "#FFFFFF",
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    paddingBottom: 40,
+  },
+  datePickerModalHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingHorizontal: 20,
+    paddingVertical: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: "#E5E7EB",
+  },
+  datePickerCancelButton: {
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+  },
+  datePickerCancelText: {
+    fontSize: 16,
+    color: "#6B7280",
+  },
+  datePickerModalTitle: {
+    fontSize: 18,
+    fontWeight: "600",
+    color: "#111827",
+  },
+  datePickerDoneButton: {
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+  },
+  datePickerDoneText: {
+    fontSize: 16,
+    fontWeight: "600",
+    color: "#457E51",
+  },
+  // Time Picker Styles
+  timePickerContainer: {
+    paddingHorizontal: 20,
+    paddingVertical: 20,
+    borderTopWidth: 1,
+    borderTopColor: "#E5E7EB",
+  },
+  customTimePicker: {
+    flexDirection: "row",
+    justifyContent: "center",
+    alignItems: "center",
+    gap: 20,
+  },
+  timePickerColumn: {
+    flex: 1,
+    maxHeight: 200,
+  },
+  timePickerScroll: {
+    flex: 1,
+  },
+  timePickerItem: {
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    alignItems: "center",
+    justifyContent: "center",
+    borderRadius: 8,
+    marginVertical: 2,
+  },
+  timePickerItemSelected: {
+    backgroundColor: "#457E51",
+  },
+  timePickerText: {
+    fontSize: 18,
+    color: "#111827",
+    fontWeight: "500",
+  },
+  timePickerTextSelected: {
+    color: "#FFFFFF",
     fontWeight: "600",
   },
 });

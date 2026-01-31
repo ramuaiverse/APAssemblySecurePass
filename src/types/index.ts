@@ -102,13 +102,13 @@ export type RootStackParamList = {
     userId?: string;
     role?: string;
     hod_approver?: boolean;
-    legislative_approver?: boolean;
+    sub_categories?: Array<any>;
   };
   Visitors: {
     role?: string;
     userId?: string;
     hod_approver?: boolean;
-    legislative_approver?: boolean;
+    sub_categories?: Array<any>;
   };
   VisitorDetails: {
     request: any; // Full pass request object
@@ -123,5 +123,34 @@ export type RootStackParamList = {
     passData: any; // Full API response from /api/v1/pass-requests/{request_id}
     categoryName?: string; // Category name
     passTypeName?: string; // Pass type name
+  };
+  MyPassRequests: {
+    userId?: string;
+    userFullName?: string;
+    sub_categories?: Array<any>;
+  };
+  RequestVisitorPass: {
+    userId?: string;
+    userFullName?: string;
+    sub_categories?: Array<any>;
+  };
+  MyPassRequestDetails: {
+    request: any; // Full pass request object
+    visitor: any; // Visitor object from the request
+  };
+  LegislativeReject: {
+    visitor: any; // Visitor object
+    request: any; // Request object
+    userId: string; // Current user ID
+  };
+  LegislativeApprove: {
+    visitor: any; // Visitor object
+    request: any; // Request object
+    userId: string; // Current user ID
+  };
+  LegislativeRoute: {
+    visitor: any; // Visitor object
+    request: any; // Request object
+    userId: string; // Current user ID
   };
 };

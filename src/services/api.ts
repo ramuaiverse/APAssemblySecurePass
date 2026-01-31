@@ -1,5 +1,5 @@
 // Base URL for pass-requests validation APIs (no authentication required)
-const VALIDATION_API_BASE_URL =
+export const VALIDATION_API_BASE_URL =
   "https://category-service-714903368119.us-central1.run.app";
 
 // UserLoginRequest schema from new API
@@ -220,6 +220,27 @@ export interface User {
   created_by: string | null;
 }
 
+// Superior schema
+export interface Superior {
+  id: string;
+  username: string;
+  email: string;
+  full_name: string;
+  mobile: string;
+  employee_id: string | null;
+  role: string;
+  approval_level: string | null;
+  hod_approver: boolean;
+  legislative_approver: boolean;
+  is_superior: boolean;
+  must_set_password: boolean;
+  profile_picture: string | null;
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
+  created_by: string | null;
+}
+
 export const api = {
   login: async (credentials: LoginRequest): Promise<LoginResponse> => {
     // Validate required fields - password is now optional
@@ -351,16 +372,19 @@ export const api = {
     qrCodeId: string,
     gate?: string,
     gateAction?: "entry" | "exit",
+    autoRecordScan: boolean = true,
   ): Promise<QRValidationResponse> => {
     try {
-      // Build URL with optional gate and gate_action query parameters
+      // Build URL with optional gate_location, gate_action, and auto_record_scan query parameters
       let url = `${VALIDATION_API_BASE_URL}/api/v1/pass-requests/validate-qr/${encodeURIComponent(
         qrCodeId,
       )}`;
 
       const queryParams: string[] = [];
+      // Always include auto_record_scan (defaults to true)
+      queryParams.push(`auto_record_scan=${autoRecordScan}`);
       if (gate) {
-        queryParams.push(`gate=${encodeURIComponent(gate)}`);
+        queryParams.push(`gate_location=${encodeURIComponent(gate)}`);
       }
       if (gateAction) {
         queryParams.push(`gate_action=${encodeURIComponent(gateAction)}`);
@@ -435,19 +459,12 @@ export const api = {
 
       const queryParams: string[] = [];
 
-      // Add auto_record_scan (default: true)
-      if (options?.auto_record_scan !== undefined) {
-        queryParams.push(`auto_record_scan=${options.auto_record_scan}`);
-      } else {
-        queryParams.push(`auto_record_scan=true`);
-      }
-
-      // Add scanned_by if provided
-      if (options?.scanned_by) {
-        queryParams.push(
-          `scanned_by=${encodeURIComponent(options.scanned_by)}`,
-        );
-      }
+      // Always include auto_record_scan (defaults to true)
+      const autoRecordScan =
+        options?.auto_record_scan !== undefined
+          ? options.auto_record_scan
+          : true;
+      queryParams.push(`auto_record_scan=${autoRecordScan}`);
 
       // Add gate_location if provided
       if (options?.gate_location) {
@@ -460,6 +477,13 @@ export const api = {
       if (options?.gate_action) {
         queryParams.push(
           `gate_action=${encodeURIComponent(options.gate_action)}`,
+        );
+      }
+
+      // Add scanned_by if provided
+      if (options?.scanned_by) {
+        queryParams.push(
+          `scanned_by=${encodeURIComponent(options.scanned_by)}`,
         );
       }
 
@@ -617,8 +641,8 @@ export const api = {
 
     const url = `${VALIDATION_API_BASE_URL}/api/v1/pass-requests/visitors/${visitorId}/suspend`;
 
-    // The API expects form-encoded data
-    const formData = new URLSearchParams();
+    // The API expects multipart/form-data
+    const formData = new FormData();
     formData.append("suspended_by", requestBody.suspended_by);
     formData.append("reason", requestBody.reason);
 
@@ -626,10 +650,10 @@ export const api = {
       const response = await fetch(url, {
         method: "PATCH",
         headers: {
-          "Content-Type": "application/x-www-form-urlencoded",
           Accept: "application/json",
+          // Don't set Content-Type - let fetch set it with boundary for FormData
         },
-        body: formData.toString(),
+        body: formData,
       });
 
       let responseData;
@@ -683,6 +707,101 @@ export const api = {
                 response.statusText || `Status ${response.status}`
               }`);
 
+        throw new Error(errorMessage);
+      }
+
+      return responseData;
+    } catch (error) {
+      if (error instanceof Error) {
+        throw error;
+      }
+      throw new Error("Network error. Please check your connection.");
+    }
+  },
+
+  // Activate visitor (unsuspend)
+  activateVisitor: async (
+    visitorId: string,
+    data: {
+      activated_by: string;
+    },
+  ): Promise<any> => {
+    // Validate visitorId
+    if (!visitorId || !visitorId.trim()) {
+      throw new Error("visitorId is required");
+    }
+
+    // Validate required fields
+    if (!data.activated_by || !data.activated_by.trim()) {
+      throw new Error("activated_by is required");
+    }
+
+    const url = `${VALIDATION_API_BASE_URL}/api/v1/pass-requests/visitors/${visitorId}/activate`;
+
+    // The API expects multipart/form-data
+    const formData = new FormData();
+    formData.append("activated_by", String(data.activated_by).trim());
+
+    try {
+      const response = await fetch(url, {
+        method: "PATCH",
+        headers: {
+          Accept: "*/*",
+          // Don't set Content-Type - let fetch set it with boundary for FormData
+        },
+        body: formData,
+      });
+
+      let responseData;
+      const contentType = response.headers.get("content-type");
+
+      if (contentType && contentType.includes("application/json")) {
+        responseData = await response.json();
+      } else {
+        const text = await response.text();
+        throw new Error(`Server error: ${text || `Status ${response.status}`}`);
+      }
+
+      if (!response.ok) {
+        // Handle 422 validation errors
+        if (response.status === 422) {
+          let errorMessage = "Validation Error: ";
+
+          if (Array.isArray(responseData?.detail)) {
+            const validationErrors = responseData.detail
+              .map((err: any) => {
+                const field =
+                  err.loc && Array.isArray(err.loc)
+                    ? err.loc.slice(1).join(".")
+                    : "field";
+                const msg = err.msg || err.message || "Invalid value";
+                return `${field}: ${msg}`;
+              })
+              .join("\n");
+            errorMessage += validationErrors;
+          } else if (typeof responseData?.detail === "string") {
+            errorMessage += responseData.detail;
+          } else {
+            errorMessage += "Invalid request format.";
+          }
+
+          throw new Error(errorMessage);
+        }
+
+        // Handle other errors
+        const errorMessage =
+          (Array.isArray(responseData?.detail)
+            ? responseData.detail
+                .map((e: any) => e.msg || e.message || JSON.stringify(e))
+                .join(", ")
+            : typeof responseData?.detail === "string"
+              ? responseData.detail
+              : responseData?.message || responseData?.error) ||
+          (typeof responseData === "string"
+            ? responseData
+            : `Activate visitor failed: ${
+                response.statusText || `Status ${response.status}`
+              }`);
         throw new Error(errorMessage);
       }
 
@@ -867,7 +986,14 @@ export const api = {
       const contentType = response.headers.get("content-type");
 
       if (contentType && contentType.includes("application/json")) {
-        data = await response.json();
+        try {
+          data = await response.json();
+        } catch (jsonError) {
+          const text = await response.text();
+          throw new Error(
+            `Failed to parse JSON response: ${text || `Status ${response.status}`}`,
+          );
+        }
       } else {
         const text = await response.text();
         throw new Error(`Server error: ${text || `Status ${response.status}`}`);
@@ -981,6 +1107,7 @@ export const api = {
       status: string;
       comments?: string;
       current_user_id: string;
+      routed_by?: string;
       pass_category_id?: string;
       pass_sub_category_id?: string;
       pass_type_id?: string;
@@ -996,6 +1123,9 @@ export const api = {
         formData.append("comments", statusData.comments);
       }
       formData.append("current_user_id", statusData.current_user_id);
+      if (statusData.routed_by) {
+        formData.append("routed_by", statusData.routed_by);
+      }
       if (statusData.pass_category_id) {
         formData.append("pass_category_id", statusData.pass_category_id);
       }
@@ -1015,7 +1145,8 @@ export const api = {
       const response = await fetch(url, {
         method: "PATCH",
         headers: {
-          Accept: "application/json",
+          Accept: "*/*",
+          // Don't set Content-Type - let fetch set it with boundary for FormData
         },
         body: formData,
       });
@@ -1060,6 +1191,73 @@ export const api = {
   },
 
   // Generate pass for a request
+  // Legislative reject visitor
+  rejectVisitorLegislative: async (
+    visitorId: string,
+    data: {
+      current_user_id: string;
+      rejection_reason: string;
+    },
+  ): Promise<any> => {
+    if (!visitorId || !visitorId.trim()) {
+      throw new Error("visitorId is required");
+    }
+    if (!data.current_user_id || !data.rejection_reason) {
+      throw new Error("current_user_id and rejection_reason are required");
+    }
+
+    const url = `${VALIDATION_API_BASE_URL}/api/v1/pass-requests/visitors/${visitorId}/status`;
+
+    const formData = new FormData();
+    formData.append("status", "rejected");
+    formData.append("current_user_id", data.current_user_id);
+    formData.append("rejection_reason", data.rejection_reason);
+
+    try {
+      const response = await fetch(url, {
+        method: "PATCH",
+        headers: {
+          Accept: "*/*",
+        },
+        body: formData,
+      });
+
+      let responseData;
+      const contentType = response.headers.get("content-type");
+
+      if (contentType && contentType.includes("application/json")) {
+        responseData = await response.json();
+      } else {
+        const text = await response.text();
+        throw new Error(`Server error: ${text || `Status ${response.status}`}`);
+      }
+
+      if (!response.ok) {
+        const errorMessage =
+          (Array.isArray(responseData?.detail)
+            ? responseData.detail
+                .map((e: any) => e.msg || e.message || JSON.stringify(e))
+                .join(", ")
+            : typeof responseData?.detail === "string"
+              ? responseData.detail
+              : responseData?.message || responseData?.error) ||
+          (typeof responseData === "string"
+            ? responseData
+            : `Reject visitor failed: ${
+                response.statusText || `Status ${response.status}`
+              }`);
+        throw new Error(errorMessage);
+      }
+
+      return responseData;
+    } catch (error) {
+      if (error instanceof Error) {
+        throw error;
+      }
+      throw new Error("Network error. Please check your connection.");
+    }
+  },
+
   generatePass: async (
     requestId: string,
     generateData: {
@@ -1068,6 +1266,9 @@ export const api = {
       pass_sub_category_id?: string;
       pass_type_id?: string;
       current_user_id: string;
+      valid_from?: string;
+      valid_to?: string;
+      pass_type_color?: string;
     },
   ): Promise<any> => {
     const url = `${VALIDATION_API_BASE_URL}/api/v1/pass-requests/${requestId}/generate-pass`;
@@ -1087,6 +1288,15 @@ export const api = {
       }
       if (generateData.pass_type_id) {
         formData.append("pass_type_id", generateData.pass_type_id);
+      }
+      if (generateData.valid_from) {
+        formData.append("valid_from", generateData.valid_from);
+      }
+      if (generateData.valid_to) {
+        formData.append("valid_to", generateData.valid_to);
+      }
+      if (generateData.pass_type_color) {
+        formData.append("pass_type_color", generateData.pass_type_color);
       }
 
       const response = await fetch(url, {
@@ -1603,7 +1813,7 @@ export const api = {
     }
   },
 
-  // Update visitor status (approve/reject)
+  // Update visitor status (approve/reject/pending)
   updateVisitorStatus: async (
     visitorId: string,
     status: "approved" | "rejected",
@@ -1628,6 +1838,136 @@ export const api = {
     formData.append("current_user_id", currentUserId);
     if (rejectionReason) {
       formData.append("rejection_reason", rejectionReason);
+    }
+
+    try {
+      const response = await fetch(url, {
+        method: "PATCH",
+        headers: {
+          Accept: "*/*",
+          // Don't set Content-Type - let fetch set it with boundary for FormData
+        },
+        body: formData,
+      });
+
+      let responseData;
+      const contentType = response.headers.get("content-type");
+
+      if (contentType && contentType.includes("application/json")) {
+        responseData = await response.json();
+      } else {
+        const text = await response.text();
+        throw new Error(`Server error: ${text || `Status ${response.status}`}`);
+      }
+
+      if (!response.ok) {
+        const errorMessage =
+          (Array.isArray(responseData?.detail)
+            ? responseData.detail
+                .map((e: any) => e.msg || e.message || JSON.stringify(e))
+                .join(", ")
+            : typeof responseData?.detail === "string"
+              ? responseData.detail
+              : responseData?.message || responseData?.error) ||
+          (typeof responseData === "string"
+            ? responseData
+            : `Update visitor status failed: ${
+                response.statusText || `Status ${response.status}`
+              }`);
+
+        throw new Error(errorMessage);
+      }
+
+      return responseData;
+    } catch (error) {
+      if (error instanceof Error) {
+        throw error;
+      }
+      throw new Error("Network error. Please check your connection.");
+    }
+  },
+
+  getSuperiors: async (department: string): Promise<Superior[]> => {
+    const url = `${VALIDATION_API_BASE_URL}/api/v1/pass-requests/superiors/${department}`;
+
+    try {
+      const response = await fetch(url, {
+        method: "GET",
+        headers: {
+          Accept: "*/*",
+        },
+      });
+
+      let responseData;
+      const contentType = response.headers.get("content-type");
+
+      if (contentType && contentType.includes("application/json")) {
+        responseData = await response.json();
+      } else {
+        const text = await response.text();
+        throw new Error(`Server error: ${text || `Status ${response.status}`}`);
+      }
+
+      if (!response.ok) {
+        const errorMessage =
+          (Array.isArray(responseData?.detail)
+            ? responseData.detail
+                .map((e: any) => e.msg || e.message || JSON.stringify(e))
+                .join(", ")
+            : typeof responseData?.detail === "string"
+              ? responseData.detail
+              : responseData?.message || responseData?.error) ||
+          (typeof responseData === "string"
+            ? responseData
+            : `Get superiors failed: ${
+                response.statusText || `Status ${response.status}`
+              }`);
+        throw new Error(errorMessage);
+      }
+
+      return responseData;
+    } catch (error) {
+      if (error instanceof Error) {
+        throw error;
+      }
+      throw new Error("Network error. Please check your connection.");
+    }
+  },
+
+  routeForSuperiorApproval: async (
+    requestId: string,
+    data: {
+      visitor_id: string;
+      routed_to: string;
+      routed_by: string;
+      current_user_id: string;
+      comments?: string;
+    },
+  ): Promise<any> => {
+    if (!requestId || !requestId.trim()) {
+      throw new Error("requestId is required");
+    }
+    if (
+      !data.visitor_id ||
+      !data.routed_to ||
+      !data.routed_by ||
+      !data.current_user_id
+    ) {
+      throw new Error(
+        "visitor_id, routed_to, routed_by, and current_user_id are required",
+      );
+    }
+
+    const url = `${VALIDATION_API_BASE_URL}/api/v1/pass-requests/${requestId}/status`;
+
+    const formData = new FormData();
+    formData.append("status", "routed_for_approval");
+    formData.append("routed_to", data.routed_to);
+    formData.append("routed_by", data.routed_by);
+    formData.append("current_user_id", data.current_user_id);
+    formData.append("visitor_id", data.visitor_id);
+    if (data.comments) {
+      formData.append("comments", data.comments);
     }
 
     try {
@@ -1660,10 +2000,9 @@ export const api = {
               : responseData?.message || responseData?.error) ||
           (typeof responseData === "string"
             ? responseData
-            : `Update visitor status failed: ${
+            : `Route for superior approval failed: ${
                 response.statusText || `Status ${response.status}`
               }`);
-
         throw new Error(errorMessage);
       }
 

@@ -106,7 +106,6 @@ export default function PreviewPassScreen({ navigation, route }: Props) {
           setPassTypeColor(matchedPassType.color);
         }
       } catch (error) {
-        console.error("Failed to fetch pass types:", error);
         // Keep default color on error
       }
     };

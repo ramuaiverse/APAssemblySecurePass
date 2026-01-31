@@ -129,7 +129,7 @@ export default function VisitorDetailsScreen({ navigation, route }: Props) {
 
   // User mappings
   const [userMap, setUserMap] = useState<{ [key: string]: string }>({});
-  
+
   // HOD User mappings (department role)
   const [hodUserMap, setHodUserMap] = useState<{ [key: string]: string }>({});
 
@@ -164,7 +164,7 @@ export default function VisitorDetailsScreen({ navigation, route }: Props) {
       setCategoryMap(catMap);
       setSubCategoryMap(subCatMap);
     } catch (error) {
-      console.error("Error fetching categories:", error);
+      // Error fetching categories
     }
   };
 
@@ -191,7 +191,6 @@ export default function VisitorDetailsScreen({ navigation, route }: Props) {
         setPassTypeMap(typeMap);
       }
     } catch (error) {
-      console.error("Error fetching pass types:", error);
       // Set empty map on error to prevent infinite retries
       setPassTypeMap({});
     }
@@ -218,7 +217,7 @@ export default function VisitorDetailsScreen({ navigation, route }: Props) {
       });
       setUserMap(userMapping);
     } catch (error) {
-      console.error("Error fetching users:", error);
+      // Error fetching users
     }
   };
 
@@ -233,7 +232,7 @@ export default function VisitorDetailsScreen({ navigation, route }: Props) {
       });
       setHodUserMap(hodUserMapping);
     } catch (error) {
-      console.error("Error fetching HOD users:", error);
+      // Error fetching HOD users
     }
   };
 
@@ -285,8 +284,18 @@ export default function VisitorDetailsScreen({ navigation, route }: Props) {
   };
 
   const handleLogout = () => {
-    // Navigate back to login method selection
-    navigation.replace("LoginMethodSelection");
+    Alert.alert("Logout", "Do you want to log out?", [
+      {
+        text: "Cancel",
+        style: "cancel",
+      },
+      {
+        text: "Yes",
+        onPress: () => {
+          navigation.replace("LoginMethodSelection");
+        },
+      },
+    ]);
   };
 
   const isSuspended = visitor.is_suspended === true;
@@ -326,7 +335,7 @@ export default function VisitorDetailsScreen({ navigation, route }: Props) {
         showsVerticalScrollIndicator={false}
         style={styles.scrollView}
       >
-        {/* Three/Four Card Layout */}
+        {/* Single Column Layout */}
         <View style={styles.cardsContainer}>
           {/* Card 1: Visitor Information */}
           <View style={styles.card}>
@@ -539,6 +548,54 @@ export default function VisitorDetailsScreen({ navigation, route }: Props) {
                 </View>
               </View>
 
+              {/* Car Passes Section in Request Information */}
+              {visitor.car_passes && visitor.car_passes.length > 0 && (
+                <>
+                  <View style={styles.carPassesSectionHeader}>
+                    <Text style={styles.carPassesSectionTitle}>
+                      CAR PASSES ({visitor.car_passes.length})
+                    </Text>
+                  </View>
+                  {visitor.car_passes.map((carPass: any, index: number) => (
+                    <View key={index} style={styles.carPassCard}>
+                      <View style={styles.infoRow}>
+                        <View style={styles.infoIcon}>
+                          <MaterialIcons
+                            name="description"
+                            size={24}
+                            color="#F97316"
+                          />
+                        </View>
+                        <View style={styles.infoContent}>
+                          <Text style={styles.carPassLabel}>
+                            CAR PASS #{index + 1}
+                          </Text>
+                          <View style={styles.carPassDetails}>
+                            <Text style={styles.carPassDetailText}>
+                              Make: {carPass.car_make || "—"}
+                            </Text>
+                            <Text style={styles.carPassDetailText}>
+                              Model: {carPass.car_model || "—"}
+                            </Text>
+                            <Text style={styles.carPassDetailText}>
+                              Color: {carPass.car_color || "—"}
+                            </Text>
+                            <Text style={styles.carPassDetailText}>
+                              Number: {carPass.car_number || "—"}
+                            </Text>
+                            {carPass.car_tag && (
+                              <Text style={styles.carPassDetailText}>
+                                Tag: {carPass.car_tag}
+                              </Text>
+                            )}
+                          </View>
+                        </View>
+                      </View>
+                    </View>
+                  ))}
+                </>
+              )}
+
               {isRejected && visitor.visitor_rejection_reason && (
                 <View style={styles.infoRow}>
                   <View style={styles.infoIcon}>
@@ -585,7 +642,9 @@ export default function VisitorDetailsScreen({ navigation, route }: Props) {
                 </View>
                 <View>
                   <Text style={styles.cardTitle}>Dates & Timeline</Text>
-                  <Text style={styles.cardSubtitle}>Visit Dates & Approval Status</Text>
+                  <Text style={styles.cardSubtitle}>
+                    Visit Dates & Approval Status
+                  </Text>
                 </View>
               </View>
             </View>
@@ -621,18 +680,6 @@ export default function VisitorDetailsScreen({ navigation, route }: Props) {
                     </View>
                   </View>
                 )}
-
-                {request.purpose && (
-                  <View style={styles.dateCard}>
-                    <View style={styles.dateCardIcon}>
-                      <MaterialIcons name="description" size={20} color="#3B82F6" />
-                    </View>
-                    <View style={styles.dateCardContent}>
-                      <Text style={styles.dateCardLabel}>Purpose</Text>
-                      <Text style={styles.dateCardValue}>{request.purpose}</Text>
-                    </View>
-                  </View>
-                )}
               </View>
             </View>
           </View>
@@ -641,7 +688,9 @@ export default function VisitorDetailsScreen({ navigation, route }: Props) {
           <View style={styles.card}>
             <View style={styles.cardHeader}>
               <View style={styles.cardHeaderLeft}>
-                <Text style={styles.approvalTimelineTitle}>Approval Timeline</Text>
+                <Text style={styles.approvalTimelineTitle}>
+                  Approval Timeline
+                </Text>
               </View>
             </View>
             <View style={styles.cardHeaderSeparator} />
@@ -688,24 +737,26 @@ export default function VisitorDetailsScreen({ navigation, route }: Props) {
                     )}
 
                   {/* HOD Approval */}
-                  {visitor.visitor_approved_by && visitor.visitor_approved_at && (
-                    <View style={styles.approvalTimelineItem}>
-                      <View style={styles.approvalTimelineDotBlue}>
-                        <View style={styles.approvalTimelineDotInner} />
+                  {visitor.visitor_approved_by &&
+                    visitor.visitor_approved_at && (
+                      <View style={styles.approvalTimelineItem}>
+                        <View style={styles.approvalTimelineDotBlue}>
+                          <View style={styles.approvalTimelineDotInner} />
+                        </View>
+                        <View style={styles.approvalTimelineContent}>
+                          <Text style={styles.approvalTimelineTitleBlue}>
+                            HOD Approval
+                          </Text>
+                          <Text style={styles.approvalTimelineSubtext}>
+                            Approved by:{" "}
+                            {getHODUserName(visitor.visitor_approved_by) || "—"}
+                          </Text>
+                          <Text style={styles.approvalTimelineDate}>
+                            {formatDate(visitor.visitor_approved_at)}
+                          </Text>
+                        </View>
                       </View>
-                      <View style={styles.approvalTimelineContent}>
-                        <Text style={styles.approvalTimelineTitleBlue}>
-                          HOD Approval
-                        </Text>
-                        <Text style={styles.approvalTimelineSubtext}>
-                          Approved by: {getHODUserName(visitor.visitor_approved_by) || "—"}
-                        </Text>
-                        <Text style={styles.approvalTimelineDate}>
-                          {formatDate(visitor.visitor_approved_at)}
-                        </Text>
-                      </View>
-                    </View>
-                  )}
+                    )}
 
                   {/* Final/Legislative Approval */}
                   {isApproved && visitor.visitor_legislative_approved_at && (
@@ -719,7 +770,9 @@ export default function VisitorDetailsScreen({ navigation, route }: Props) {
                         </Text>
                         <Text style={styles.approvalTimelineSubtext}>
                           Approved by:{" "}
-                          {getUserName(visitor.visitor_legislative_approved_by) || "—"}
+                          {getUserName(
+                            visitor.visitor_legislative_approved_by,
+                          ) || "—"}
                         </Text>
                         <Text style={styles.approvalTimelineDate}>
                           {formatDate(visitor.visitor_legislative_approved_at)}
@@ -732,12 +785,19 @@ export default function VisitorDetailsScreen({ navigation, route }: Props) {
                   {isRejected && visitor.visitor_rejected_at && (
                     <View style={styles.approvalTimelineItem}>
                       <View style={styles.approvalTimelineDotRed}>
-                        <Ionicons name="close-circle" size={16} color="#DC2626" />
+                        <Ionicons
+                          name="close-circle"
+                          size={16}
+                          color="#DC2626"
+                        />
                       </View>
                       <View style={styles.approvalTimelineContent}>
-                        <Text style={styles.approvalTimelineTitleRed}>Rejected</Text>
+                        <Text style={styles.approvalTimelineTitleRed}>
+                          Rejected
+                        </Text>
                         <Text style={styles.approvalTimelineSubtext}>
-                          Rejected by: {getUserName(visitor.visitor_rejected_by) || "—"}
+                          Rejected by:{" "}
+                          {getUserName(visitor.visitor_rejected_by) || "—"}
                         </Text>
                         {visitor.visitor_rejection_reason && (
                           <Text style={styles.approvalTimelineSubtext}>
@@ -858,10 +918,59 @@ export default function VisitorDetailsScreen({ navigation, route }: Props) {
                     <View style={styles.infoContent}>
                       <Text style={styles.infoLabel}>PASS APPROVED BY</Text>
                       <Text style={styles.infoValue}>
-                        {getUserName(visitor.visitor_legislative_approved_by) || "—"}
+                        {getUserName(visitor.visitor_legislative_approved_by) ||
+                          "—"}
                       </Text>
                     </View>
                   </View>
+                )}
+
+                {/* Car Passes Section */}
+                {visitor.car_passes && visitor.car_passes.length > 0 && (
+                  <>
+                    <View style={styles.carPassesSectionHeader}>
+                      <Text style={styles.carPassesSectionTitle}>
+                        CAR PASSES ({visitor.car_passes.length})
+                      </Text>
+                    </View>
+                    {visitor.car_passes.map((carPass: any, index: number) => (
+                      <View key={index} style={styles.carPassCard}>
+                        <View style={styles.infoRow}>
+                          <View style={styles.infoIcon}>
+                            <MaterialIcons
+                              name="description"
+                              size={24}
+                              color="#F97316"
+                            />
+                          </View>
+                          <View style={styles.infoContent}>
+                            <Text style={styles.carPassLabel}>
+                              CAR PASS #{index + 1}
+                            </Text>
+                            <View style={styles.carPassDetails}>
+                              <Text style={styles.carPassDetailText}>
+                                Make: {carPass.car_make || "—"}
+                              </Text>
+                              <Text style={styles.carPassDetailText}>
+                                Model: {carPass.car_model || "—"}
+                              </Text>
+                              <Text style={styles.carPassDetailText}>
+                                Color: {carPass.car_color || "—"}
+                              </Text>
+                              <Text style={styles.carPassDetailText}>
+                                Number: {carPass.car_number || "—"}
+                              </Text>
+                              {carPass.car_tag && (
+                                <Text style={styles.carPassDetailText}>
+                                  Tag: {carPass.car_tag}
+                                </Text>
+                              )}
+                            </View>
+                          </View>
+                        </View>
+                      </View>
+                    ))}
+                  </>
                 )}
               </View>
             </View>
@@ -909,15 +1018,18 @@ const styles = StyleSheet.create({
     zIndex: 1,
   },
   backButton: {
-    width: 40,
+    minWidth: 36,
+    minHeight: 36,
+    padding: 6,
     justifyContent: "center",
     alignItems: "center",
   },
   logoutButton: {
-    width: 40,
+    minWidth: 36,
+    minHeight: 36,
+    padding: 6,
     justifyContent: "center",
     alignItems: "center",
-    padding: 8,
   },
   headerTitleContainer: {
     flex: 1,
@@ -1303,5 +1415,40 @@ const styles = StyleSheet.create({
   approvalTimelineDate: {
     fontSize: 12,
     color: "#6B7280",
+  },
+  carPassesSectionHeader: {
+    marginTop: 8,
+    marginBottom: 12,
+  },
+  carPassesSectionTitle: {
+    fontSize: 11,
+    fontWeight: "600",
+    color: "#6B7280",
+    textTransform: "uppercase",
+    letterSpacing: 0.5,
+  },
+  carPassCard: {
+    borderWidth: 1,
+    borderColor: "#F97316",
+    borderRadius: 8,
+    padding: 12,
+    marginBottom: 12,
+    backgroundColor: "#FFF7ED",
+  },
+  carPassLabel: {
+    fontSize: 11,
+    fontWeight: "600",
+    color: "#6B7280",
+    textTransform: "uppercase",
+    marginBottom: 8,
+    letterSpacing: 0.5,
+  },
+  carPassDetails: {
+    gap: 4,
+  },
+  carPassDetailText: {
+    fontSize: 13,
+    color: "#111827",
+    fontWeight: "500",
   },
 });

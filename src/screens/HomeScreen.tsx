@@ -7,6 +7,7 @@ import {
   ScrollView,
   ActivityIndicator,
   Dimensions,
+  Alert,
 } from "react-native";
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { RouteProp } from "@react-navigation/native";
@@ -47,7 +48,7 @@ export default function HomeScreen({ navigation, route }: Props) {
   const userId = route.params?.userId || "";
   const userRole = route.params?.role || "";
   const hodApprover = route.params?.hod_approver || false;
-  const legislativeApprover = route.params?.legislative_approver || false;
+  const userSubCategories = route.params?.sub_categories || [];
 
   const [dashboardData, setDashboardData] = useState<DashboardMetrics>({
     totalRequests: 0,
@@ -66,7 +67,23 @@ export default function HomeScreen({ navigation, route }: Props) {
   const fetchDashboardData = async () => {
     try {
       setLoading(true);
-      const passRequests = await api.getAllPassRequests(10000);
+      let passRequests = await api.getAllPassRequests(10000);
+
+      // Filter requests by sub_category_id if role is department or peshi
+      if (
+        (userRole === "department" || userRole === "peshi") &&
+        userSubCategories.length > 0
+      ) {
+        const allowedSubCategoryIds = userSubCategories.map(
+          (subCat: any) => subCat.id,
+        );
+        passRequests = passRequests.filter((req: any) => {
+          return (
+            req.sub_category_id &&
+            allowedSubCategoryIds.includes(req.sub_category_id)
+          );
+        });
+      }
 
       // Calculate metrics based on top-level requests only
       const totalRequests = passRequests.length;
@@ -103,7 +120,6 @@ export default function HomeScreen({ navigation, route }: Props) {
         totalVisitors,
       });
     } catch (error) {
-      console.error("Error fetching dashboard data:", error);
       // Set default values on error
       setDashboardData({
         totalRequests: 0,
@@ -119,15 +135,33 @@ export default function HomeScreen({ navigation, route }: Props) {
   };
 
   const handleLogout = () => {
-    // Navigate back to login method selection
-    navigation.replace("LoginMethodSelection");
+    Alert.alert("Logout", "Do you want to log out?", [
+      {
+        text: "Cancel",
+        style: "cancel",
+      },
+      {
+        text: "Yes",
+        onPress: () => {
+          navigation.replace("LoginMethodSelection");
+        },
+      },
+    ]);
   };
 
   const handleInstaPass = () => {
-    navigation.navigate("IssueVisitorPass", {
-      userFullName,
-      userId,
-    });
+    if (userRole === "department") {
+      navigation.navigate("MyPassRequests", {
+        userId,
+        userFullName,
+        sub_categories: userSubCategories,
+      });
+    } else {
+      navigation.navigate("IssueVisitorPass", {
+        userFullName,
+        userId,
+      });
+    }
   };
 
   const handleVisitors = () => {
@@ -135,7 +169,7 @@ export default function HomeScreen({ navigation, route }: Props) {
       role: userRole,
       userId: userId,
       hod_approver: hodApprover,
-      legislative_approver: legislativeApprover,
+      sub_categories: userSubCategories,
     });
   };
 
@@ -345,9 +379,13 @@ export default function HomeScreen({ navigation, route }: Props) {
                 <View style={styles.cardIconContainer}>
                   <VisitorPassIcon width={50} height={50} />
                 </View>
-                <Text style={styles.cardTitle}>Insta Pass</Text>
+                <Text style={styles.cardTitle}>
+                  {userRole === "department" ? "Request Pass" : "Insta Pass"}
+                </Text>
                 <Text style={styles.cardDescription}>
-                  Issue a new visitor pass instantly
+                  {userRole === "department"
+                    ? "View and manage all your visitor pass requests"
+                    : "Issue a new visitor pass instantly"}
                 </Text>
               </TouchableOpacity>
 
@@ -360,9 +398,15 @@ export default function HomeScreen({ navigation, route }: Props) {
                 <View style={styles.cardIconContainer}>
                   <VisitorIcon width={50} height={50} />
                 </View>
-                <Text style={styles.cardTitle}>Visitors</Text>
+                <Text style={styles.cardTitle}>
+                  {userRole === "department"
+                    ? "Status & Approvals"
+                    : "Visitors"}
+                </Text>
                 <Text style={styles.cardDescription}>
-                  View and manage visitor records
+                  {userRole === "department"
+                    ? "Review and manage all HOD approval requests"
+                    : "View and manage visitor records"}
                 </Text>
               </TouchableOpacity>
             </View>
@@ -428,7 +472,9 @@ const styles = StyleSheet.create({
     fontWeight: "bold",
   },
   logoutButton: {
-    padding: 8,
+    minWidth: 36,
+    minHeight: 36,
+    padding: 6,
     justifyContent: "center",
     alignItems: "center",
   },
