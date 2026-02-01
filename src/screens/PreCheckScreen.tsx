@@ -6,8 +6,10 @@ import {
   TouchableOpacity,
   ScrollView,
   Alert,
+  BackHandler,
 } from "react-native";
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
+import { RouteProp, useFocusEffect } from "@react-navigation/native";
 import { RootStackParamList } from "@/types";
 import AssemblyIcon from "../../assets/assembly.svg";
 import LogOutIcon from "../../assets/logOut.svg";
@@ -25,8 +27,26 @@ type Props = {
 
 export default function PreCheckScreen({ navigation }: Props) {
   const handleBack = () => {
+    // Navigate to LoginMethodSelection (logout)
     navigation.replace("LoginMethodSelection");
   };
+
+  // Handle Android back button
+  useFocusEffect(
+    React.useCallback(() => {
+      const onBackPress = () => {
+        handleBack();
+        return true; // Prevent default back behavior
+      };
+
+      const subscription = BackHandler.addEventListener(
+        "hardwareBackPress",
+        onBackPress
+      );
+
+      return () => subscription.remove();
+    }, [navigation])
+  );
 
   const handleLogout = () => {
     Alert.alert("Logout", "Do you want to log out?", [
@@ -44,11 +64,11 @@ export default function PreCheckScreen({ navigation }: Props) {
   };
 
   const handleGateEntryExit = () => {
-    navigation.replace("QRScan", { mode: "gateEntryExit" });
+    navigation.navigate("QRScan", { mode: "gateEntryExit" });
   };
 
   const handleVerifyVisitor = () => {
-    navigation.replace("QRScan", { mode: "verifyVisitor" });
+    navigation.navigate("QRScan", { mode: "verifyVisitor" });
   };
 
   return (

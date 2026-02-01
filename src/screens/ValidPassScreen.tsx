@@ -12,9 +12,10 @@ import {
   TextInput,
   KeyboardAvoidingView,
   Platform,
+  BackHandler,
 } from "react-native";
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
-import { RouteProp } from "@react-navigation/native";
+import { RouteProp, useFocusEffect } from "@react-navigation/native";
 import { RootStackParamList } from "@/types";
 import * as ImagePicker from "expo-image-picker";
 import LogOutIcon from "../../assets/logOut.svg";
@@ -120,9 +121,40 @@ export default function ValidPassScreen({ navigation, route }: Props) {
   // Check if photo already exists from API (don't show save button)
   const photoExistsFromAPI = !!visitorPhotoUrl;
 
-  const handleScanNext = async () => {
-    navigation.replace("PreCheck");
+  const handleBack = () => {
+    // Use goBack to return to previous screen in stack
+    if (navigation.canGoBack()) {
+      navigation.goBack();
+    } else {
+      navigation.navigate("PreCheck");
+    }
   };
+
+  const handleScanNext = async () => {
+    // Navigate to PreCheck screen for next scan
+    navigation.navigate("PreCheck");
+  };
+
+  // Handle Android back button
+  useFocusEffect(
+    React.useCallback(() => {
+      const onBackPress = () => {
+        if (navigation.canGoBack()) {
+          navigation.goBack();
+        } else {
+          navigation.navigate("PreCheck");
+        }
+        return true; // Prevent default back behavior
+      };
+
+      const subscription = BackHandler.addEventListener(
+        "hardwareBackPress",
+        onBackPress
+      );
+
+      return () => subscription.remove();
+    }, [navigation])
+  );
 
   const handleReportPress = () => {
     setShowSuspendModal(true);
@@ -161,7 +193,7 @@ export default function ValidPassScreen({ navigation, route }: Props) {
           text: "OK",
           onPress: () => {
             // Navigate to PreCheck screen
-            navigation.replace("PreCheck");
+            navigation.navigate("PreCheck");
           },
         },
       ]);
@@ -187,10 +219,6 @@ export default function ValidPassScreen({ navigation, route }: Props) {
   const handleSuspendCancel = () => {
     setShowSuspendModal(false);
     setSuspendReason("");
-  };
-
-  const handleBack = () => {
-    navigation.replace("PreCheck");
   };
 
   const handleLogout = () => {

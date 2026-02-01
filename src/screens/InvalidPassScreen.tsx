@@ -1,9 +1,16 @@
 import React from "react";
-import { View, Text, StyleSheet, TouchableOpacity, Alert } from "react-native";
+import {
+  View,
+  Text,
+  StyleSheet,
+  TouchableOpacity,
+  Alert,
+  BackHandler,
+} from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import { Ionicons } from "@expo/vector-icons";
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
-import { RouteProp } from "@react-navigation/native";
+import { RouteProp, useFocusEffect } from "@react-navigation/native";
 import { RootStackParamList } from "@/types";
 import LogOutIcon from "../../assets/logOut.svg";
 import BackButtonIcon from "../../assets/backButton.svg";
@@ -37,13 +44,40 @@ export default function InvalidPassScreen({ navigation, route }: Props) {
   const expired = validationResponse?.expired ?? false;
   const notYetValid = validationResponse?.not_yet_valid ?? false;
 
-  const handleScanNext = () => {
-    navigation.replace("PreCheck");
+  const handleBack = () => {
+    // Use goBack to return to previous screen in stack
+    if (navigation.canGoBack()) {
+      navigation.goBack();
+    } else {
+      navigation.navigate("PreCheck");
+    }
   };
 
-  const handleBack = () => {
-    navigation.replace("PreCheck");
+  const handleScanNext = () => {
+    // Navigate to PreCheck screen for next scan
+    navigation.navigate("PreCheck");
   };
+
+  // Handle Android back button
+  useFocusEffect(
+    React.useCallback(() => {
+      const onBackPress = () => {
+        if (navigation.canGoBack()) {
+          navigation.goBack();
+        } else {
+          navigation.navigate("PreCheck");
+        }
+        return true; // Prevent default back behavior
+      };
+
+      const subscription = BackHandler.addEventListener(
+        "hardwareBackPress",
+        onBackPress
+      );
+
+      return () => subscription.remove();
+    }, [navigation])
+  );
 
   const handleLogout = () => {
     Alert.alert("Logout", "Do you want to log out?", [

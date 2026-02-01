@@ -1397,11 +1397,18 @@ export default function VisitorsScreen({ navigation, route }: Props) {
       const passTypeName =
         passTypes.find((pt) => pt.id === selectedPassTypeId)?.name || "";
 
-      // Navigate to PreviewPassScreen
+      // Navigate to PreviewPassScreen with return information
       navigation.navigate("PreviewPass", {
         passData: passRequestData,
         categoryName: categoryName,
         passTypeName: passTypeName,
+        returnTo: "Visitors",
+        returnToParams: {
+          role: userRole,
+          userId: userId,
+          hod_approver: hodApprover,
+          sub_categories: userSubCategories,
+        },
       });
 
       // Close modal and refresh

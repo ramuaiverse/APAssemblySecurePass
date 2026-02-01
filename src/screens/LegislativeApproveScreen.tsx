@@ -487,7 +487,8 @@ export default function LegislativeApproveScreen({ navigation, route }: Props) {
       const visitorsParams = visitorsRoute?.params as any;
 
       // Navigate to PreviewPassScreen with return information
-      navigation.replace("PreviewPass", {
+      // Use navigate instead of replace to maintain navigation stack
+      navigation.navigate("PreviewPass", {
         passData: updatedPassRequestData,
         categoryName: categoryName,
         passTypeName: passTypeName,

@@ -11,10 +11,11 @@ import {
   ScrollView,
   KeyboardAvoidingView,
   Platform,
+  BackHandler,
 } from "react-native";
 import { CameraView, useCameraPermissions } from "expo-camera";
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
-import { RouteProp } from "@react-navigation/native";
+import { RouteProp, useFocusEffect } from "@react-navigation/native";
 import { RootStackParamList } from "@/types";
 import { api } from "@/services/api";
 import { Alert } from "react-native";
@@ -92,8 +93,34 @@ export default function QRScanScreen({ navigation, route }: Props) {
   }, [permission]);
 
   const handleBack = () => {
-    navigation.replace("PreCheck");
+    // Use goBack to return to previous screen in stack
+    if (navigation.canGoBack()) {
+      navigation.goBack();
+    } else {
+      navigation.navigate("PreCheck");
+    }
   };
+
+  // Handle Android back button
+  useFocusEffect(
+    React.useCallback(() => {
+      const onBackPress = () => {
+        if (navigation.canGoBack()) {
+          navigation.goBack();
+        } else {
+          navigation.navigate("PreCheck");
+        }
+        return true; // Prevent default back behavior
+      };
+
+      const subscription = BackHandler.addEventListener(
+        "hardwareBackPress",
+        onBackPress
+      );
+
+      return () => subscription.remove();
+    }, [navigation])
+  );
 
   const handleLogout = async () => {
     Alert.alert("Logout", "Do you want to log out?", [

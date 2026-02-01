@@ -121,21 +121,7 @@ export default function PreviewPassScreen({ navigation, route }: Props) {
     const backHandler = BackHandler.addEventListener(
       "hardwareBackPress",
       () => {
-        // If returnTo is "Visitors", navigate back to VisitorsScreen
-        if (returnTo === "Visitors") {
-          navigation.reset({
-            index: 0,
-            routes: [
-              {
-                name: "Visitors",
-                params: returnToParams,
-              },
-            ],
-          });
-        } else {
-          // Default behavior: Navigate back to IssueVisitorPassScreen
-          navigation.replace("IssueVisitorPass", {});
-        }
+        handleClose();
         return true; // Prevent default back behavior
       }
     );
@@ -215,20 +201,30 @@ export default function PreviewPassScreen({ navigation, route }: Props) {
       : categoryName || passTypeName || "General visitors";
 
   const handleClose = () => {
-    // If returnTo is "Visitors", navigate back to VisitorsScreen
+    // If returnTo is "Visitors", navigate back to VisitorsScreen with preserved params
     if (returnTo === "Visitors") {
-      navigation.reset({
-        index: 0,
-        routes: [
-          {
-            name: "Visitors",
-            params: returnToParams,
-          },
-        ],
-      });
+      // Check if VisitorsScreen is already in the navigation stack
+      const navigationState = navigation.getState();
+      const visitorsRouteIndex = navigationState.routes.findIndex(
+        (route) => route.name === "Visitors"
+      );
+      
+      // If VisitorsScreen is the previous screen in the stack, use goBack()
+      // This preserves the navigation stack and VisitorsScreen's state
+      if (visitorsRouteIndex >= 0 && visitorsRouteIndex === navigationState.routes.length - 2 && navigation.canGoBack()) {
+        navigation.goBack();
+      } else {
+        // Otherwise, navigate to VisitorsScreen with params to ensure we get there
+        // Use navigate instead of reset to preserve navigation stack if possible
+        navigation.navigate("Visitors", returnToParams);
+      }
     } else {
-      // Default behavior: Navigate back to IssueVisitorPassScreen
-      navigation.replace("IssueVisitorPass", {});
+      // Default behavior: Use goBack if possible, otherwise navigate to IssueVisitorPassScreen
+      if (navigation.canGoBack()) {
+        navigation.goBack();
+      } else {
+        navigation.navigate("IssueVisitorPass", {});
+      }
     }
   };
 
