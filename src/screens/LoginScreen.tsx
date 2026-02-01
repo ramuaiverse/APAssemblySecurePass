@@ -233,8 +233,8 @@ export default function LoginScreen({ navigation }: Props) {
             {/* Header */}
             <View style={styles.header}>
               <View style={styles.logoContainer}>
-                <DigitalPass width={110} height={150} />
-                <Assembly width={110} height={150} />
+                <DigitalPass width={170} height={150} />
+                <Assembly width={120} height={150} />
               </View>
             </View>
 
@@ -443,8 +443,9 @@ const styles = StyleSheet.create({
     paddingVertical: 0,
     flexDirection: "row",
     justifyContent: "center",
-    gap: 60,
+    gap: 30,
     marginTop: 0,
+    marginBottom: 10, 
   },
   loginCard: {
     backgroundColor: "#fff",

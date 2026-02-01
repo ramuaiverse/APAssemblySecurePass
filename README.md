@@ -1,10 +1,10 @@
-# AP Assembly Digital Pass
+# AP Legislature Digital Pass
 
-Secure pass application for AP Assembly - A React Native Expo app for scanning, validating, and issuing visitor passes.
+Secure pass application for AP Legislature - A React Native Expo app for scanning, validating, and issuing visitor passes.
 
 ## Features
 
-- **Custom Splash Screen**: Beautiful splash screen with AP Assembly branding
+- **Custom Splash Screen**: Beautiful splash screen with AP Legislature branding
 - **Secure Authentication**: Login with username and password for admin and security roles
 - **QR Code Scanner**: Scan visitor pass QR codes with camera integration
 - **Pass Validation**: Validate scanned QR codes and display visitor details

@@ -1,6 +1,6 @@
 // Base URL for pass-requests validation APIs (no authentication required)
 export const VALIDATION_API_BASE_URL =
-  "https://category-service-714903368119.us-central1.run.app";
+  "https://apl-apiservices-714903368119.asia-south1.run.app";
 
 // UserLoginRequest schema from new API
 export interface LoginRequest {
