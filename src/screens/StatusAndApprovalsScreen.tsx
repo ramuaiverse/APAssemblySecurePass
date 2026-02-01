@@ -71,6 +71,7 @@ interface VisitorUI {
   passTypeName?: string;
   passGeneratedAt?: string;
   car_passes?: any[];
+  identification_document_url?: string;
 }
 
 export default function StatusAndApprovalsScreen({ navigation, route }: Props) {
@@ -317,6 +318,7 @@ export default function StatusAndApprovalsScreen({ navigation, route }: Props) {
           passTypeName: passTypeName,
           passGeneratedAt: visitor.pass_generated_at,
           car_passes: visitor.car_passes || [],
+          identification_document_url: visitor.identification_document_url,
         };
       });
 
@@ -508,6 +510,21 @@ export default function StatusAndApprovalsScreen({ navigation, route }: Props) {
           userRole
         );
         setPasses(transformedRequests);
+
+        // Initialize all cards as expanded by default
+        const initialExpandedRequests = new Set<string>();
+        const initialExpandedVisitorDetails = new Set<string>();
+
+        transformedRequests.forEach((request) => {
+          initialExpandedRequests.add(request.id);
+          request.visitors.forEach((visitor: any, index: number) => {
+            const visitorId = visitor.id || `${request.id}-${index}`;
+            initialExpandedVisitorDetails.add(visitorId);
+          });
+        });
+
+        setExpandedRequests(initialExpandedRequests);
+        setExpandedVisitorDetails(initialExpandedVisitorDetails);
       } catch (err) {
         setError(err instanceof Error ? err.message : "Failed to fetch pass requests");
       } finally {
@@ -546,6 +563,21 @@ export default function StatusAndApprovalsScreen({ navigation, route }: Props) {
         userRole
       );
       setPasses(transformedRequests);
+
+      // Initialize all cards as expanded by default
+      const initialExpandedRequests = new Set<string>();
+      const initialExpandedVisitorDetails = new Set<string>();
+
+      transformedRequests.forEach((request) => {
+        initialExpandedRequests.add(request.id);
+        request.visitors.forEach((visitor: any, index: number) => {
+          const visitorId = visitor.id || `${request.id}-${index}`;
+          initialExpandedVisitorDetails.add(visitorId);
+        });
+      });
+
+      setExpandedRequests(initialExpandedRequests);
+      setExpandedVisitorDetails(initialExpandedVisitorDetails);
       setShowVisitorActionModal(null);
       setVisitorActionComments("");
     } catch (err) {
@@ -608,6 +640,21 @@ export default function StatusAndApprovalsScreen({ navigation, route }: Props) {
         userRole
       );
       setPasses(transformedRequests);
+
+      // Initialize all cards as expanded by default
+      const initialExpandedRequests = new Set<string>();
+      const initialExpandedVisitorDetails = new Set<string>();
+
+      transformedRequests.forEach((request) => {
+        initialExpandedRequests.add(request.id);
+        request.visitors.forEach((visitor: any, index: number) => {
+          const visitorId = visitor.id || `${request.id}-${index}`;
+          initialExpandedVisitorDetails.add(visitorId);
+        });
+      });
+
+      setExpandedRequests(initialExpandedRequests);
+      setExpandedVisitorDetails(initialExpandedVisitorDetails);
       setShowActionModal(null);
       setActionComments("");
     } catch (err) {
@@ -651,6 +698,21 @@ export default function StatusAndApprovalsScreen({ navigation, route }: Props) {
         userRole
       );
       setPasses(transformedRequests);
+
+      // Initialize all cards as expanded by default
+      const initialExpandedRequests = new Set<string>();
+      const initialExpandedVisitorDetails = new Set<string>();
+
+      transformedRequests.forEach((request) => {
+        initialExpandedRequests.add(request.id);
+        request.visitors.forEach((visitor: any, index: number) => {
+          const visitorId = visitor.id || `${request.id}-${index}`;
+          initialExpandedVisitorDetails.add(visitorId);
+        });
+      });
+
+      setExpandedRequests(initialExpandedRequests);
+      setExpandedVisitorDetails(initialExpandedVisitorDetails);
       setShowActionModal(null);
       setActionComments("");
     } catch (err) {
@@ -1101,25 +1163,24 @@ export default function StatusAndApprovalsScreen({ navigation, route }: Props) {
               return (
                 <View key={request.id} style={styles.requestCardWrapper}>
                   <View style={styles.requestCard}>
-                    <View style={styles.requestCardHeader}>
+                    <TouchableOpacity
+                      onPress={() => toggleRequest(request.id)}
+                      style={styles.requestCardHeader}
+                      activeOpacity={0.7}
+                    >
                       <Text style={styles.requestIdText}>
                         {request.requestId}
                       </Text>
-                      <TouchableOpacity
-                        onPress={() => toggleRequest(request.id)}
-                        style={styles.chevronButton}
-                      >
-                        <ChevronDownIcon
-                          width={20}
-                          height={20}
-                          style={{
-                            transform: [
-                              { rotate: isExpanded ? "180deg" : "0deg" },
-                            ],
-                          }}
-                        />
-                      </TouchableOpacity>
-                    </View>
+                      <ChevronDownIcon
+                        width={20}
+                        height={20}
+                        style={{
+                          transform: [
+                            { rotate: isExpanded ? "180deg" : "0deg" },
+                          ],
+                        }}
+                      />
+                    </TouchableOpacity>
 
                     {/* Expanded Content */}
                     {isExpanded && (
@@ -1210,7 +1271,21 @@ export default function StatusAndApprovalsScreen({ navigation, route }: Props) {
                                   key={visitorId}
                                   style={styles.visitorItem}
                                 >
-                                  <View style={styles.visitorItemHeader}>
+                                  <TouchableOpacity
+                                    onPress={() => {
+                                      setExpandedVisitorDetails((prev) => {
+                                        const newSet = new Set(prev);
+                                        if (newSet.has(visitorId)) {
+                                          newSet.delete(visitorId);
+                                        } else {
+                                          newSet.add(visitorId);
+                                        }
+                                        return newSet;
+                                      });
+                                    }}
+                                    style={styles.visitorItemHeader}
+                                    activeOpacity={0.7}
+                                  >
                                     <View style={styles.visitorInfo}>
                                       <View
                                         style={[
@@ -1238,35 +1313,20 @@ export default function StatusAndApprovalsScreen({ navigation, route }: Props) {
                                       </View>
                                     </View>
 
-                                    <TouchableOpacity
-                                      onPress={() => {
-                                        setExpandedVisitorDetails((prev) => {
-                                          const newSet = new Set(prev);
-                                          if (newSet.has(visitorId)) {
-                                            newSet.delete(visitorId);
-                                          } else {
-                                            newSet.add(visitorId);
-                                          }
-                                          return newSet;
-                                        });
+                                    <ChevronDownIcon
+                                      width={18}
+                                      height={18}
+                                      style={{
+                                        transform: [
+                                          {
+                                            rotate: isVisitorExpanded
+                                              ? "180deg"
+                                              : "0deg",
+                                          },
+                                        ],
                                       }}
-                                      style={styles.chevronButton}
-                                    >
-                                      <ChevronDownIcon
-                                        width={18}
-                                        height={18}
-                                        style={{
-                                          transform: [
-                                            {
-                                              rotate: isVisitorExpanded
-                                                ? "180deg"
-                                                : "0deg",
-                                            },
-                                          ],
-                                        }}
-                                      />
-                                    </TouchableOpacity>
-                                  </View>
+                                    />
+                                  </TouchableOpacity>
 
                                   {isVisitorExpanded && (
                                     <View style={styles.visitorItemContent}>

@@ -412,6 +412,42 @@ export default function RequestDetailsScreen({ navigation, route }: Props) {
                 </View>
               </View>
 
+              {(visitor.identification_document_url || visitor.identificationDocumentUrl) && (
+                <View style={styles.infoRow}>
+                  <View style={styles.infoIcon}>
+                    <DownloadIcon width={24} height={24} />
+                  </View>
+                  <View style={styles.infoContent}>
+                    <Text style={styles.infoLabel}>
+                      IDENTIFICATION DOCUMENT
+                    </Text>
+                    <View style={styles.photoContainer}>
+                      <Image
+                        source={{
+                          uri:
+                            visitor.identification_document_url ||
+                            visitor.identificationDocumentUrl,
+                        }}
+                        style={styles.photo}
+                      />
+                      <TouchableOpacity
+                        style={styles.photoButton}
+                        onPress={() =>
+                          handleOpenDocument(
+                            visitor.identification_document_url ||
+                              visitor.identificationDocumentUrl,
+                          )
+                        }
+                      >
+                        <Text style={styles.photoButtonText}>
+                          Open Full Size
+                        </Text>
+                      </TouchableOpacity>
+                    </View>
+                  </View>
+                </View>
+              )}
+
               {visitor.validFrom && (
                 <View style={styles.infoRow}>
                   <View style={styles.infoIcon}>
@@ -1128,5 +1164,26 @@ const styles = StyleSheet.create({
     fontSize: 13,
     color: "#111827",
     fontWeight: "500",
+  },
+  photoContainer: {
+    marginTop: 8,
+  },
+  photo: {
+    width: 180,
+    height: 180,
+    borderRadius: 8,
+    marginBottom: 8,
+  },
+  photoButton: {
+    backgroundColor: "#457E51",
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 6,
+    alignSelf: "flex-start",
+  },
+  photoButtonText: {
+    color: "#FFFFFF",
+    fontSize: 12,
+    fontWeight: "600",
   },
 });

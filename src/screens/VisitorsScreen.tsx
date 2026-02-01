@@ -1777,25 +1777,24 @@ export default function VisitorsScreen({ navigation, route }: Props) {
                 <View key={request.id} style={styles.requestCardWrapper}>
                   {/* Request Card - Always show with just request ID */}
                   <View style={styles.requestCard}>
-                    <View style={styles.requestCardHeader}>
+                    <TouchableOpacity
+                      onPress={() => toggleRow(request.id)}
+                      style={styles.requestCardHeader}
+                      activeOpacity={0.7}
+                    >
                       <Text style={styles.requestIdText}>
                         {request.request_id}
                       </Text>
-                      <TouchableOpacity
-                        onPress={() => toggleRow(request.id)}
-                        style={styles.chevronButton}
-                      >
-                        <ChevronDownIcon
-                          width={20}
-                          height={20}
-                          style={{
-                            transform: [
-                              { rotate: isExpanded ? "180deg" : "0deg" },
-                            ],
-                          }}
-                        />
-                      </TouchableOpacity>
-                    </View>
+                      <ChevronDownIcon
+                        width={20}
+                        height={20}
+                        style={{
+                          transform: [
+                            { rotate: isExpanded ? "180deg" : "0deg" },
+                          ],
+                        }}
+                      />
+                    </TouchableOpacity>
 
                     {/* Expanded Content */}
                     {isExpanded && (
@@ -1893,7 +1892,11 @@ export default function VisitorsScreen({ navigation, route }: Props) {
                                     key={visitorId}
                                     style={styles.visitorItem}
                                   >
-                                    <View style={styles.visitorItemHeader}>
+                                    <TouchableOpacity
+                                      onPress={() => toggleVisitor(visitorId)}
+                                      style={styles.visitorItemHeader}
+                                      activeOpacity={0.7}
+                                    >
                                       <View style={styles.visitorInfo}>
                                         <View
                                           style={[
@@ -1920,25 +1923,20 @@ export default function VisitorsScreen({ navigation, route }: Props) {
                                         </View>
                                       </View>
 
-                                      <TouchableOpacity
-                                        onPress={() => toggleVisitor(visitorId)}
-                                        style={styles.chevronButton}
-                                      >
-                                        <ChevronDownIcon
-                                          width={18}
-                                          height={18}
-                                          style={{
-                                            transform: [
-                                              {
-                                                rotate: isVisitorExpanded
-                                                  ? "180deg"
-                                                  : "0deg",
-                                              },
-                                            ],
-                                          }}
-                                        />
-                                      </TouchableOpacity>
-                                    </View>
+                                      <ChevronDownIcon
+                                        width={18}
+                                        height={18}
+                                        style={{
+                                          transform: [
+                                            {
+                                              rotate: isVisitorExpanded
+                                                ? "180deg"
+                                                : "0deg",
+                                            },
+                                          ],
+                                        }}
+                                      />
+                                    </TouchableOpacity>
 
                                     {isVisitorExpanded && (
                                       <View style={styles.visitorItemContent}>
