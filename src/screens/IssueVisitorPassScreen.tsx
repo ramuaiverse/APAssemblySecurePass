@@ -528,19 +528,22 @@ export default function IssueVisitorPassScreen({ navigation, route }: Props) {
     setLoading(true);
 
     try {
-      // Format dates for API
+      // Format dates for API - Convert to UTC
       const formatLocalISOString = (dateObj: Date): string => {
-        const year = dateObj.getFullYear();
-        const month = String(dateObj.getMonth() + 1).padStart(2, "0");
-        const day = String(dateObj.getDate()).padStart(2, "0");
-        const hours = String(dateObj.getHours()).padStart(2, "0");
-        const minutes = String(dateObj.getMinutes()).padStart(2, "0");
-        const seconds = String(dateObj.getSeconds()).padStart(2, "0");
-        return `${year}-${month}-${day}T${hours}:${minutes}:${seconds}.000Z`;
+        // Use UTC methods to get UTC time components
+        const year = dateObj.getUTCFullYear();
+        const month = String(dateObj.getUTCMonth() + 1).padStart(2, "0");
+        const day = String(dateObj.getUTCDate()).padStart(2, "0");
+        const hours = String(dateObj.getUTCHours()).padStart(2, "0");
+        const minutes = String(dateObj.getUTCMinutes()).padStart(2, "0");
+        const seconds = String(dateObj.getUTCSeconds()).padStart(2, "0");
+        const milliseconds = String(dateObj.getUTCMilliseconds()).padStart(3, "0");
+        return `${year}-${month}-${day}T${hours}:${minutes}:${seconds}.${milliseconds}Z`;
       };
 
       const validFromISO = formatLocalISOString(validFrom);
       const validUntilISO = validTo ? formatLocalISOString(validTo) : null;
+
 
       // Map pass type
       const passTypeMap: Record<
@@ -744,6 +747,7 @@ export default function IssueVisitorPassScreen({ navigation, route }: Props) {
 
       // Step 3: Get pass request details
       const passRequestData = await api.getPassRequest(requestId);
+
 
       // Pass the entire response object along with category and pass type names to PreviewPassScreen
       navigation.navigate("PreviewPass", {
