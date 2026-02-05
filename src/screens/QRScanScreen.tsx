@@ -486,7 +486,8 @@ export default function QRScanScreen({ navigation, route }: Props) {
       <ScrollView
         contentContainerStyle={styles.scrollContent}
         keyboardShouldPersistTaps="handled"
-        showsVerticalScrollIndicator={false}
+        showsVerticalScrollIndicator={true}
+        showsHorizontalScrollIndicator={false}
       >
         {/* Header Section - Compact layout */}
         {/* Assembly Icon - Smaller for scan mode */}

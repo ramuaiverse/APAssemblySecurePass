@@ -262,7 +262,9 @@ export default function MyPassRequestDetailsScreen({
 
       <ScrollView
         contentContainerStyle={styles.scrollContent}
-        showsVerticalScrollIndicator={false}
+        showsVerticalScrollIndicator={true}
+        showsHorizontalScrollIndicator={false}
+        keyboardShouldPersistTaps="handled"
         style={styles.scrollView}
       >
         {/* Two Column Layout */}

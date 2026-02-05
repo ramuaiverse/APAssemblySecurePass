@@ -193,7 +193,8 @@ export default function UsernameOTPLoginScreen({ navigation }: Props) {
           <ScrollView
             contentContainerStyle={styles.scrollContent}
             keyboardShouldPersistTaps="handled"
-            showsVerticalScrollIndicator={false}
+            showsVerticalScrollIndicator={true}
+            showsHorizontalScrollIndicator={false}
           >
             {/* Header */}
             <View style={styles.header}>

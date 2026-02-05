@@ -129,7 +129,7 @@ export default function LegislativeRejectScreen({ navigation, route }: Props) {
     if (!subCategoryId) return "—";
     for (const category of categories) {
       const subCat = category.sub_categories?.find(
-        (sc) => sc.id === subCategoryId,
+        (sc: { id: string; }) => sc.id === subCategoryId,
       );
       if (subCat) return subCat.name;
     }
@@ -170,7 +170,9 @@ export default function LegislativeRejectScreen({ navigation, route }: Props) {
       <ScrollView
         style={styles.scrollView}
         contentContainerStyle={styles.scrollContent}
-        showsVerticalScrollIndicator={false}
+        showsVerticalScrollIndicator={true}
+        showsHorizontalScrollIndicator={false}
+        keyboardShouldPersistTaps="handled"
       >
         <Text style={styles.subtitle}>Provide a reason for rejection.</Text>
 

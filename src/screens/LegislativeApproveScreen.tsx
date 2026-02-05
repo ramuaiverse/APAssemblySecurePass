@@ -539,9 +539,9 @@ export default function LegislativeApproveScreen({ navigation, route }: Props) {
       </View>
 
       <ScrollView
-        style={styles.scrollView}
         contentContainerStyle={styles.scrollContent}
-        showsVerticalScrollIndicator={false}
+        showsVerticalScrollIndicator={true}
+        showsHorizontalScrollIndicator={false}
       >
         <Text style={styles.subtitle}>
           Review and approve the visitor request.

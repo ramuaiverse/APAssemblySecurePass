@@ -1669,7 +1669,9 @@ export default function VisitorsScreen({ navigation, route }: Props) {
       ) : (
         <ScrollView
           contentContainerStyle={styles.scrollContent}
-          showsVerticalScrollIndicator={false}
+          showsVerticalScrollIndicator={true}
+          showsHorizontalScrollIndicator={false}
+          keyboardShouldPersistTaps="handled"
           onScroll={({ nativeEvent }) => {
             const { layoutMeasurement, contentOffset, contentSize } = nativeEvent;
             const paddingToBottom = 20;

@@ -351,7 +351,9 @@ export default function ValidPassScreen({ navigation, route }: Props) {
 
       <ScrollView
         contentContainerStyle={styles.scrollContent}
-        showsVerticalScrollIndicator={false}
+        showsVerticalScrollIndicator={true}
+        showsHorizontalScrollIndicator={false}
+        keyboardShouldPersistTaps="handled"
       >
         {/* Visitor Details Card */}
         <View style={styles.detailsCard}>

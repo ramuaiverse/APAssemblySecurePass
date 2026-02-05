@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import {
   View,
   Text,
@@ -10,6 +10,7 @@ import {
   ScrollView,
   ActivityIndicator,
   Alert,
+  Dimensions,
 } from "react-native";
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { RouteProp } from "@react-navigation/native";
@@ -44,6 +45,17 @@ export default function SetPasswordScreen({ navigation, route }: Props) {
   const [loading, setLoading] = useState(false);
   const [newPasswordError, setNewPasswordError] = useState("");
   const [confirmPasswordError, setConfirmPasswordError] = useState("");
+  const [dimensions, setDimensions] = useState(Dimensions.get("window"));
+
+  useEffect(() => {
+    const subscription = Dimensions.addEventListener("change", ({ window }) => {
+      setDimensions(window);
+    });
+
+    return () => subscription?.remove();
+  }, []);
+
+  const isLandscape = dimensions.width > dimensions.height;
 
   const handleSetPassword = async () => {
     // Clear previous errors
@@ -133,7 +145,7 @@ export default function SetPasswordScreen({ navigation, route }: Props) {
   };
 
   return (
-    <SafeAreaView style={styles.container} edges={["top"]}>
+    <SafeAreaView style={styles.container} edges={["top", "bottom", "left", "right"]}>
       <KeyboardAvoidingView
         behavior={Platform.OS === "ios" ? "padding" : "height"}
         style={styles.keyboardView}
@@ -141,23 +153,25 @@ export default function SetPasswordScreen({ navigation, route }: Props) {
         <ScrollView
           contentContainerStyle={styles.scrollContent}
           keyboardShouldPersistTaps="handled"
+          showsVerticalScrollIndicator={true}
+          showsHorizontalScrollIndicator={false}
         >
           {/* Header with Logos */}
-          <View style={styles.header}>
+          <View style={[styles.header, isLandscape && styles.headerLandscape]}>
             <TouchableOpacity
               onPress={() => navigation.goBack()}
               style={styles.backButton}
             >
               <BackButtonIcon width={20} height={20} />
             </TouchableOpacity>
-            <View style={styles.logoContainer}>
-              <DigitalPass width={110} height={150} />
-              <Assembly width={110} height={150} />
+            <View style={[styles.logoContainer, isLandscape && styles.logoContainerLandscape]}>
+              <DigitalPass width={isLandscape ? 80 : 110} height={isLandscape ? 110 : 150} />
+              <Assembly width={isLandscape ? 80 : 110} height={isLandscape ? 110 : 150} />
             </View>
           </View>
 
           {/* Form Card */}
-          <View style={styles.formCard}>
+          <View style={[styles.formCard, isLandscape && styles.formCardLandscape]}>
             <Text style={styles.cardTitle}>Set Your Password</Text>
             <Text style={styles.cardSubtitle}>
               Welcome! Please set a password for your account. This is a
@@ -278,6 +292,11 @@ const styles = StyleSheet.create({
   header: {
     alignItems: "center",
     position: "relative",
+    marginBottom: 10,
+  },
+  headerLandscape: {
+    marginHorizontal: 20,
+    marginBottom: 15,
   },
   backButton: {
     position: "absolute",
@@ -296,6 +315,10 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     gap: 60,
   },
+  logoContainerLandscape: {
+    paddingVertical: 5,
+    gap: 30,
+  },
   formCard: {
     backgroundColor: "#fff",
     borderRadius: 15,
@@ -306,6 +329,12 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.3,
     shadowRadius: 8,
     elevation: 8,
+  },
+  formCardLandscape: {
+    paddingVertical: 20,
+    maxWidth: 600,
+    alignSelf: "center",
+    width: "100%",
   },
   cardTitle: {
     fontSize: 24,

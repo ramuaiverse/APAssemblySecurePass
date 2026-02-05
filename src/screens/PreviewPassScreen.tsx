@@ -268,7 +268,9 @@ export default function PreviewPassScreen({ navigation, route }: Props) {
 
       <ScrollView
         contentContainerStyle={styles.scrollContent}
-        showsVerticalScrollIndicator={false}
+        showsVerticalScrollIndicator={true}
+        showsHorizontalScrollIndicator={false}
+        keyboardShouldPersistTaps="handled"
       >
         {/* Pass Card Container */}
         <View

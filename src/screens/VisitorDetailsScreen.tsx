@@ -389,7 +389,9 @@ export default function VisitorDetailsScreen({ navigation, route }: Props) {
 
       <ScrollView
         contentContainerStyle={styles.scrollContent}
-        showsVerticalScrollIndicator={false}
+        showsVerticalScrollIndicator={true}
+        showsHorizontalScrollIndicator={false}
+        keyboardShouldPersistTaps="handled"
         style={styles.scrollView}
       >
         {/* Single Column Layout */}

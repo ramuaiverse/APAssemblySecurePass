@@ -298,7 +298,9 @@ export default function MyPassRequestsScreen({ navigation, route }: Props) {
           <ScrollView
             style={styles.scrollView}
             contentContainerStyle={styles.scrollContent}
-            showsVerticalScrollIndicator={false}
+            showsVerticalScrollIndicator={true}
+            showsHorizontalScrollIndicator={false}
+            keyboardShouldPersistTaps="handled"
           >
             {/* Request Cards */}
             <View style={styles.cardsListContainer}>

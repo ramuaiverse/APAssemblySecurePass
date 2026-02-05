@@ -266,7 +266,9 @@ export default function LegislativeRouteScreen({ navigation, route }: Props) {
       <ScrollView
         style={styles.scrollView}
         contentContainerStyle={styles.scrollContent}
-        showsVerticalScrollIndicator={false}
+        showsVerticalScrollIndicator={true}
+        showsHorizontalScrollIndicator={false}
+        keyboardShouldPersistTaps="handled"
       >
         <Text style={styles.subtitle}>Forward to a superior for review.</Text>
 

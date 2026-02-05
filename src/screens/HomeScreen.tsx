@@ -459,7 +459,7 @@ export default function HomeScreen({ navigation, route }: Props) {
   };
 
   return (
-    <SafeAreaView style={styles.container} edges={["top"]}>
+    <SafeAreaView style={styles.container} edges={["top", "bottom", "left", "right"]}>
       {/* Background Assembly Image - Center */}
       <View style={styles.assemblyBackgroundContainer}>
         <Assembly width={200} height={200} opacity={0.1} />
@@ -489,7 +489,8 @@ export default function HomeScreen({ navigation, route }: Props) {
 
       <ScrollView
         contentContainerStyle={styles.scrollContent}
-        showsVerticalScrollIndicator={false}
+        showsVerticalScrollIndicator={true}
+        showsHorizontalScrollIndicator={false}
         style={styles.scrollView}
       >
         {/* Dashboard Section */}

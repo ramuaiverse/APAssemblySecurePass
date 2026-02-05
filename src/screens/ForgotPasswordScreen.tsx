@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import {
   View,
   Text,
@@ -10,6 +10,7 @@ import {
   ScrollView,
   ActivityIndicator,
   Alert,
+  Dimensions,
 } from "react-native";
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { RootStackParamList } from "@/types";
@@ -34,6 +35,17 @@ export default function ForgotPasswordScreen({ navigation }: Props) {
   const [username, setUsername] = useState("");
   const [loading, setLoading] = useState(false);
   const [usernameError, setUsernameError] = useState("");
+  const [dimensions, setDimensions] = useState(Dimensions.get("window"));
+
+  useEffect(() => {
+    const subscription = Dimensions.addEventListener("change", ({ window }) => {
+      setDimensions(window);
+    });
+
+    return () => subscription?.remove();
+  }, []);
+
+  const isLandscape = dimensions.width > dimensions.height;
 
   const handleSendOTP = async () => {
     // Clear previous errors
@@ -78,7 +90,7 @@ export default function ForgotPasswordScreen({ navigation }: Props) {
   };
 
   return (
-    <SafeAreaView style={styles.container} edges={["top"]}>
+    <SafeAreaView style={styles.container} edges={["top", "bottom", "left", "right"]}>
       <KeyboardAvoidingView
         behavior={Platform.OS === "ios" ? "padding" : "height"}
         style={styles.keyboardView}
@@ -86,23 +98,25 @@ export default function ForgotPasswordScreen({ navigation }: Props) {
         <ScrollView
           contentContainerStyle={styles.scrollContent}
           keyboardShouldPersistTaps="handled"
+          showsVerticalScrollIndicator={true}
+          showsHorizontalScrollIndicator={false}
         >
           {/* Header with Logos */}
-          <View style={styles.header}>
+          <View style={[styles.header, isLandscape && styles.headerLandscape]}>
             <TouchableOpacity
               onPress={handleCancel}
               style={styles.headerBackButton}
             >
               <BackButtonIcon width={20} height={20} />
             </TouchableOpacity>
-            <View style={styles.logoContainer}>
-              <DigitalPass width={110} height={150} />
-              <Assembly width={110} height={150} />
+            <View style={[styles.logoContainer, isLandscape && styles.logoContainerLandscape]}>
+              <DigitalPass width={isLandscape ? 80 : 110} height={isLandscape ? 110 : 150} />
+              <Assembly width={isLandscape ? 80 : 110} height={isLandscape ? 110 : 150} />
             </View>
           </View>
 
           {/* Modal Card */}
-          <View style={styles.modalCard}>
+          <View style={[styles.modalCard, isLandscape && styles.modalCardLandscape]}>
             {/* Header */}
             <View style={styles.modalHeader}>
               <Text style={styles.modalTitle}>Reset Password</Text>
@@ -197,6 +211,11 @@ const styles = StyleSheet.create({
   header: {
     alignItems: "center",
     position: "relative",
+    marginBottom: 10,
+  },
+  headerLandscape: {
+    marginHorizontal: 20,
+    marginBottom: 15,
   },
   headerBackButton: {
     position: "absolute",
@@ -215,6 +234,10 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     gap: 60,
   },
+  logoContainerLandscape: {
+    paddingVertical: 5,
+    gap: 30,
+  },
   modalCard: {
     backgroundColor: "#fff",
     borderRadius: 15,
@@ -225,6 +248,12 @@ const styles = StyleSheet.create({
     shadowRadius: 8,
     elevation: 8,
     marginTop: 20,
+  },
+  modalCardLandscape: {
+    maxWidth: 600,
+    alignSelf: "center",
+    width: "100%",
+    paddingVertical: 20,
   },
   modalHeader: {
     marginBottom: 16,

@@ -86,7 +86,9 @@ export default function PreCheckScreen({ navigation }: Props) {
 
       <ScrollView
         contentContainerStyle={styles.scrollContent}
-        showsVerticalScrollIndicator={false}
+        showsVerticalScrollIndicator={true}
+        showsHorizontalScrollIndicator={false}
+        keyboardShouldPersistTaps="handled"
       >
         {/* Assembly Icon */}
         <View style={styles.iconContainer}>

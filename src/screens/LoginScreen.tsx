@@ -208,7 +208,7 @@ export default function LoginScreen({ navigation }: Props) {
   };
 
   return (
-    <SafeAreaView style={styles.container} edges={["top", "bottom"]}>
+    <SafeAreaView style={styles.container} edges={["top", "bottom", "left", "right"]}>
       {/* Back Button - Fixed Position */}
       <TouchableOpacity
         onPress={() => navigation.goBack()}
@@ -226,7 +226,8 @@ export default function LoginScreen({ navigation }: Props) {
           <ScrollView
             contentContainerStyle={styles.scrollContent}
             keyboardShouldPersistTaps="handled"
-            showsVerticalScrollIndicator={false}
+            showsVerticalScrollIndicator={true}
+            showsHorizontalScrollIndicator={false}
           >
             {/* Header */}
             <View style={styles.header}>
