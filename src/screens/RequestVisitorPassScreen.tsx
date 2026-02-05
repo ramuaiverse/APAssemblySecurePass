@@ -25,7 +25,7 @@ import {
   SubCategory,
   Session,
   Issuer,
-  VALIDATION_API_BASE_URL,
+  API_BASE_URL,
 } from "@/services/api";
 import LogOutIcon from "../../assets/logOut.svg";
 import BackButtonIcon from "../../assets/backButton.svg";
@@ -1028,7 +1028,7 @@ export default function RequestVisitorPassScreen({ navigation, route }: Props) {
       }
 
       // Build status check URL using the API base URL
-      const statusUrl = `${VALIDATION_API_BASE_URL}/status/${requestId}`;
+      const statusUrl = `${API_BASE_URL}/status/${requestId}`;
 
       // Show success modal
       setSubmittedRequestId(requestId);

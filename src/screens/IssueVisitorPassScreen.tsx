@@ -495,8 +495,6 @@ export default function IssueVisitorPassScreen({ navigation, route }: Props) {
     }
 
     // Validate valid from date/time - removed validation to allow showing 8am to 5pm even if current time is between 8am to 5pm
-    // const now = new Date();
-    // if (validFrom <= now) {
     //   setValidFromError("Valid from date/time must be in the future");
     //   hasError = true;
     // }
@@ -544,7 +542,6 @@ export default function IssueVisitorPassScreen({ navigation, route }: Props) {
       const validFromISO = formatLocalISOString(validFrom);
       const validUntilISO = validTo ? formatLocalISOString(validTo) : null;
 
-
       // Map pass type
       const passTypeMap: Record<
         string,
@@ -562,23 +559,6 @@ export default function IssueVisitorPassScreen({ navigation, route }: Props) {
       const entryType: "single" | "multiple" = passType.includes("Single")
         ? "single"
         : "multiple";
-
-      // Pass creation API has been removed
-      // const formData = {
-      //   full_name: `${firstName.trim()} ${lastName.trim()}`,
-      //   email: email.trim(),
-      //   phone: phone.replace(/[^0-9]/g, ""),
-      //   numberOfVisitors: 1,
-      //   purposeOfVisit: purpose.trim(),
-      //   passType: apiPassType,
-      //   entryType: entryType,
-      //   validFrom: validFromISO,
-      //   validUntil: validUntilISO || validFromISO,
-      //   identification_type: idType || null,
-      //   identification_number: idNumber.trim() || null,
-      //   organization: null,
-      //   notes: comments.trim() || null,
-      // };
 
       // Validate required IDs
       if (!selectedCategoryId) {

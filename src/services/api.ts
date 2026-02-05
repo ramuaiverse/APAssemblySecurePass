@@ -1,9 +1,6 @@
 // Base URL for pass-requests validation APIs (no authentication required)
-export const VALIDATION_API_BASE_URL =
-  "https://apl-apiservices-714903368119.asia-south1.run.app";
-
-// export const NON_PROD_VALIDATION_API_BASE_URL = 
-// "https://category-service-714903368119.us-central1.run.app";
+export const API_BASE_URL =
+  "https://category-service-714903368119.us-central1.run.app";
 
   // UserLoginRequest schema from new API
 export interface LoginRequest {
@@ -277,7 +274,7 @@ export const api = {
 
     try {
       const response = await fetch(
-        `${VALIDATION_API_BASE_URL}/api/v1/pass-requests/auth/login`,
+        `${API_BASE_URL}/api/v1/pass-requests/auth/login`,
         {
           method: "POST",
           headers: {
@@ -379,7 +376,7 @@ export const api = {
   ): Promise<QRValidationResponse> => {
     try {
       // Build URL with optional gate_location, gate_action, and auto_record_scan query parameters
-      let url = `${VALIDATION_API_BASE_URL}/api/v1/pass-requests/validate-qr/${encodeURIComponent(
+      let url = `${API_BASE_URL}/api/v1/pass-requests/validate-qr/${encodeURIComponent(
         qrCodeId,
       )}`;
 
@@ -456,7 +453,7 @@ export const api = {
   ): Promise<QRValidationResponse> => {
     try {
       // Build URL with query parameters
-      let url = `${VALIDATION_API_BASE_URL}/api/v1/pass-requests/validate-pass-number/${encodeURIComponent(
+      let url = `${API_BASE_URL}/api/v1/pass-requests/validate-pass-number/${encodeURIComponent(
         passNumber,
       )}`;
 
@@ -561,7 +558,7 @@ export const api = {
         name: filename,
       } as any);
 
-      const url = `${VALIDATION_API_BASE_URL}/api/v1/pass-requests/validate-qr/${encodeURIComponent(
+      const url = `${API_BASE_URL}/api/v1/pass-requests/validate-qr/${encodeURIComponent(
         qrData,
       )}/upload-photo`;
 
@@ -642,7 +639,7 @@ export const api = {
       throw new Error("suspended_by and reason cannot be empty");
     }
 
-    const url = `${VALIDATION_API_BASE_URL}/api/v1/pass-requests/visitors/${visitorId}/suspend`;
+    const url = `${API_BASE_URL}/api/v1/pass-requests/visitors/${visitorId}/suspend`;
 
     // The API expects multipart/form-data
     const formData = new FormData();
@@ -739,7 +736,7 @@ export const api = {
       throw new Error("activated_by is required");
     }
 
-    const url = `${VALIDATION_API_BASE_URL}/api/v1/pass-requests/visitors/${visitorId}/activate`;
+    const url = `${API_BASE_URL}/api/v1/pass-requests/visitors/${visitorId}/activate`;
 
     // The API expects multipart/form-data
     const formData = new FormData();
@@ -821,7 +818,7 @@ export const api = {
   getMainCategories: async (): Promise<MainCategory[]> => {
     try {
       const response = await fetch(
-        `${VALIDATION_API_BASE_URL}/api/v1/categories/main`,
+        `${API_BASE_URL}/api/v1/categories/main`,
         {
           method: "GET",
           headers: {
@@ -875,7 +872,7 @@ export const api = {
   getCategoryPassTypes: async (categoryId: string): Promise<string[]> => {
     try {
       const response = await fetch(
-        `${VALIDATION_API_BASE_URL}/api/v1/categories/main/${categoryId}/pass-types`,
+        `${API_BASE_URL}/api/v1/categories/main/${categoryId}/pass-types`,
         {
           method: "GET",
           headers: {
@@ -925,7 +922,7 @@ export const api = {
   getAllPassTypes: async (): Promise<PassTypeItem[]> => {
     try {
       const response = await fetch(
-        `${VALIDATION_API_BASE_URL}/api/v1/categories/pass-types?active_only=true`,
+        `${API_BASE_URL}/api/v1/categories/pass-types?active_only=true`,
         {
           method: "GET",
           headers: {
@@ -973,7 +970,7 @@ export const api = {
 
   // Submit pass request with files
   submitPassRequestWithFiles: async (formData: FormData): Promise<any> => {
-    const url = `${VALIDATION_API_BASE_URL}/api/v1/pass-requests/submit-with-files`;
+    const url = `${API_BASE_URL}/api/v1/pass-requests/submit-with-files`;
 
     try {
       const response = await fetch(url, {
@@ -1057,7 +1054,7 @@ export const api = {
   getSessions: async (): Promise<Session[]> => {
     try {
       const response = await fetch(
-        `${VALIDATION_API_BASE_URL}/api/v1/categories/sessions?limit=1000&active_only=true`,
+        `${API_BASE_URL}/api/v1/categories/sessions?limit=1000&active_only=true`,
         {
           method: "GET",
           headers: {
@@ -1117,7 +1114,7 @@ export const api = {
       season?: string;
     },
   ): Promise<any> => {
-    const url = `${VALIDATION_API_BASE_URL}/api/v1/pass-requests/${requestId}/status`;
+    const url = `${API_BASE_URL}/api/v1/pass-requests/${requestId}/status`;
 
     try {
       const formData = new FormData();
@@ -1209,7 +1206,7 @@ export const api = {
       throw new Error("current_user_id and rejection_reason are required");
     }
 
-    const url = `${VALIDATION_API_BASE_URL}/api/v1/pass-requests/visitors/${visitorId}/status`;
+    const url = `${API_BASE_URL}/api/v1/pass-requests/visitors/${visitorId}/status`;
 
     const formData = new FormData();
     formData.append("status", "rejected");
@@ -1275,7 +1272,7 @@ export const api = {
       season?: string;
     },
   ): Promise<any> => {
-    const url = `${VALIDATION_API_BASE_URL}/api/v1/pass-requests/${requestId}/generate-pass`;
+    const url = `${API_BASE_URL}/api/v1/pass-requests/${requestId}/generate-pass`;
 
     try {
       const formData = new FormData();
@@ -1356,7 +1353,7 @@ export const api = {
 
   // Get pass request details
   getPassRequest: async (requestId: string): Promise<any> => {
-    const url = `${VALIDATION_API_BASE_URL}/api/v1/pass-requests/${requestId}`;
+    const url = `${API_BASE_URL}/api/v1/pass-requests/${requestId}`;
 
     try {
       const response = await fetch(url, {
@@ -1404,7 +1401,7 @@ export const api = {
 
   // Get users by role
   getUsersByRole: async (roleName: string): Promise<User[]> => {
-    const url = `${VALIDATION_API_BASE_URL}/api/v1/pass-requests/users/by-role/${roleName}`;
+    const url = `${API_BASE_URL}/api/v1/pass-requests/users/by-role/${roleName}`;
 
     try {
       const response = await fetch(url, {
@@ -1452,7 +1449,7 @@ export const api = {
 
   // Get all active issuers
   getIssuers: async (): Promise<Issuer[]> => {
-    const url = `${VALIDATION_API_BASE_URL}/api/v1/issuers?limit=100&is_active=true`;
+    const url = `${API_BASE_URL}/api/v1/issuers?limit=100&is_active=true`;
 
     try {
       const response = await fetch(url, {
@@ -1500,7 +1497,7 @@ export const api = {
 
   // Generate OTP for username
   generateOTP: async (username: string): Promise<any> => {
-    const url = `${VALIDATION_API_BASE_URL}/api/v1/pass-requests/auth/otp/generate`;
+    const url = `${API_BASE_URL}/api/v1/pass-requests/auth/otp/generate`;
 
     try {
       // Format as application/x-www-form-urlencoded
@@ -1561,7 +1558,7 @@ export const api = {
     username: string,
     otpCode: string,
   ): Promise<LoginResponse> => {
-    const url = `${VALIDATION_API_BASE_URL}/api/v1/pass-requests/auth/otp/verify`;
+    const url = `${API_BASE_URL}/api/v1/pass-requests/auth/otp/verify`;
 
     try {
       // Format as application/x-www-form-urlencoded - match exact curl format
@@ -1649,7 +1646,7 @@ export const api = {
     username: string;
     password: string;
   }): Promise<LoginResponse> => {
-    const url = `${VALIDATION_API_BASE_URL}/api/v1/pass-requests/auth/set-password`;
+    const url = `${API_BASE_URL}/api/v1/pass-requests/auth/set-password`;
 
     try {
       const formData = new FormData();
@@ -1726,7 +1723,7 @@ export const api = {
       throw new Error("visitorId is required");
     }
 
-    const url = `${VALIDATION_API_BASE_URL}/api/v1/pass-requests/${requestId}/visitor/${visitorId}/resend-whatsapp`;
+    const url = `${API_BASE_URL}/api/v1/pass-requests/${requestId}/visitor/${visitorId}/resend-whatsapp`;
 
     try {
       const response = await fetch(url, {
@@ -1775,7 +1772,7 @@ export const api = {
 
   // Get all pass requests for dashboard
   getAllPassRequests: async (limit: number = 10000): Promise<any[]> => {
-    const url = `${VALIDATION_API_BASE_URL}/api/v1/pass-requests?limit=${limit}`;
+    const url = `${API_BASE_URL}/api/v1/pass-requests?limit=${limit}`;
 
     try {
       const response = await fetch(url, {
@@ -1838,7 +1835,7 @@ export const api = {
       throw new Error("Status must be 'approved' or 'rejected'");
     }
 
-    const url = `${VALIDATION_API_BASE_URL}/api/v1/pass-requests/visitors/${visitorId}/status`;
+    const url = `${API_BASE_URL}/api/v1/pass-requests/visitors/${visitorId}/status`;
 
     // Create form data
     const formData = new FormData();
@@ -1896,10 +1893,9 @@ export const api = {
   },
 
   getSuperiors: async (department: string): Promise<Superior[]> => {
-    const url = `${VALIDATION_API_BASE_URL}/api/v1/pass-requests/superiors/${department}`;
+    const url = `${API_BASE_URL}/api/v1/pass-requests/superiors/${department}`;
 
     try {
-      console.log(`Fetching superiors from: ${url}`);
       const response = await fetch(url, {
         method: "GET",
         headers: {
@@ -1914,12 +1910,10 @@ export const api = {
         responseData = await response.json();
       } else {
         const text = await response.text();
-        console.error(`Non-JSON response from superiors API: ${text}`);
         throw new Error(`Server error: ${text || `Status ${response.status}`}`);
       }
 
       if (!response.ok) {
-        console.error(`Superiors API error - Status: ${response.status}, Response:`, responseData);
         const errorMessage =
           (Array.isArray(responseData?.detail)
             ? responseData.detail
@@ -1936,10 +1930,8 @@ export const api = {
         throw new Error(errorMessage);
       }
 
-      console.log(`Successfully fetched ${responseData?.length || 0} superiors`);
       return responseData || [];
     } catch (error) {
-      console.error(`Error in getSuperiors for department "${department}":`, error);
       if (error instanceof Error) {
         throw error;
       }
@@ -1971,7 +1963,7 @@ export const api = {
       );
     }
 
-    const url = `${VALIDATION_API_BASE_URL}/api/v1/pass-requests/${requestId}/status`;
+    const url = `${API_BASE_URL}/api/v1/pass-requests/${requestId}/status`;
 
     const formData = new FormData();
     // Match exact order from portal curl command

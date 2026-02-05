@@ -5,13 +5,10 @@ import {
   StyleSheet,
   TouchableOpacity,
   ScrollView,
-  Share,
   Alert,
   Image,
   BackHandler,
 } from "react-native";
-import * as FileSystem from "expo-file-system";
-import { captureRef } from "react-native-view-shot";
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { RouteProp } from "@react-navigation/native";
 import { RootStackParamList } from "@/types";
@@ -252,69 +249,6 @@ export default function PreviewPassScreen({ navigation, route }: Props) {
         return;
       }
 
-      // Native share functionality - commented out for now
-      // Continue with native share functionality
-      // const shareMessage = `Visitor Pass${season ? ` - ${season}` : ""}
-      //
-      // Name: ${visitorName}
-      // ${passNumber ? `Pass Number: ${passNumber}` : ""}
-      // Date: ${validFrom} - ${validTo}
-      // ${requestedBy ? `Requested By: ${requestedBy}` : ""}
-      // ${
-      //   identificationType && identificationNumber
-      //     ? `${identificationType}: ${identificationNumber}`
-      //     : ""
-      // }
-      // ${
-      //   vehicleDetails
-      //     ? `Vehicle: ${vehicleDetails.number}\n${vehicleDetails.details}`
-      //     : ""
-      // }
-      // ${qrCodeString ? `QR Code: ${qrCodeString}` : ""}
-      //
-      // This pass is authorized for entry.`;
-      //
-      // let imageUri: string | null = null;
-      //
-      // try {
-      //   if (cardContainerRef.current) {
-      //     const uri = await captureRef(cardContainerRef, {
-      //       format: "png",
-      //       quality: 1.0,
-      //       result: "tmpfile",
-      //     });
-      //     imageUri = uri;
-      //   }
-      // } catch (captureError) {
-      //   // Continue with text-only share if capture fails
-      // }
-      //
-      // const shareOptions: any = {
-      //   message: shareMessage,
-      //   title: "Visitor Pass",
-      // };
-      //
-      // if (imageUri) {
-      //   const fileUri =
-      //     Platform.OS === "android" && !imageUri.startsWith("file://")
-      //       ? `file://${imageUri}`
-      //       : imageUri;
-      //   shareOptions.url = fileUri;
-      //
-      //   if (Platform.OS === "android") {
-      //     shareOptions.message = `${shareMessage}\n\n[Image attached]`;
-      //   }
-      // }
-      //
-      // const result = await Share.share(shareOptions);
-      //
-      // if (imageUri) {
-      //   try {
-      //     await FileSystem.deleteAsync(imageUri, { idempotent: true });
-      //   } catch (cleanupError) {
-      //     // Failed to delete temporary file
-      //   }
-      // }
     } catch (error) {
       Alert.alert("Error", "Failed to share pass. Please try again.");
     }
