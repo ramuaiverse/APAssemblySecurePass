@@ -129,7 +129,7 @@ export default function LegislativeRejectScreen({ navigation, route }: Props) {
     if (!subCategoryId) return "—";
     for (const category of categories) {
       const subCat = category.sub_categories?.find(
-        (sc: { id: string; }) => sc.id === subCategoryId,
+        (sc: { id: string }) => sc.id === subCategoryId,
       );
       if (subCat) return subCat.name;
     }
@@ -219,7 +219,8 @@ export default function LegislativeRejectScreen({ navigation, route }: Props) {
               <Text style={styles.detailLabel}>CATEGORY</Text>
               <Text style={styles.detailValue}>
                 {getCategoryName(request?.main_category_id)}
-                {request?.sub_category_id && getSubCategoryName(request.sub_category_id) !== "—" &&
+                {request?.sub_category_id &&
+                  getSubCategoryName(request.sub_category_id) !== "—" &&
                   ` • ${getSubCategoryName(request.sub_category_id)}`}
               </Text>
             </View>
@@ -232,7 +233,9 @@ export default function LegislativeRejectScreen({ navigation, route }: Props) {
             <View style={styles.detailRow}>
               <Text style={styles.detailLabel}>REQUESTED BY</Text>
               <Text style={styles.detailValue}>
-                {request?.requested_by ? (userMap.get(request.requested_by) || request.requested_by) : "—"}
+                {request?.requested_by
+                  ? userMap.get(request.requested_by) || request.requested_by
+                  : "—"}
               </Text>
             </View>
           </View>
@@ -251,9 +254,7 @@ export default function LegislativeRejectScreen({ navigation, route }: Props) {
             <View style={styles.detailsContainer}>
               {visitor.car_passes.map((carPass: any, index: number) => (
                 <View key={index} style={styles.carPassCard}>
-                  <Text style={styles.carPassLabel}>
-                    CAR PASS #{index + 1}
-                  </Text>
+                  <Text style={styles.carPassLabel}>CAR PASS #{index + 1}</Text>
                   <View style={styles.carPassDetails}>
                     <View style={styles.detailRow}>
                       <Text style={styles.detailLabel}>MAKE</Text>

@@ -149,11 +149,11 @@ export default function ValidPassScreen({ navigation, route }: Props) {
 
       const subscription = BackHandler.addEventListener(
         "hardwareBackPress",
-        onBackPress
+        onBackPress,
       );
 
       return () => subscription.remove();
-    }, [navigation])
+    }, [navigation]),
   );
 
   const handleReportPress = () => {

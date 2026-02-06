@@ -56,7 +56,7 @@ export default function HomeScreen({ navigation, route }: Props) {
 
   // Store userFullName in state to persist it even when navigating back
   const [userFullName, setUserFullName] = useState<string>(
-    route.params?.userFullName || ""
+    route.params?.userFullName || "",
   );
 
   const [dashboardData, setDashboardData] = useState<DashboardMetrics>({
@@ -95,11 +95,24 @@ export default function HomeScreen({ navigation, route }: Props) {
       }
       // If userFullName is already set in state, preserve it even if route params don't have it
       // This ensures state persists when navigating back via goBack()
-    }, [route.params?.userFullName, userFullName])
+    }, [route.params?.userFullName, userFullName]),
   );
 
   useEffect(() => {
     fetchDashboardData();
+
+    // Set up interval to refresh data every 1 minute (60000 ms)
+    const intervalId = setInterval(
+      () => {
+        fetchDashboardData();
+      },
+      5 * 60 * 1000,
+    );
+
+    // Cleanup interval on unmount
+    return () => {
+      clearInterval(intervalId);
+    };
   }, []);
 
   const fetchDashboardData = async () => {
@@ -129,7 +142,8 @@ export default function HomeScreen({ navigation, route }: Props) {
         const shouldShowVisitor = (request: any, visitor: any): boolean => {
           // Check if request is routed to legislative (either pending with routing or routed_for_approval)
           const hasRouting = !!request.routed_to || !!request.routed_at;
-          const isPendingWithRouting = request.status === "pending" && hasRouting;
+          const isPendingWithRouting =
+            request.status === "pending" && hasRouting;
           const isRoutedForApproval = request.status === "routed_for_approval";
           const isRequestApproved = request.status === "approved";
           const isPassGenerated = !!visitor.pass_generated_at;
@@ -459,7 +473,10 @@ export default function HomeScreen({ navigation, route }: Props) {
   };
 
   return (
-    <SafeAreaView style={styles.container} edges={["top", "bottom", "left", "right"]}>
+    <SafeAreaView
+      style={styles.container}
+      edges={["top", "bottom", "left", "right"]}
+    >
       {/* Background Assembly Image - Center */}
       <View style={styles.assemblyBackgroundContainer}>
         <Assembly width={200} height={200} opacity={0.1} />
@@ -502,7 +519,7 @@ export default function HomeScreen({ navigation, route }: Props) {
                 : "Dashboard"}
             </Text>
             <Text style={styles.dashboardSubheading}>
-              {(userRole === "department" || userRole === "peshi")
+              {userRole === "department" || userRole === "peshi"
                 ? "Manage pass requests and HOD approvals"
                 : "Comprehensive overview of pass requests and approvals"}
             </Text>
@@ -549,15 +566,16 @@ export default function HomeScreen({ navigation, route }: Props) {
                     <Text
                       style={[styles.metricValue, styles.pendingRequestsValue]}
                     >
-                      {(userRole === "department" || userRole === "peshi")
-                        ? dashboardData.pendingHodApproval ?? dashboardData.pendingRequests
+                      {userRole === "department" || userRole === "peshi"
+                        ? (dashboardData.pendingHodApproval ??
+                          dashboardData.pendingRequests)
                         : dashboardData.pendingRequests}
                     </Text>
                   </View>
                   <Text
                     style={[styles.metricLabel, styles.pendingRequestsLabel]}
                   >
-                    {(userRole === "department" || userRole === "peshi")
+                    {userRole === "department" || userRole === "peshi"
                       ? "PENDING HOD APPROVAL"
                       : "PENDING"}
                   </Text>
@@ -574,15 +592,16 @@ export default function HomeScreen({ navigation, route }: Props) {
                     <Text
                       style={[styles.metricValue, styles.approvedRequestsValue]}
                     >
-                      {(userRole === "department" || userRole === "peshi")
-                        ? dashboardData.hodApproved ?? dashboardData.approvedRequests
+                      {userRole === "department" || userRole === "peshi"
+                        ? (dashboardData.hodApproved ??
+                          dashboardData.approvedRequests)
                         : dashboardData.approvedRequests}
                     </Text>
                   </View>
                   <Text
                     style={[styles.metricLabel, styles.approvedRequestsLabel]}
                   >
-                    {(userRole === "department" || userRole === "peshi")
+                    {userRole === "department" || userRole === "peshi"
                       ? "HOD APPROVED"
                       : "APPROVED"}
                   </Text>
@@ -594,7 +613,7 @@ export default function HomeScreen({ navigation, route }: Props) {
                     <View
                       style={[styles.iconBox, styles.routedRequestsIconBox]}
                     >
-                      {(userRole === "department" || userRole === "peshi") ? (
+                      {userRole === "department" || userRole === "peshi" ? (
                         <View style={styles.clockIcon}>
                           <View style={styles.clockCircle} />
                           <View style={styles.clockHandHour} />
@@ -610,15 +629,15 @@ export default function HomeScreen({ navigation, route }: Props) {
                     <Text
                       style={[styles.metricValue, styles.routedRequestsValue]}
                     >
-                      {(userRole === "department" || userRole === "peshi")
-                        ? dashboardData.todayRequests ?? 0
+                      {userRole === "department" || userRole === "peshi"
+                        ? (dashboardData.todayRequests ?? 0)
                         : dashboardData.routedRequests}
                     </Text>
                   </View>
                   <Text
                     style={[styles.metricLabel, styles.routedRequestsLabel]}
                   >
-                    {(userRole === "department" || userRole === "peshi")
+                    {userRole === "department" || userRole === "peshi"
                       ? "TODAY'S REQUESTS"
                       : "ROUTED"}
                   </Text>
@@ -642,15 +661,16 @@ export default function HomeScreen({ navigation, route }: Props) {
                     <Text
                       style={[styles.metricValue, styles.rejectedRequestsValue]}
                     >
-                      {(userRole === "department" || userRole === "peshi")
-                        ? dashboardData.hodRejected ?? dashboardData.rejectedRequests
+                      {userRole === "department" || userRole === "peshi"
+                        ? (dashboardData.hodRejected ??
+                          dashboardData.rejectedRequests)
                         : dashboardData.rejectedRequests}
                     </Text>
                   </View>
                   <Text
                     style={[styles.metricLabel, styles.rejectedRequestsLabel]}
                   >
-                    {(userRole === "department" || userRole === "peshi")
+                    {userRole === "department" || userRole === "peshi"
                       ? "HOD REJECTED"
                       : "REJECTED"}
                   </Text>
@@ -692,10 +712,12 @@ export default function HomeScreen({ navigation, route }: Props) {
                   <VisitorPassIcon width={50} height={50} />
                 </View>
                 <Text style={styles.cardTitle}>
-                  {(userRole === "department" || userRole === "peshi") ? "Request Pass" : "Insta Pass"}
+                  {userRole === "department" || userRole === "peshi"
+                    ? "Request Pass"
+                    : "Insta Pass"}
                 </Text>
                 <Text style={styles.cardDescription}>
-                  {(userRole === "department" || userRole === "peshi")
+                  {userRole === "department" || userRole === "peshi"
                     ? "View and manage all your visitor pass requests"
                     : "Issue a new visitor pass instantly"}
                 </Text>
@@ -711,12 +733,12 @@ export default function HomeScreen({ navigation, route }: Props) {
                   <VisitorIcon width={50} height={50} />
                 </View>
                 <Text style={styles.cardTitle}>
-                  {(userRole === "department" || userRole === "peshi")
+                  {userRole === "department" || userRole === "peshi"
                     ? "Status & Approvals"
                     : "Visitors"}
                 </Text>
                 <Text style={styles.cardDescription}>
-                  {(userRole === "department" || userRole === "peshi")
+                  {userRole === "department" || userRole === "peshi"
                     ? "Review and manage all HOD approval requests"
                     : "View and manage visitor records"}
                 </Text>

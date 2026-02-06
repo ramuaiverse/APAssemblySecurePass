@@ -390,7 +390,8 @@ export default function MyPassRequestDetailsScreen({
                                   ? "Routed for Approval"
                                   : status === "suspended"
                                     ? "Suspended"
-                                    : status.charAt(0).toUpperCase() + status.slice(1);
+                                    : status.charAt(0).toUpperCase() +
+                                      status.slice(1);
                         })()}
                       </Text>
                     </View>
@@ -630,7 +631,8 @@ export default function MyPassRequestDetailsScreen({
                                           ? "Routed for Approval"
                                           : status === "suspended"
                                             ? "Suspended"
-                                            : status.charAt(0).toUpperCase() + status.slice(1);
+                                            : status.charAt(0).toUpperCase() +
+                                              status.slice(1);
                                 })()}
                               </Text>
                             </View>

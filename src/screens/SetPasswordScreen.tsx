@@ -145,7 +145,10 @@ export default function SetPasswordScreen({ navigation, route }: Props) {
   };
 
   return (
-    <SafeAreaView style={styles.container} edges={["top", "bottom", "left", "right"]}>
+    <SafeAreaView
+      style={styles.container}
+      edges={["top", "bottom", "left", "right"]}
+    >
       <KeyboardAvoidingView
         behavior={Platform.OS === "ios" ? "padding" : "height"}
         style={styles.keyboardView}
@@ -164,14 +167,27 @@ export default function SetPasswordScreen({ navigation, route }: Props) {
             >
               <BackButtonIcon width={20} height={20} />
             </TouchableOpacity>
-            <View style={[styles.logoContainer, isLandscape && styles.logoContainerLandscape]}>
-              <DigitalPass width={isLandscape ? 80 : 110} height={isLandscape ? 110 : 150} />
-              <Assembly width={isLandscape ? 80 : 110} height={isLandscape ? 110 : 150} />
+            <View
+              style={[
+                styles.logoContainer,
+                isLandscape && styles.logoContainerLandscape,
+              ]}
+            >
+              <DigitalPass
+                width={isLandscape ? 80 : 110}
+                height={isLandscape ? 110 : 150}
+              />
+              <Assembly
+                width={isLandscape ? 80 : 110}
+                height={isLandscape ? 110 : 150}
+              />
             </View>
           </View>
 
           {/* Form Card */}
-          <View style={[styles.formCard, isLandscape && styles.formCardLandscape]}>
+          <View
+            style={[styles.formCard, isLandscape && styles.formCardLandscape]}
+          >
             <Text style={styles.cardTitle}>Set Your Password</Text>
             <Text style={styles.cardSubtitle}>
               Welcome! Please set a password for your account. This is a

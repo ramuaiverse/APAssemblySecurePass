@@ -113,7 +113,7 @@ export default function MyPassRequestsScreen({ navigation, route }: Props) {
       // Also filter by sub_categories if provided
       if (userSubCategories.length > 0) {
         const userSubCategoryIds = userSubCategories.map((cat: any) => cat.id);
-        
+
         const filtered = myRequests.filter((req: any) => {
           const matches = userSubCategoryIds.includes(req.sub_category_id);
           return matches;
@@ -486,7 +486,7 @@ const styles = StyleSheet.create({
   headerContainer: {
     backgroundColor: "transparent",
     paddingVertical: 12,
-   paddingHorizontal: 8,
+    paddingHorizontal: 8,
     borderBottomWidth: 2,
     borderBottomColor: "#E5E7EB",
     zIndex: 1,

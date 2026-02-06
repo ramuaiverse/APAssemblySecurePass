@@ -455,18 +455,17 @@ export default function RequestVisitorPassScreen({ navigation, route }: Props) {
       // Store subcategories for later use
       const subCategories = selectedCategory.sub_categories || [];
       setSelectedCategorySubCategories(subCategories);
-      
+
       // Automatically select the first active subcategory when category is selected
       // This matches web behavior where subcategory is selected from category, not from pass type
       if (subCategories.length > 0) {
-        const firstActiveSubCategory = subCategories.find(
-          (subCat) => subCat.is_active,
-        ) || subCategories[0];
+        const firstActiveSubCategory =
+          subCategories.find((subCat) => subCat.is_active) || subCategories[0];
         setSelectedSubCategoryId(firstActiveSubCategory.id);
       } else {
         setSelectedSubCategoryId(null);
       }
-      
+
       setLoadingPassTypes(true);
 
       try {
@@ -1096,8 +1095,7 @@ export default function RequestVisitorPassScreen({ navigation, route }: Props) {
                 .map((passType) => passType.name);
 
               setPassTypes(matchedPassTypes);
-            } catch (error) {
-            }
+            } catch (error) {}
           }
         }
       } catch (error) {

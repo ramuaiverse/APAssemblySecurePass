@@ -41,11 +41,11 @@ export default function PreCheckScreen({ navigation }: Props) {
 
       const subscription = BackHandler.addEventListener(
         "hardwareBackPress",
-        onBackPress
+        onBackPress,
       );
 
       return () => subscription.remove();
-    }, [navigation])
+    }, [navigation]),
   );
 
   const handleLogout = () => {

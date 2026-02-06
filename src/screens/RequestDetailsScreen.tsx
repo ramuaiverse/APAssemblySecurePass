@@ -414,7 +414,8 @@ export default function RequestDetailsScreen({ navigation, route }: Props) {
                 </View>
               </View>
 
-              {(visitor.identification_document_url || visitor.identificationDocumentUrl) && (
+              {(visitor.identification_document_url ||
+                visitor.identificationDocumentUrl) && (
                 <View style={styles.infoRow}>
                   <View style={styles.infoIcon}>
                     <DownloadIcon width={24} height={24} />
@@ -467,7 +468,11 @@ export default function RequestDetailsScreen({ navigation, route }: Props) {
               {visitor.validTo && (
                 <View style={styles.infoRow}>
                   <View style={styles.infoIcon}>
-                    <MaterialIcons name="event-busy" size={24} color="#6B7280" />
+                    <MaterialIcons
+                      name="event-busy"
+                      size={24}
+                      color="#6B7280"
+                    />
                   </View>
                   <View style={styles.infoContent}>
                     <Text style={styles.infoLabel}>VALID TO</Text>
@@ -481,7 +486,11 @@ export default function RequestDetailsScreen({ navigation, route }: Props) {
               {visitor.purpose && (
                 <View style={styles.infoRow}>
                   <View style={styles.infoIcon}>
-                    <MaterialIcons name="description" size={24} color="#6B7280" />
+                    <MaterialIcons
+                      name="description"
+                      size={24}
+                      color="#6B7280"
+                    />
                   </View>
                   <View style={styles.infoContent}>
                     <Text style={styles.infoLabel}>PURPOSE</Text>
@@ -493,13 +502,15 @@ export default function RequestDetailsScreen({ navigation, route }: Props) {
               {visitor.passTypeName && (
                 <View style={styles.infoRow}>
                   <View style={styles.infoIcon}>
-                    <MaterialIcons name="local-offer" size={24} color="#6B7280" />
+                    <MaterialIcons
+                      name="local-offer"
+                      size={24}
+                      color="#6B7280"
+                    />
                   </View>
                   <View style={styles.infoContent}>
                     <Text style={styles.infoLabel}>PASS TYPE</Text>
-                    <Text style={styles.infoValue}>
-                      {visitor.passTypeName}
-                    </Text>
+                    <Text style={styles.infoValue}>{visitor.passTypeName}</Text>
                   </View>
                 </View>
               )}
@@ -660,9 +671,7 @@ export default function RequestDetailsScreen({ navigation, route }: Props) {
                 </View>
                 <View style={styles.infoContent}>
                   <Text style={styles.infoLabel}>PURPOSE</Text>
-                  <Text style={styles.infoValue}>
-                    {request.purpose || "—"}
-                  </Text>
+                  <Text style={styles.infoValue}>{request.purpose || "—"}</Text>
                 </View>
               </View>
 
@@ -681,7 +690,11 @@ export default function RequestDetailsScreen({ navigation, route }: Props) {
               {request.visitDate && (
                 <View style={styles.infoRow}>
                   <View style={styles.infoIcon}>
-                    <MaterialIcons name="calendar-today" size={24} color="#6B7280" />
+                    <MaterialIcons
+                      name="calendar-today"
+                      size={24}
+                      color="#6B7280"
+                    />
                   </View>
                   <View style={styles.infoContent}>
                     <Text style={styles.infoLabel}>VISIT DATE</Text>
@@ -695,7 +708,11 @@ export default function RequestDetailsScreen({ navigation, route }: Props) {
               {request.hodApprovedBy && (
                 <View style={styles.infoRow}>
                   <View style={styles.infoIcon}>
-                    <MaterialIcons name="check-circle" size={24} color="#10B981" />
+                    <MaterialIcons
+                      name="check-circle"
+                      size={24}
+                      color="#10B981"
+                    />
                   </View>
                   <View style={styles.infoContent}>
                     <Text style={styles.infoLabel}>APPROVED BY (HOD)</Text>
@@ -712,7 +729,9 @@ export default function RequestDetailsScreen({ navigation, route }: Props) {
                     <MaterialIcons name="verified" size={24} color="#3B82F6" />
                   </View>
                   <View style={styles.infoContent}>
-                    <Text style={styles.infoLabel}>APPROVED BY (LEGISLATIVE)</Text>
+                    <Text style={styles.infoLabel}>
+                      APPROVED BY (LEGISLATIVE)
+                    </Text>
                     <Text style={styles.infoValue}>
                       {getUserName(request.legislativeApprovedBy)}
                     </Text>
@@ -726,7 +745,9 @@ export default function RequestDetailsScreen({ navigation, route }: Props) {
                     <MaterialIcons name="schedule" size={24} color="#3B82F6" />
                   </View>
                   <View style={styles.infoContent}>
-                    <Text style={styles.infoLabel}>LEGISLATIVE APPROVAL DATE</Text>
+                    <Text style={styles.infoLabel}>
+                      LEGISLATIVE APPROVAL DATE
+                    </Text>
                     <Text style={styles.infoValue}>
                       {formatDate(request.legislativeApprovedAt)}
                     </Text>
@@ -745,7 +766,9 @@ export default function RequestDetailsScreen({ navigation, route }: Props) {
                 </View>
                 <View>
                   <Text style={styles.cardTitle}>Timeline</Text>
-                  <Text style={styles.cardSubtitle}>Request Status History</Text>
+                  <Text style={styles.cardSubtitle}>
+                    Request Status History
+                  </Text>
                 </View>
               </View>
             </View>
@@ -772,7 +795,9 @@ export default function RequestDetailsScreen({ navigation, route }: Props) {
                 {/* HOD Approval */}
                 {visitor.approvedDate && (
                   <View style={styles.timelineItem}>
-                    <View style={[styles.timelineDot, styles.timelineDotApproved]}>
+                    <View
+                      style={[styles.timelineDot, styles.timelineDotApproved]}
+                    >
                       <View style={styles.timelineDotInner} />
                     </View>
                     <View style={styles.timelineContent}>
@@ -792,7 +817,9 @@ export default function RequestDetailsScreen({ navigation, route }: Props) {
                 {/* Rejected */}
                 {visitor.deniedDate && (
                   <View style={styles.timelineItem}>
-                    <View style={[styles.timelineDot, styles.timelineDotRejected]}>
+                    <View
+                      style={[styles.timelineDot, styles.timelineDotRejected]}
+                    >
                       <View style={styles.timelineDotInner} />
                     </View>
                     <View style={styles.timelineContent}>
@@ -812,7 +839,9 @@ export default function RequestDetailsScreen({ navigation, route }: Props) {
                 {/* Legislative Approval */}
                 {request.legislativeApprovedAt && (
                   <View style={styles.timelineItem}>
-                    <View style={[styles.timelineDot, styles.timelineDotApproved]}>
+                    <View
+                      style={[styles.timelineDot, styles.timelineDotApproved]}
+                    >
                       <View style={styles.timelineDotInner} />
                     </View>
                     <View style={styles.timelineContent}>
@@ -824,7 +853,8 @@ export default function RequestDetailsScreen({ navigation, route }: Props) {
                       </Text>
                       {request.legislativeApprovedBy && (
                         <Text style={styles.timelineDescription}>
-                          Approved by {getUserName(request.legislativeApprovedBy)}
+                          Approved by{" "}
+                          {getUserName(request.legislativeApprovedBy)}
                         </Text>
                       )}
                     </View>
@@ -834,7 +864,9 @@ export default function RequestDetailsScreen({ navigation, route }: Props) {
                 {/* Pass Generated */}
                 {visitor.passGeneratedAt && (
                   <View style={styles.timelineItem}>
-                    <View style={[styles.timelineDot, styles.timelineDotApproved]}>
+                    <View
+                      style={[styles.timelineDot, styles.timelineDotApproved]}
+                    >
                       <View style={styles.timelineDotInner} />
                     </View>
                     <View style={styles.timelineContent}>

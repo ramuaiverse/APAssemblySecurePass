@@ -73,7 +73,9 @@ export default function LegislativeApproveScreen({ navigation, route }: Props) {
   );
   const [selectedSessionName, setSelectedSessionName] = useState<string>("");
   const [passTypes, setPassTypes] = useState<PassTypeItem[]>([]);
-  const [availablePassTypes, setAvailablePassTypes] = useState<PassTypeItem[]>([]);
+  const [availablePassTypes, setAvailablePassTypes] = useState<PassTypeItem[]>(
+    [],
+  );
   const [loadingPassTypes, setLoadingPassTypes] = useState(false);
   const [userMap, setUserMap] = useState<Map<string, string>>(new Map());
 
@@ -157,7 +159,7 @@ export default function LegislativeApproveScreen({ navigation, route }: Props) {
       // Try to find session by name (season field) first
       if (request.season) {
         const matchingSession = sessions.find(
-          (s) => s.name.toLowerCase() === request.season.toLowerCase()
+          (s) => s.name.toLowerCase() === request.season.toLowerCase(),
         );
         if (matchingSession && !selectedSessionId) {
           setSelectedSessionId(matchingSession.id);
@@ -165,7 +167,9 @@ export default function LegislativeApproveScreen({ navigation, route }: Props) {
         }
       } else if (request.session_id) {
         // Try to find session by ID
-        const matchingSession = sessions.find((s) => s.id === request.session_id);
+        const matchingSession = sessions.find(
+          (s) => s.id === request.session_id,
+        );
         if (matchingSession && !selectedSessionId) {
           setSelectedSessionId(matchingSession.id);
           setSelectedSessionName(matchingSession.name);
@@ -183,7 +187,7 @@ export default function LegislativeApproveScreen({ navigation, route }: Props) {
     const fetchCategoryPassTypes = async () => {
       // Use request.main_category_id if selectedCategoryId is not set
       const categoryIdToUse = selectedCategoryId || request?.main_category_id;
-      
+
       if (!categoryIdToUse) {
         setAvailablePassTypes([]);
         // Don't clear selectedPassTypeId here, keep existing value
@@ -194,13 +198,18 @@ export default function LegislativeApproveScreen({ navigation, route }: Props) {
       try {
         // Get mapped pass type IDs for the selected category
         const passTypeIds = await api.getCategoryPassTypes(categoryIdToUse);
-        
+
         // Filter pass types to only include mapped ones
-        const mappedPassTypes = passTypes.filter(pt => passTypeIds.includes(pt.id));
+        const mappedPassTypes = passTypes.filter((pt) =>
+          passTypeIds.includes(pt.id),
+        );
         setAvailablePassTypes(mappedPassTypes);
-        
+
         // Check if the initial pass type (from visitor/request) is in the available list
-        if (initialPassTypeId && mappedPassTypes.some(pt => pt.id === initialPassTypeId)) {
+        if (
+          initialPassTypeId &&
+          mappedPassTypes.some((pt) => pt.id === initialPassTypeId)
+        ) {
           // Keep the existing pass type if it's valid
           setSelectedPassTypeId(initialPassTypeId);
         } else if (mappedPassTypes.length === 1) {
@@ -221,10 +230,18 @@ export default function LegislativeApproveScreen({ navigation, route }: Props) {
     };
 
     // Only fetch if we have pass types loaded and a category
-    if (passTypes.length > 0 && (selectedCategoryId || request?.main_category_id)) {
+    if (
+      passTypes.length > 0 &&
+      (selectedCategoryId || request?.main_category_id)
+    ) {
       fetchCategoryPassTypes();
     }
-  }, [selectedCategoryId, passTypes, request?.main_category_id, initialPassTypeId]);
+  }, [
+    selectedCategoryId,
+    passTypes,
+    request?.main_category_id,
+    initialPassTypeId,
+  ]);
 
   const fetchCategories = async () => {
     try {
@@ -248,12 +265,12 @@ export default function LegislativeApproveScreen({ navigation, route }: Props) {
     try {
       const sess = await api.getSessions();
       setSessions(sess);
-      
+
       // Pre-populate session from request if available
       if (request?.season) {
         // Try to find session by name (season field)
         const matchingSession = sess.find(
-          (s) => s.name.toLowerCase() === request.season.toLowerCase()
+          (s) => s.name.toLowerCase() === request.season.toLowerCase(),
         );
         if (matchingSession) {
           setSelectedSessionId(matchingSession.id);
@@ -445,7 +462,11 @@ export default function LegislativeApproveScreen({ navigation, route }: Props) {
       const passRequestData = await api.getPassRequest(requestId);
 
       // Verify that we have visitor data with pass information
-      if (!passRequestData || !passRequestData.visitors || passRequestData.visitors.length === 0) {
+      if (
+        !passRequestData ||
+        !passRequestData.visitors ||
+        passRequestData.visitors.length === 0
+      ) {
         Alert.alert(
           "Error",
           "Pass was generated but visitor data could not be retrieved. Please check the visitors list.",
@@ -455,9 +476,9 @@ export default function LegislativeApproveScreen({ navigation, route }: Props) {
       }
 
       // Find the specific visitor that was approved
-      const approvedVisitor = passRequestData.visitors.find(
-        (v: any) => v.id === visitor.id,
-      ) || passRequestData.visitors[0];
+      const approvedVisitor =
+        passRequestData.visitors.find((v: any) => v.id === visitor.id) ||
+        passRequestData.visitors[0];
 
       // Ensure the visitor has pass data
       if (!approvedVisitor.pass_number && !approvedVisitor.pass_qr_string) {
@@ -482,7 +503,7 @@ export default function LegislativeApproveScreen({ navigation, route }: Props) {
       // Get VisitorsScreen params from navigation state if available
       const navigationState = navigation.getState();
       const visitorsRoute = navigationState.routes.find(
-        (route) => route.name === "Visitors"
+        (route) => route.name === "Visitors",
       );
       const visitorsParams = visitorsRoute?.params as any;
 
@@ -505,7 +526,6 @@ export default function LegislativeApproveScreen({ navigation, route }: Props) {
       setLoading(false);
     }
   };
-
 
   return (
     <SafeAreaView style={styles.container} edges={["top"]}>
@@ -603,7 +623,9 @@ export default function LegislativeApproveScreen({ navigation, route }: Props) {
             <View style={styles.detailRow}>
               <Text style={styles.detailLabel}>REQUESTED BY</Text>
               <Text style={styles.detailValue}>
-                {request?.requested_by ? (userMap.get(request.requested_by) || request.requested_by) : "—"}
+                {request?.requested_by
+                  ? userMap.get(request.requested_by) || request.requested_by
+                  : "—"}
               </Text>
             </View>
           </View>
@@ -622,9 +644,7 @@ export default function LegislativeApproveScreen({ navigation, route }: Props) {
             <View style={styles.detailsContainer}>
               {visitor.car_passes.map((carPass: any, index: number) => (
                 <View key={index} style={styles.carPassCard}>
-                  <Text style={styles.carPassLabel}>
-                    CAR PASS #{index + 1}
-                  </Text>
+                  <Text style={styles.carPassLabel}>CAR PASS #{index + 1}</Text>
                   <View style={styles.carPassDetails}>
                     <View style={styles.detailRow}>
                       <Text style={styles.detailLabel}>MAKE</Text>
@@ -675,13 +695,15 @@ export default function LegislativeApproveScreen({ navigation, route }: Props) {
           {/* Category - Read-only from request */}
           <View style={styles.inputGroup}>
             <Text style={styles.inputLabel}>Category</Text>
-            <View style={[styles.inputContainer, { backgroundColor: "#F3F4F6" }]}>
+            <View
+              style={[styles.inputContainer, { backgroundColor: "#F3F4F6" }]}
+            >
               <Text style={styles.inputText}>
                 {request?.main_category_id
                   ? getCategoryName(request.main_category_id)
                   : selectedCategoryId
-                  ? getCategoryName(selectedCategoryId)
-                  : "—"}
+                    ? getCategoryName(selectedCategoryId)
+                    : "—"}
               </Text>
             </View>
           </View>
@@ -690,7 +712,9 @@ export default function LegislativeApproveScreen({ navigation, route }: Props) {
           {request?.sub_category_id && (
             <View style={styles.inputGroup}>
               <Text style={styles.inputLabel}>Sub-Category</Text>
-              <View style={[styles.inputContainer, { backgroundColor: "#F3F4F6" }]}>
+              <View
+                style={[styles.inputContainer, { backgroundColor: "#F3F4F6" }]}
+              >
                 <Text style={styles.inputText}>
                   {getSubCategoryName(request.sub_category_id)}
                 </Text>
@@ -799,8 +823,8 @@ export default function LegislativeApproveScreen({ navigation, route }: Props) {
                   {selectedPassTypeId
                     ? getPassTypeName(selectedPassTypeId)
                     : availablePassTypes.length === 0
-                    ? "No pass types available"
-                    : "Select pass type"}
+                      ? "No pass types available"
+                      : "Select pass type"}
                 </Text>
                 <ChevronDownIcon width={20} height={20} />
               </TouchableOpacity>
@@ -871,7 +895,6 @@ export default function LegislativeApproveScreen({ navigation, route }: Props) {
           </TouchableOpacity>
         </View>
       </ScrollView>
-
 
       {/* Pass Type Modal */}
       <Modal

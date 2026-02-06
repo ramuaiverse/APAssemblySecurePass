@@ -96,20 +96,20 @@ export default function LegislativeRouteScreen({ navigation, route }: Props) {
   const fetchSuperiors = async () => {
     try {
       setLoadingSuperiors(true);
-      
-      // Since the superiors endpoint returns 404 for "legislative", 
+
+      // Since the superiors endpoint returns 404 for "legislative",
       // fetch legislative users directly and filter for superiors
       const legislativeUsers = await api.getUsersByRole("legislative");
-      
+
       // Filter to only include users who are superiors (have approval_level or is_superior flag)
       // and exclude the current user if they are L1 or higher
       const normalizeUuid = (uuid: string | undefined) => {
-        if (!uuid) return '';
-        return uuid.replace(/-/g, '').toLowerCase();
+        if (!uuid) return "";
+        return uuid.replace(/-/g, "").toLowerCase();
       };
-      
+
       const normalizedCurrentUserId = normalizeUuid(userId);
-      
+
       // Filter legislative users to get superiors:
       // - Must have approval_level or is_superior flag
       // - Must be active
@@ -119,35 +119,38 @@ export default function LegislativeRouteScreen({ navigation, route }: Props) {
         if (user.is_active === false) {
           return false;
         }
-        
+
         // Check if user is a superior (has approval level or is_superior flag)
-        const hasApprovalLevel = user.approval_level && user.approval_level.trim() !== '';
-        const isSuperior = user.is_superior === true || user.legislative_approver === true;
-        
+        const hasApprovalLevel =
+          user.approval_level && user.approval_level.trim() !== "";
+        const isSuperior =
+          user.is_superior === true || user.legislative_approver === true;
+
         if (!hasApprovalLevel && !isSuperior) {
           return false; // Not a superior
         }
-        
+
         // Exclude current user if they have approval_level L1 or higher
         const normalizedUserId = normalizeUuid(user.id);
         if (normalizedUserId === normalizedCurrentUserId) {
-          const approvalLevel = user.approval_level?.toUpperCase() || '';
-          if (approvalLevel.startsWith('L')) {
+          const approvalLevel = user.approval_level?.toUpperCase() || "";
+          if (approvalLevel.startsWith("L")) {
             const levelNumber = parseInt(approvalLevel.substring(1));
             if (levelNumber >= 1 && levelNumber <= 5) {
               return false; // Exclude current user if L1 or higher
             }
           }
         }
-        
+
         return true;
       });
-      
+
       setSuperiors(filteredSuperiors);
     } catch (error) {
-      const errorMessage = error instanceof Error 
-        ? error.message 
-        : "Failed to load superiors. Please try again.";
+      const errorMessage =
+        error instanceof Error
+          ? error.message
+          : "Failed to load superiors. Please try again.";
       Alert.alert("Error", errorMessage);
       setSuperiors([]);
     } finally {
@@ -177,13 +180,15 @@ export default function LegislativeRouteScreen({ navigation, route }: Props) {
     const fullName = superior.full_name || superior.username || "";
     const email = superior.email || "";
     const level = superior.approval_level || "";
-    return fullName + (email ? ` (${email})` : "") + (level ? ` - ${level}` : "");
+    return (
+      fullName + (email ? ` (${email})` : "") + (level ? ` - ${level}` : "")
+    );
   };
 
   const getSuperiorName = (superiorId: string | null) => {
     if (!superiorId) return "—";
     const superior = superiors.find((s) => s.id === superiorId);
-    return superior ? (superior.full_name || superior.username || "—") : "—";
+    return superior ? superior.full_name || superior.username || "—" : "—";
   };
 
   const handleRoute = async () => {
@@ -315,7 +320,8 @@ export default function LegislativeRouteScreen({ navigation, route }: Props) {
               <Text style={styles.detailLabel}>CATEGORY</Text>
               <Text style={styles.detailValue}>
                 {getCategoryName(request?.main_category_id)}
-                {request?.sub_category_id && getSubCategoryName(request.sub_category_id) !== "—" &&
+                {request?.sub_category_id &&
+                  getSubCategoryName(request.sub_category_id) !== "—" &&
                   ` • ${getSubCategoryName(request.sub_category_id)}`}
               </Text>
             </View>
@@ -328,7 +334,9 @@ export default function LegislativeRouteScreen({ navigation, route }: Props) {
             <View style={styles.detailRow}>
               <Text style={styles.detailLabel}>REQUESTED BY</Text>
               <Text style={styles.detailValue}>
-                {request?.requested_by ? (userMap.get(request.requested_by) || request.requested_by) : "—"}
+                {request?.requested_by
+                  ? userMap.get(request.requested_by) || request.requested_by
+                  : "—"}
               </Text>
             </View>
           </View>
@@ -347,9 +355,7 @@ export default function LegislativeRouteScreen({ navigation, route }: Props) {
             <View style={styles.detailsContainer}>
               {visitor.car_passes.map((carPass: any, index: number) => (
                 <View key={index} style={styles.carPassCard}>
-                  <Text style={styles.carPassLabel}>
-                    CAR PASS #{index + 1}
-                  </Text>
+                  <Text style={styles.carPassLabel}>CAR PASS #{index + 1}</Text>
                   <View style={styles.carPassDetails}>
                     <View style={styles.detailRow}>
                       <Text style={styles.detailLabel}>MAKE</Text>
@@ -511,12 +517,24 @@ export default function LegislativeRouteScreen({ navigation, route }: Props) {
                         {superior.full_name || superior.username}
                       </Text>
                       {superior.email && (
-                        <Text style={{ fontSize: 12, color: "#6B7280", marginTop: 2 }}>
+                        <Text
+                          style={{
+                            fontSize: 12,
+                            color: "#6B7280",
+                            marginTop: 2,
+                          }}
+                        >
                           {superior.email}
                         </Text>
                       )}
                       {superior.approval_level && (
-                        <Text style={{ fontSize: 11, color: "#9CA3AF", marginTop: 2 }}>
+                        <Text
+                          style={{
+                            fontSize: 11,
+                            color: "#9CA3AF",
+                            marginTop: 2,
+                          }}
+                        >
                           Level: {superior.approval_level}
                         </Text>
                       )}

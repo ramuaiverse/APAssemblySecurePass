@@ -217,7 +217,7 @@ export default function VisitorDetailsScreen({ navigation, route }: Props) {
         ...departmentUsers,
         ...legislativeUsers,
         ...peshiUsers,
-        ...adminUsers
+        ...adminUsers,
       );
 
       // Create a comprehensive user map
@@ -772,7 +772,8 @@ export default function VisitorDetailsScreen({ navigation, route }: Props) {
                       </Text>
                       {request.requested_by && (
                         <Text style={styles.approvalTimelineSubtext}>
-                          Submitted by: {getUserName(request.requested_by) || "—"}
+                          Submitted by:{" "}
+                          {getUserName(request.requested_by) || "—"}
                         </Text>
                       )}
                       <Text style={styles.approvalTimelineDate}>
@@ -932,11 +933,7 @@ export default function VisitorDetailsScreen({ navigation, route }: Props) {
                   {isSuspended && visitor.suspended_at && (
                     <View style={styles.approvalTimelineItem}>
                       <View style={styles.approvalTimelineDotOrange}>
-                        <MaterialIcons
-                          name="block"
-                          size={16}
-                          color="#F97316"
-                        />
+                        <MaterialIcons name="block" size={16} color="#F97316" />
                       </View>
                       <View style={styles.approvalTimelineContent}>
                         <Text style={styles.approvalTimelineTitleOrange}>
@@ -965,165 +962,177 @@ export default function VisitorDetailsScreen({ navigation, route }: Props) {
           </View>
 
           {/* Card 5: Pass Information (only if pass is generated) */}
-          {visitor.pass_generated_at && (visitor.pass_number || visitor.pass_qr_string || visitor.pass_qr_code) && (
-            <View style={styles.card}>
-              <View style={styles.cardHeader}>
-                <View style={styles.cardHeaderLeft}>
-                  <View
-                    style={[styles.cardIcon, { backgroundColor: "#457E51" }]}
-                  >
-                    <ApprovedIcon width={20} height={20} />
-                  </View>
-                  <View>
-                    <Text style={styles.cardTitle}>Pass Information</Text>
-                    <Text style={styles.cardSubtitle}>Pass Details</Text>
+          {visitor.pass_generated_at &&
+            (visitor.pass_number ||
+              visitor.pass_qr_string ||
+              visitor.pass_qr_code) && (
+              <View style={styles.card}>
+                <View style={styles.cardHeader}>
+                  <View style={styles.cardHeaderLeft}>
+                    <View
+                      style={[styles.cardIcon, { backgroundColor: "#457E51" }]}
+                    >
+                      <ApprovedIcon width={20} height={20} />
+                    </View>
+                    <View>
+                      <Text style={styles.cardTitle}>Pass Information</Text>
+                      <Text style={styles.cardSubtitle}>Pass Details</Text>
+                    </View>
                   </View>
                 </View>
-              </View>
-              <View style={styles.cardHeaderSeparator} />
+                <View style={styles.cardHeaderSeparator} />
 
-              <View style={styles.cardContent}>
-                <View style={styles.infoRow}>
-                  <View style={styles.infoIcon}>
-                    <MaterialIcons name="tag" size={24} color="#6B7280" />
-                  </View>
-                  <View style={styles.infoContent}>
-                    <Text style={styles.infoLabel}>PASS NUMBER</Text>
-                    <Text style={[styles.infoValue, styles.passNumberValue]}>
-                      {visitor.pass_number}
-                    </Text>
-                    <Text style={styles.passNumberSubtext}>
-                      Unique pass identifier
-                    </Text>
-                  </View>
-                </View>
-
-                {visitor.pass_qr_string && (
+                <View style={styles.cardContent}>
                   <View style={styles.infoRow}>
                     <View style={styles.infoIcon}>
-                      <MaterialIcons name="qr-code" size={24} color="#6B7280" />
+                      <MaterialIcons name="tag" size={24} color="#6B7280" />
                     </View>
                     <View style={styles.infoContent}>
-                      <Text style={styles.infoLabel}>QR CODE STRING</Text>
+                      <Text style={styles.infoLabel}>PASS NUMBER</Text>
+                      <Text style={[styles.infoValue, styles.passNumberValue]}>
+                        {visitor.pass_number}
+                      </Text>
+                      <Text style={styles.passNumberSubtext}>
+                        Unique pass identifier
+                      </Text>
+                    </View>
+                  </View>
+
+                  {visitor.pass_qr_string && (
+                    <View style={styles.infoRow}>
+                      <View style={styles.infoIcon}>
+                        <MaterialIcons
+                          name="qr-code"
+                          size={24}
+                          color="#6B7280"
+                        />
+                      </View>
+                      <View style={styles.infoContent}>
+                        <Text style={styles.infoLabel}>QR CODE STRING</Text>
+                        <Text style={styles.infoValue}>
+                          {extractUUIDFromQRString(visitor.pass_qr_string)}
+                        </Text>
+                      </View>
+                    </View>
+                  )}
+
+                  {visitor.pass_qr_code && (
+                    <View style={styles.infoRow}>
+                      <View style={styles.infoIcon}>
+                        <MaterialIcons
+                          name="qr-code-scanner"
+                          size={16}
+                          color="#6B7280"
+                        />
+                      </View>
+                      <View style={styles.infoContent}>
+                        <Text style={styles.infoLabel}>QR CODE</Text>
+                        <Image
+                          source={{ uri: visitor.pass_qr_code }}
+                          style={styles.qrCodeImage}
+                        />
+                      </View>
+                    </View>
+                  )}
+
+                  <View style={styles.infoRow}>
+                    <View style={styles.infoIcon}>
+                      <VisitorPassIcon width={16} height={16} />
+                    </View>
+                    <View style={styles.infoContent}>
+                      <Text style={styles.infoLabel}>PASS TYPE</Text>
                       <Text style={styles.infoValue}>
-                        {extractUUIDFromQRString(visitor.pass_qr_string)}
+                        {getPassTypeName(
+                          visitor.pass_type_id || request.pass_type_id,
+                        )}
                       </Text>
                     </View>
                   </View>
-                )}
 
-                {visitor.pass_qr_code && (
-                  <View style={styles.infoRow}>
-                    <View style={styles.infoIcon}>
-                      <MaterialIcons
-                        name="qr-code-scanner"
-                        size={16}
-                        color="#6B7280"
-                      />
+                  {visitor.pass_generated_at && (
+                    <View style={styles.infoRow}>
+                      <View style={styles.infoIcon}>
+                        <Ionicons
+                          name="time-outline"
+                          size={16}
+                          color="#6B7280"
+                        />
+                      </View>
+                      <View style={styles.infoContent}>
+                        <Text style={styles.infoLabel}>PASS GENERATED AT</Text>
+                        <Text style={styles.infoValue}>
+                          {formatDate(visitor.pass_generated_at)}
+                        </Text>
+                      </View>
                     </View>
-                    <View style={styles.infoContent}>
-                      <Text style={styles.infoLabel}>QR CODE</Text>
-                      <Image
-                        source={{ uri: visitor.pass_qr_code }}
-                        style={styles.qrCodeImage}
-                      />
-                    </View>
-                  </View>
-                )}
+                  )}
 
-                <View style={styles.infoRow}>
-                  <View style={styles.infoIcon}>
-                    <VisitorPassIcon width={16} height={16} />
-                  </View>
-                  <View style={styles.infoContent}>
-                    <Text style={styles.infoLabel}>PASS TYPE</Text>
-                    <Text style={styles.infoValue}>
-                      {getPassTypeName(
-                        visitor.pass_type_id || request.pass_type_id,
-                      )}
-                    </Text>
-                  </View>
-                </View>
+                  {visitor.visitor_legislative_approved_by && (
+                    <View style={styles.infoRow}>
+                      <View style={styles.infoIcon}>
+                        <ApprovedIcon width={16} height={16} />
+                      </View>
+                      <View style={styles.infoContent}>
+                        <Text style={styles.infoLabel}>PASS APPROVED BY</Text>
+                        <Text style={styles.infoValue}>
+                          {getUserName(
+                            visitor.visitor_legislative_approved_by,
+                          ) || "—"}
+                        </Text>
+                      </View>
+                    </View>
+                  )}
 
-                {visitor.pass_generated_at && (
-                  <View style={styles.infoRow}>
-                    <View style={styles.infoIcon}>
-                      <Ionicons name="time-outline" size={16} color="#6B7280" />
-                    </View>
-                    <View style={styles.infoContent}>
-                      <Text style={styles.infoLabel}>PASS GENERATED AT</Text>
-                      <Text style={styles.infoValue}>
-                        {formatDate(visitor.pass_generated_at)}
-                      </Text>
-                    </View>
-                  </View>
-                )}
-
-                {visitor.visitor_legislative_approved_by && (
-                  <View style={styles.infoRow}>
-                    <View style={styles.infoIcon}>
-                      <ApprovedIcon width={16} height={16} />
-                    </View>
-                    <View style={styles.infoContent}>
-                      <Text style={styles.infoLabel}>PASS APPROVED BY</Text>
-                      <Text style={styles.infoValue}>
-                        {getUserName(visitor.visitor_legislative_approved_by) ||
-                          "—"}
-                      </Text>
-                    </View>
-                  </View>
-                )}
-
-                {/* Car Passes Section */}
-                {visitor.car_passes && visitor.car_passes.length > 0 && (
-                  <>
-                    <View style={styles.carPassesSectionHeader}>
-                      <Text style={styles.carPassesSectionTitle}>
-                        CAR PASSES ({visitor.car_passes.length})
-                      </Text>
-                    </View>
-                    {visitor.car_passes.map((carPass: any, index: number) => (
-                      <View key={index} style={styles.carPassCard}>
-                        <View style={styles.infoRow}>
-                          <View style={styles.infoIcon}>
-                            <MaterialIcons
-                              name="description"
-                              size={24}
-                              color="#F97316"
-                            />
-                          </View>
-                          <View style={styles.infoContent}>
-                            <Text style={styles.carPassLabel}>
-                              CAR PASS #{index + 1}
-                            </Text>
-                            <View style={styles.carPassDetails}>
-                              <Text style={styles.carPassDetailText}>
-                                Make: {carPass.car_make || "—"}
+                  {/* Car Passes Section */}
+                  {visitor.car_passes && visitor.car_passes.length > 0 && (
+                    <>
+                      <View style={styles.carPassesSectionHeader}>
+                        <Text style={styles.carPassesSectionTitle}>
+                          CAR PASSES ({visitor.car_passes.length})
+                        </Text>
+                      </View>
+                      {visitor.car_passes.map((carPass: any, index: number) => (
+                        <View key={index} style={styles.carPassCard}>
+                          <View style={styles.infoRow}>
+                            <View style={styles.infoIcon}>
+                              <MaterialIcons
+                                name="description"
+                                size={24}
+                                color="#F97316"
+                              />
+                            </View>
+                            <View style={styles.infoContent}>
+                              <Text style={styles.carPassLabel}>
+                                CAR PASS #{index + 1}
                               </Text>
-                              <Text style={styles.carPassDetailText}>
-                                Model: {carPass.car_model || "—"}
-                              </Text>
-                              <Text style={styles.carPassDetailText}>
-                                Color: {carPass.car_color || "—"}
-                              </Text>
-                              <Text style={styles.carPassDetailText}>
-                                Number: {carPass.car_number || "—"}
-                              </Text>
-                              {carPass.car_tag && (
+                              <View style={styles.carPassDetails}>
                                 <Text style={styles.carPassDetailText}>
-                                  Tag: {carPass.car_tag}
+                                  Make: {carPass.car_make || "—"}
                                 </Text>
-                              )}
+                                <Text style={styles.carPassDetailText}>
+                                  Model: {carPass.car_model || "—"}
+                                </Text>
+                                <Text style={styles.carPassDetailText}>
+                                  Color: {carPass.car_color || "—"}
+                                </Text>
+                                <Text style={styles.carPassDetailText}>
+                                  Number: {carPass.car_number || "—"}
+                                </Text>
+                                {carPass.car_tag && (
+                                  <Text style={styles.carPassDetailText}>
+                                    Tag: {carPass.car_tag}
+                                  </Text>
+                                )}
+                              </View>
                             </View>
                           </View>
                         </View>
-                      </View>
-                    ))}
-                  </>
-                )}
+                      ))}
+                    </>
+                  )}
+                </View>
               </View>
-            </View>
-          )}
+            )}
         </View>
       </ScrollView>
     </SafeAreaView>

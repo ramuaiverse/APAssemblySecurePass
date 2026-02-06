@@ -66,10 +66,7 @@ export const setUpNavigation = (
           name="StatusAndApprovals"
           component={StatusAndApprovalsScreen}
         />
-        <Stack.Screen
-          name="RequestDetails"
-          component={RequestDetailsScreen}
-        />
+        <Stack.Screen name="RequestDetails" component={RequestDetailsScreen} />
         <Stack.Screen
           name="IssueVisitorPass"
           component={IssueVisitorPassScreen}

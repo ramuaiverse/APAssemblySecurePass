@@ -58,14 +58,7 @@ export default function QRScanScreen({ navigation, route }: Props) {
   const [lastScannedCode, setLastScannedCode] = useState<string | null>(null);
   const isProcessingRef = useRef(false);
   const [activeTab, setActiveTab] = useState<TabType>("scan");
-  const [uniqueId, setUniqueId] = useState<string[]>([
-    "",
-    "",
-    "",
-    "",
-    "",
-    "",
-  ]);
+  const [uniqueId, setUniqueId] = useState<string[]>(["", "", "", "", "", ""]);
   const [errorMessage, setErrorMessage] = useState<string>("");
   const inputRefs = useRef<(TextInput | null)[]>([
     null,
@@ -115,11 +108,11 @@ export default function QRScanScreen({ navigation, route }: Props) {
 
       const subscription = BackHandler.addEventListener(
         "hardwareBackPress",
-        onBackPress
+        onBackPress,
       );
 
       return () => subscription.remove();
-    }, [navigation])
+    }, [navigation]),
   );
 
   const handleLogout = async () => {

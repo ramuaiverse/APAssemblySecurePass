@@ -535,7 +535,10 @@ export default function IssueVisitorPassScreen({ navigation, route }: Props) {
         const hours = String(dateObj.getUTCHours()).padStart(2, "0");
         const minutes = String(dateObj.getUTCMinutes()).padStart(2, "0");
         const seconds = String(dateObj.getUTCSeconds()).padStart(2, "0");
-        const milliseconds = String(dateObj.getUTCMilliseconds()).padStart(3, "0");
+        const milliseconds = String(dateObj.getUTCMilliseconds()).padStart(
+          3,
+          "0",
+        );
         return `${year}-${month}-${day}T${hours}:${minutes}:${seconds}.${milliseconds}Z`;
       };
 
@@ -727,7 +730,6 @@ export default function IssueVisitorPassScreen({ navigation, route }: Props) {
 
       // Step 3: Get pass request details
       const passRequestData = await api.getPassRequest(requestId);
-
 
       // Pass the entire response object along with category and pass type names to PreviewPassScreen
       navigation.navigate("PreviewPass", {

@@ -72,11 +72,11 @@ export default function InvalidPassScreen({ navigation, route }: Props) {
 
       const subscription = BackHandler.addEventListener(
         "hardwareBackPress",
-        onBackPress
+        onBackPress,
       );
 
       return () => subscription.remove();
-    }, [navigation])
+    }, [navigation]),
   );
 
   const handleLogout = () => {

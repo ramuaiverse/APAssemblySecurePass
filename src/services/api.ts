@@ -2,7 +2,7 @@
 export const API_BASE_URL =
   "https://category-service-714903368119.us-central1.run.app";
 
-  // UserLoginRequest schema from new API
+// UserLoginRequest schema from new API
 export interface LoginRequest {
   username: string;
   password?: string; // Optional for first-time login
@@ -817,16 +817,13 @@ export const api = {
   // Get main categories
   getMainCategories: async (): Promise<MainCategory[]> => {
     try {
-      const response = await fetch(
-        `${API_BASE_URL}/api/v1/categories/main`,
-        {
-          method: "GET",
-          headers: {
-            "Content-Type": "application/json",
-            Accept: "application/json",
-          },
+      const response = await fetch(`${API_BASE_URL}/api/v1/categories/main`, {
+        method: "GET",
+        headers: {
+          "Content-Type": "application/json",
+          Accept: "application/json",
         },
-      );
+      });
 
       let data;
       const contentType = response.headers.get("content-type");

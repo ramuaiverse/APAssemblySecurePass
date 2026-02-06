@@ -45,7 +45,12 @@ interface PassRequestUI {
   purpose: string;
   submittedDate: string;
   requestedBy: string;
-  overallStatus: "pending" | "approved" | "rejected" | "routed_for_approval" | "partial";
+  overallStatus:
+    | "pending"
+    | "approved"
+    | "rejected"
+    | "routed_for_approval"
+    | "partial";
   hodApprovedBy?: string;
   legislativeApprovedBy?: string;
   legislativeApprovedAt?: string;
@@ -90,11 +95,17 @@ export default function StatusAndApprovalsScreen({ navigation, route }: Props) {
   const [dateFilterType, setDateFilterType] = useState<
     "submittedDate" | "visitDate" | "approvedDate"
   >("submittedDate");
-  const [dateFilterMode, setDateFilterMode] = useState<"none" | "today" | "other">("none");
+  const [dateFilterMode, setDateFilterMode] = useState<
+    "none" | "today" | "other"
+  >("none");
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
-  const [expandedRequests, setExpandedRequests] = useState<Set<string>>(new Set());
-  const [expandedVisitorDetails, setExpandedVisitorDetails] = useState<Set<string>>(new Set());
+  const [expandedRequests, setExpandedRequests] = useState<Set<string>>(
+    new Set(),
+  );
+  const [expandedVisitorDetails, setExpandedVisitorDetails] = useState<
+    Set<string>
+  >(new Set());
   const [showActionModal, setShowActionModal] = useState<{
     requestId: string;
     action: "approve" | "reject";
@@ -106,13 +117,21 @@ export default function StatusAndApprovalsScreen({ navigation, route }: Props) {
   } | null>(null);
   const [actionComments, setActionComments] = useState("");
   const [visitorActionComments, setVisitorActionComments] = useState("");
-  const [processingStatus, setProcessingStatus] = useState<Set<string>>(new Set());
-  const [processingVisitorStatus, setProcessingVisitorStatus] = useState<Set<string>>(new Set());
+  const [processingStatus, setProcessingStatus] = useState<Set<string>>(
+    new Set(),
+  );
+  const [processingVisitorStatus, setProcessingVisitorStatus] = useState<
+    Set<string>
+  >(new Set());
   const [currentUserId, setCurrentUserId] = useState<string>("");
   const [userMap, setUserMap] = useState<Map<string, string>>(new Map());
   const [userSubCategoryIds, setUserSubCategoryIds] = useState<string[]>([]);
-  const [departmentMainCategoryId, setDepartmentMainCategoryId] = useState<string | null>(null);
-  const [peshiMainCategoryId, setPeshiMainCategoryId] = useState<string | null>(null);
+  const [departmentMainCategoryId, setDepartmentMainCategoryId] = useState<
+    string | null
+  >(null);
+  const [peshiMainCategoryId, setPeshiMainCategoryId] = useState<string | null>(
+    null,
+  );
   const [isHodApprover, setIsHodApprover] = useState<boolean>(false);
   const [displayedItemsCount, setDisplayedItemsCount] = useState(20);
   const itemsPerPage = 20;
@@ -153,7 +172,7 @@ export default function StatusAndApprovalsScreen({ navigation, route }: Props) {
     userSubCategoryIdsParam: string[] = [],
     mainCategoryIdParam: string | null = null,
     currentUserIdParam: string | null = null,
-    roleParam: string = ""
+    roleParam: string = "",
   ): Promise<PassRequestUI[]> => {
     // Fetch all main categories to check for insta pass types
     let instaCategoryIds: Set<string> = new Set();
@@ -162,7 +181,7 @@ export default function StatusAndApprovalsScreen({ navigation, route }: Props) {
       instaCategoryIds = new Set(
         allCategories
           .filter((cat) => cat.type?.toLowerCase().includes("insta"))
-          .map((cat) => cat.id)
+          .map((cat) => cat.id),
       );
     } catch (err) {
       // Error fetching categories
@@ -181,19 +200,23 @@ export default function StatusAndApprovalsScreen({ navigation, route }: Props) {
 
     // Filter requests
     let filteredRequests = apiRequests.filter(
-      (request) => !instaCategoryIds.has(request.main_category_id)
+      (request) => !instaCategoryIds.has(request.main_category_id),
     );
 
-    const effectiveMainCategoryId = mainCategoryIdParam || (userRole === "peshi" ? peshiMainCategoryId : departmentMainCategoryId);
+    const effectiveMainCategoryId =
+      mainCategoryIdParam ||
+      (userRole === "peshi" ? peshiMainCategoryId : departmentMainCategoryId);
     const effectiveSubCategoryIds =
-      userSubCategoryIdsParam.length > 0 ? userSubCategoryIdsParam : userSubCategoryIds;
+      userSubCategoryIdsParam.length > 0
+        ? userSubCategoryIdsParam
+        : userSubCategoryIds;
     const effectiveCurrentUserId = currentUserIdParam || currentUserId;
     const effectiveRole = roleParam || userRole;
 
     // Filter by main category based on role (department or peshi)
     if (effectiveMainCategoryId) {
       filteredRequests = filteredRequests.filter(
-        (request) => request.main_category_id === effectiveMainCategoryId
+        (request) => request.main_category_id === effectiveMainCategoryId,
       );
     } else {
       // If main category is not found, filter out all requests (safety)
@@ -206,12 +229,16 @@ export default function StatusAndApprovalsScreen({ navigation, route }: Props) {
     // If user has no sub-categories, show all requests (filtered by requested_by for non-HOD users)
     if (effectiveSubCategoryIds.length > 0) {
       // Convert both to strings for reliable comparison (UUIDs might be objects or strings)
-      const userSubCategoryIdsStr = effectiveSubCategoryIds.map((id) => String(id).toLowerCase());
+      const userSubCategoryIdsStr = effectiveSubCategoryIds.map((id) =>
+        String(id).toLowerCase(),
+      );
       filteredRequests = filteredRequests.filter((request) => {
         if (!request.sub_category_id) {
           return false; // Exclude requests without sub_category_id
         }
-        const requestSubCategoryIdStr = String(request.sub_category_id).toLowerCase();
+        const requestSubCategoryIdStr = String(
+          request.sub_category_id,
+        ).toLowerCase();
         const isMatch = userSubCategoryIdsStr.includes(requestSubCategoryIdStr);
         return isMatch;
       });
@@ -226,29 +253,32 @@ export default function StatusAndApprovalsScreen({ navigation, route }: Props) {
     if (!hodApproverStatus) {
       const userFullName = route.params?.userFullName || "";
       const loggedInUsername = route.params?.username || "";
-      
+
       if (effectiveCurrentUserId || loggedInUsername || userFullName) {
         filteredRequests = filteredRequests.filter((request) => {
           const requestedBy = request.requested_by || "";
           const requestedByLower = requestedBy.toLowerCase().trim();
-          
+
           let matchesRequestedBy = false;
-          
+
           // First check if requested_by matches current user ID (new requests)
           if (effectiveCurrentUserId) {
-            matchesRequestedBy = requestedByLower === effectiveCurrentUserId.toLowerCase().trim();
+            matchesRequestedBy =
+              requestedByLower === effectiveCurrentUserId.toLowerCase().trim();
           }
-          
+
           // If not matched by ID, check if it matches username (old requests for backward compatibility)
           if (!matchesRequestedBy && loggedInUsername) {
-            matchesRequestedBy = requestedByLower === loggedInUsername.toLowerCase().trim();
+            matchesRequestedBy =
+              requestedByLower === loggedInUsername.toLowerCase().trim();
           }
-          
+
           // If still not matched, check if it matches full name (old requests for backward compatibility)
           if (!matchesRequestedBy && userFullName) {
-            matchesRequestedBy = requestedByLower === userFullName.toLowerCase().trim();
+            matchesRequestedBy =
+              requestedByLower === userFullName.toLowerCase().trim();
           }
-          
+
           return matchesRequestedBy;
         });
       } else {
@@ -268,12 +298,16 @@ export default function StatusAndApprovalsScreen({ navigation, route }: Props) {
         routed_for_approval: "routed_for_approval",
       };
 
-      let overallStatus: "pending" | "approved" | "rejected" | "routed_for_approval" | "partial" =
-        statusMap[request.status] || "pending";
+      let overallStatus:
+        | "pending"
+        | "approved"
+        | "rejected"
+        | "routed_for_approval"
+        | "partial" = statusMap[request.status] || "pending";
 
       const getVisitorStatus = (
         visitorStatus: string | undefined,
-        passGeneratedAt: string | null | undefined
+        passGeneratedAt: string | null | undefined,
       ): "pending" | "approved" | "denied" => {
         if (passGeneratedAt) {
           return "approved";
@@ -290,13 +324,15 @@ export default function StatusAndApprovalsScreen({ navigation, route }: Props) {
       const visitors: VisitorUI[] = request.visitors.map((visitor: any) => {
         const visitorStatus = getVisitorStatus(
           visitor.visitor_status,
-          visitor.pass_generated_at
+          visitor.pass_generated_at,
         );
         const visitorValidFrom = visitor.valid_from || request.valid_from;
         const visitorValidTo = visitor.valid_to || request.valid_to;
         const visitorPurpose = visitor.purpose || request.purpose;
         const passTypeId = visitor.pass_type_id;
-        const passTypeName = passTypeId ? passTypeMap.get(passTypeId) : undefined;
+        const passTypeName = passTypeId
+          ? passTypeMap.get(passTypeId)
+          : undefined;
 
         return {
           id: visitor.id,
@@ -307,7 +343,9 @@ export default function StatusAndApprovalsScreen({ navigation, route }: Props) {
           identificationNumber: visitor.identification_number,
           status: visitorStatus,
           approvedBy: visitor.visitor_approved_by,
-          approverComments: visitor.visitor_approved_at ? "Approved by HOD" : undefined,
+          approverComments: visitor.visitor_approved_at
+            ? "Approved by HOD"
+            : undefined,
           denialReason: visitor.visitor_rejection_reason,
           approvedDate: visitor.visitor_approved_at || request.approved_at,
           deniedDate: visitor.visitor_rejected_at,
@@ -324,9 +362,15 @@ export default function StatusAndApprovalsScreen({ navigation, route }: Props) {
 
       // Calculate overall status
       if (visitors.length > 0) {
-        const deniedCount = visitors.filter((v) => v.status === "denied").length;
-        const approvedCount = visitors.filter((v) => v.status === "approved").length;
-        const pendingCount = visitors.filter((v) => v.status === "pending").length;
+        const deniedCount = visitors.filter(
+          (v) => v.status === "denied",
+        ).length;
+        const approvedCount = visitors.filter(
+          (v) => v.status === "approved",
+        ).length;
+        const pendingCount = visitors.filter(
+          (v) => v.status === "pending",
+        ).length;
         const allDenied = deniedCount === visitors.length;
         const allApproved = approvedCount === visitors.length;
         const allPassGenerated = visitors.every((v) => v.passGeneratedAt);
@@ -344,8 +388,12 @@ export default function StatusAndApprovalsScreen({ navigation, route }: Props) {
         }
       }
 
-      const validFromDate = request.valid_from ? new Date(request.valid_from) : null;
-      const visitDate = validFromDate ? validFromDate.toISOString().split("T")[0] : "";
+      const validFromDate = request.valid_from
+        ? new Date(request.valid_from)
+        : null;
+      const visitDate = validFromDate
+        ? validFromDate.toISOString().split("T")[0]
+        : "";
       const visitTime = validFromDate
         ? validFromDate.toTimeString().split(" ")[0].substring(0, 5)
         : "";
@@ -361,7 +409,13 @@ export default function StatusAndApprovalsScreen({ navigation, route }: Props) {
       });
       const hodApprovedBy = approvedVisitor?.approvedBy;
 
-      const statusStrings = ["pending", "approved", "rejected", "denied", "routed_for_approval"];
+      const statusStrings = [
+        "pending",
+        "approved",
+        "rejected",
+        "denied",
+        "routed_for_approval",
+      ];
       const isValidUUID =
         hodApprovedBy &&
         typeof hodApprovedBy === "string" &&
@@ -372,7 +426,11 @@ export default function StatusAndApprovalsScreen({ navigation, route }: Props) {
 
       let legislativeApprovedBy: string | undefined = undefined;
       let legislativeApprovedAt: string | undefined = undefined;
-      if (overallStatus === "approved" && request.approved_by && request.approved_at) {
+      if (
+        overallStatus === "approved" &&
+        request.approved_by &&
+        request.approved_at
+      ) {
         const approvedBy = request.approved_by;
         const isValidUUID =
           typeof approvedBy === "string" &&
@@ -419,11 +477,14 @@ export default function StatusAndApprovalsScreen({ navigation, route }: Props) {
 
         try {
           // Fetch users based on role (department or peshi)
-          const roleToFetch = userRole === "department" ? "department" : "peshi";
+          const roleToFetch =
+            userRole === "department" ? "department" : "peshi";
           const users = await api.getUsersByRole(roleToFetch);
 
           if (users.length === 0) {
-            setError(`No ${roleToFetch} users found. Please contact administrator.`);
+            setError(
+              `No ${roleToFetch} users found. Please contact administrator.`,
+            );
             setLoading(false);
             return;
           }
@@ -444,7 +505,9 @@ export default function StatusAndApprovalsScreen({ navigation, route }: Props) {
 
             // Get sub_categories from route params (User type doesn't have sub_categories)
             if (userSubCategories && userSubCategories.length > 0) {
-              currentUserSubCategoryIds = userSubCategories.map((sc: any) => String(sc.id));
+              currentUserSubCategoryIds = userSubCategories.map((sc: any) =>
+                String(sc.id),
+              );
               setUserSubCategoryIds(currentUserSubCategoryIds);
             } else {
               currentUserSubCategoryIds = [];
@@ -458,9 +521,10 @@ export default function StatusAndApprovalsScreen({ navigation, route }: Props) {
         try {
           const allCategories = await api.getMainCategories();
           // Find category based on role (case-insensitive)
-          const categoryToFind = userRole === "department" ? "department" : "peshi";
+          const categoryToFind =
+            userRole === "department" ? "department" : "peshi";
           const category = allCategories.find(
-            (cat) => cat.type?.toLowerCase() === categoryToFind.toLowerCase()
+            (cat) => cat.type?.toLowerCase() === categoryToFind.toLowerCase(),
           );
           if (category) {
             currentMainCategoryId = category.id;
@@ -470,12 +534,16 @@ export default function StatusAndApprovalsScreen({ navigation, route }: Props) {
               setPeshiMainCategoryId(category.id);
             }
           } else {
-            setError(`${categoryToFind} category not found. Please contact administrator.`);
+            setError(
+              `${categoryToFind} category not found. Please contact administrator.`,
+            );
             setLoading(false);
             return;
           }
         } catch (err) {
-          setError(`Failed to load ${userRole} category. Please refresh the page.`);
+          setError(
+            `Failed to load ${userRole} category. Please refresh the page.`,
+          );
           setLoading(false);
           return;
         }
@@ -483,13 +551,19 @@ export default function StatusAndApprovalsScreen({ navigation, route }: Props) {
         try {
           const allUsers: User[] = [];
           // Fetch users from different roles based on userRole
-          const [departmentUsers, peshiUsers, legislativeUsers, adminUsers] = await Promise.all([
-            api.getUsersByRole("department").catch(() => []),
-            api.getUsersByRole("peshi").catch(() => []),
-            api.getUsersByRole("legislative").catch(() => []),
-            api.getUsersByRole("admin").catch(() => []),
-          ]);
-          allUsers.push(...departmentUsers, ...peshiUsers, ...legislativeUsers, ...adminUsers);
+          const [departmentUsers, peshiUsers, legislativeUsers, adminUsers] =
+            await Promise.all([
+              api.getUsersByRole("department").catch(() => []),
+              api.getUsersByRole("peshi").catch(() => []),
+              api.getUsersByRole("legislative").catch(() => []),
+              api.getUsersByRole("admin").catch(() => []),
+            ]);
+          allUsers.push(
+            ...departmentUsers,
+            ...peshiUsers,
+            ...legislativeUsers,
+            ...adminUsers,
+          );
 
           const newUserMap = new Map<string, string>();
           allUsers.forEach((user) => {
@@ -507,7 +581,7 @@ export default function StatusAndApprovalsScreen({ navigation, route }: Props) {
           currentUserSubCategoryIds,
           currentMainCategoryId,
           currentUserId,
-          userRole
+          userRole,
         );
         setPasses(transformedRequests);
 
@@ -526,7 +600,9 @@ export default function StatusAndApprovalsScreen({ navigation, route }: Props) {
         setExpandedRequests(initialExpandedRequests);
         setExpandedVisitorDetails(initialExpandedVisitorDetails);
       } catch (err) {
-        setError(err instanceof Error ? err.message : "Failed to fetch pass requests");
+        setError(
+          err instanceof Error ? err.message : "Failed to fetch pass requests",
+        );
       } finally {
         setLoading(false);
       }
@@ -539,28 +615,39 @@ export default function StatusAndApprovalsScreen({ navigation, route }: Props) {
     visitorId: string,
     requestId: string,
     newStatus: "approved" | "rejected",
-    comments?: string
+    comments?: string,
   ) => {
     try {
       setProcessingVisitorStatus((prev) => new Set(prev).add(visitorId));
 
       let userIdToUse = currentUserId;
       if (!userIdToUse) {
-        Alert.alert("Error", "Current user ID not found. Please refresh the page.");
+        Alert.alert(
+          "Error",
+          "Current user ID not found. Please refresh the page.",
+        );
         return;
       }
 
-      await api.updateVisitorStatus(visitorId, newStatus, userIdToUse, comments);
+      await api.updateVisitorStatus(
+        visitorId,
+        newStatus,
+        userIdToUse,
+        comments,
+      );
 
       const apiRequests = await api.getAllPassRequests(1000);
-      const mainCategoryId = userRole === "department" ? departmentMainCategoryId : peshiMainCategoryId;
+      const mainCategoryId =
+        userRole === "department"
+          ? departmentMainCategoryId
+          : peshiMainCategoryId;
       const transformedRequests = await transformAPIData(
         apiRequests,
         isHodApprover,
         userSubCategoryIds,
         mainCategoryId,
         currentUserId,
-        userRole
+        userRole,
       );
       setPasses(transformedRequests);
 
@@ -581,7 +668,10 @@ export default function StatusAndApprovalsScreen({ navigation, route }: Props) {
       setShowVisitorActionModal(null);
       setVisitorActionComments("");
     } catch (err) {
-      Alert.alert("Error", err instanceof Error ? err.message : "Failed to update visitor status");
+      Alert.alert(
+        "Error",
+        err instanceof Error ? err.message : "Failed to update visitor status",
+      );
     } finally {
       setProcessingVisitorStatus((prev) => {
         const newSet = new Set(prev);
@@ -594,13 +684,16 @@ export default function StatusAndApprovalsScreen({ navigation, route }: Props) {
   const handleApproveAll = async (
     requestId: string,
     visitors: VisitorUI[],
-    comments?: string
+    comments?: string,
   ) => {
     try {
       setProcessingStatus((prev) => new Set(prev).add(requestId));
 
       if (!currentUserId) {
-        Alert.alert("Error", "Current user ID not found. Please refresh the page.");
+        Alert.alert(
+          "Error",
+          "Current user ID not found. Please refresh the page.",
+        );
         return;
       }
 
@@ -609,16 +702,17 @@ export default function StatusAndApprovalsScreen({ navigation, route }: Props) {
           visitor.id,
           "approved",
           currentUserId,
-          comments || `Bulk approved all ${visitors.length} visitor(s)`
-        )
+          comments || `Bulk approved all ${visitors.length} visitor(s)`,
+        ),
       );
 
       await Promise.all(updatePromises);
 
       try {
-        const commentText = userRole === "peshi" 
-          ? `Approved by Peshi HOD, forwarded to Legislature for final approval`
-          : `Approved by Department HOD, forwarded to Legislature for final approval`;
+        const commentText =
+          userRole === "peshi"
+            ? `Approved by Peshi HOD, forwarded to Legislature for final approval`
+            : `Approved by Department HOD, forwarded to Legislature for final approval`;
         await api.updatePassRequestStatus(requestId, {
           status: "routed_for_approval",
           comments: comments || commentText,
@@ -630,14 +724,17 @@ export default function StatusAndApprovalsScreen({ navigation, route }: Props) {
       }
 
       const apiRequests = await api.getAllPassRequests(1000);
-      const mainCategoryId = userRole === "department" ? departmentMainCategoryId : peshiMainCategoryId;
+      const mainCategoryId =
+        userRole === "department"
+          ? departmentMainCategoryId
+          : peshiMainCategoryId;
       const transformedRequests = await transformAPIData(
         apiRequests,
         isHodApprover,
         userSubCategoryIds,
         mainCategoryId,
         currentUserId,
-        userRole
+        userRole,
       );
       setPasses(transformedRequests);
 
@@ -658,7 +755,10 @@ export default function StatusAndApprovalsScreen({ navigation, route }: Props) {
       setShowActionModal(null);
       setActionComments("");
     } catch (err) {
-      Alert.alert("Error", err instanceof Error ? err.message : "Failed to approve all visitors");
+      Alert.alert(
+        "Error",
+        err instanceof Error ? err.message : "Failed to approve all visitors",
+      );
     } finally {
       setProcessingStatus((prev) => {
         const newSet = new Set(prev);
@@ -671,7 +771,7 @@ export default function StatusAndApprovalsScreen({ navigation, route }: Props) {
   const handleRejectAll = async (
     requestId: string,
     visitors: VisitorUI[],
-    comments?: string
+    comments?: string,
   ) => {
     try {
       setProcessingStatus((prev) => new Set(prev).add(requestId));
@@ -681,21 +781,24 @@ export default function StatusAndApprovalsScreen({ navigation, route }: Props) {
           visitor.id,
           "rejected",
           currentUserId,
-          comments || `Bulk rejected all ${visitors.length} visitor(s)`
-        )
+          comments || `Bulk rejected all ${visitors.length} visitor(s)`,
+        ),
       );
 
       await Promise.all(updatePromises);
 
       const apiRequests = await api.getAllPassRequests(1000);
-      const mainCategoryId = userRole === "department" ? departmentMainCategoryId : peshiMainCategoryId;
+      const mainCategoryId =
+        userRole === "department"
+          ? departmentMainCategoryId
+          : peshiMainCategoryId;
       const transformedRequests = await transformAPIData(
         apiRequests,
         isHodApprover,
         userSubCategoryIds,
         mainCategoryId,
         currentUserId,
-        userRole
+        userRole,
       );
       setPasses(transformedRequests);
 
@@ -716,7 +819,10 @@ export default function StatusAndApprovalsScreen({ navigation, route }: Props) {
       setShowActionModal(null);
       setActionComments("");
     } catch (err) {
-      Alert.alert("Error", err instanceof Error ? err.message : "Failed to reject all visitors");
+      Alert.alert(
+        "Error",
+        err instanceof Error ? err.message : "Failed to reject all visitors",
+      );
     } finally {
       setProcessingStatus((prev) => {
         const newSet = new Set(prev);
@@ -731,7 +837,10 @@ export default function StatusAndApprovalsScreen({ navigation, route }: Props) {
       // Status filter
       if (filter !== "all") {
         if (filter === "rejected") {
-          if (pass.overallStatus !== "rejected" && pass.overallStatus !== "partial") {
+          if (
+            pass.overallStatus !== "rejected" &&
+            pass.overallStatus !== "partial"
+          ) {
             return false;
           }
         } else if (pass.overallStatus !== filter) {
@@ -755,7 +864,7 @@ export default function StatusAndApprovalsScreen({ navigation, route }: Props) {
           ]),
         ];
         const matchesSearch = searchFields.some((field) =>
-          field.toLowerCase().includes(query)
+          field.toLowerCase().includes(query),
         );
         if (!matchesSearch) {
           return false;
@@ -824,7 +933,9 @@ export default function StatusAndApprovalsScreen({ navigation, route }: Props) {
       setLoadingMore(true);
       // Simulate slight delay for smooth UX
       setTimeout(() => {
-        setDisplayedItemsCount((prev) => Math.min(prev + itemsPerPage, filteredPasses.length));
+        setDisplayedItemsCount((prev) =>
+          Math.min(prev + itemsPerPage, filteredPasses.length),
+        );
         setLoadingMore(false);
       }, 300);
     }
@@ -835,9 +946,10 @@ export default function StatusAndApprovalsScreen({ navigation, route }: Props) {
     approved: passes.filter((p) => p.overallStatus === "approved").length,
     pending: passes.filter((p) => p.overallStatus === "pending").length,
     denied: passes.filter(
-      (p) => p.overallStatus === "rejected" || p.overallStatus === "partial"
+      (p) => p.overallStatus === "rejected" || p.overallStatus === "partial",
     ).length,
-    routed: passes.filter((p) => p.overallStatus === "routed_for_approval").length,
+    routed: passes.filter((p) => p.overallStatus === "routed_for_approval")
+      .length,
   };
 
   const getStatusColor = (status: string) => {
@@ -948,7 +1060,8 @@ export default function StatusAndApprovalsScreen({ navigation, route }: Props) {
           const { layoutMeasurement, contentOffset, contentSize } = nativeEvent;
           const paddingToBottom = 20;
           const isCloseToBottom =
-            layoutMeasurement.height + contentOffset.y >= contentSize.height - paddingToBottom;
+            layoutMeasurement.height + contentOffset.y >=
+            contentSize.height - paddingToBottom;
           if (isCloseToBottom && hasMore && !loadingMore) {
             loadMore();
           }
@@ -1005,7 +1118,6 @@ export default function StatusAndApprovalsScreen({ navigation, route }: Props) {
             )}
           </View>
           <View style={styles.filtersContainer}>
-
             <TouchableOpacity
               style={styles.filterButton}
               onPress={() => {
@@ -1013,11 +1125,20 @@ export default function StatusAndApprovalsScreen({ navigation, route }: Props) {
                   "Date Type",
                   "Select date filter type",
                   [
-                    { text: "Submitted Date", onPress: () => setDateFilterType("submittedDate") },
-                    { text: "Visit Date", onPress: () => setDateFilterType("visitDate") },
-                    { text: "Approved Date", onPress: () => setDateFilterType("approvedDate") },
+                    {
+                      text: "Submitted Date",
+                      onPress: () => setDateFilterType("submittedDate"),
+                    },
+                    {
+                      text: "Visit Date",
+                      onPress: () => setDateFilterType("visitDate"),
+                    },
+                    {
+                      text: "Approved Date",
+                      onPress: () => setDateFilterType("approvedDate"),
+                    },
                   ],
-                  { cancelable: true }
+                  { cancelable: true },
                 );
               }}
             >
@@ -1025,8 +1146,8 @@ export default function StatusAndApprovalsScreen({ navigation, route }: Props) {
                 {dateFilterType === "submittedDate"
                   ? "Submitted Date"
                   : dateFilterType === "visitDate"
-                  ? "Visit Date"
-                  : "Approved Date"}
+                    ? "Visit Date"
+                    : "Approved Date"}
               </Text>
               <ChevronDownIcon width={16} height={16} />
             </TouchableOpacity>
@@ -1038,11 +1159,20 @@ export default function StatusAndApprovalsScreen({ navigation, route }: Props) {
                   "Filter",
                   "Select date filter",
                   [
-                    { text: "All Dates", onPress: () => setDateFilterMode("none") },
-                    { text: "Today", onPress: () => setDateFilterMode("today") },
-                    { text: "Other", onPress: () => setDateFilterMode("other") },
+                    {
+                      text: "All Dates",
+                      onPress: () => setDateFilterMode("none"),
+                    },
+                    {
+                      text: "Today",
+                      onPress: () => setDateFilterMode("today"),
+                    },
+                    {
+                      text: "Other",
+                      onPress: () => setDateFilterMode("other"),
+                    },
                   ],
-                  { cancelable: true }
+                  { cancelable: true },
                 );
               }}
             >
@@ -1050,8 +1180,8 @@ export default function StatusAndApprovalsScreen({ navigation, route }: Props) {
                 {dateFilterMode === "none"
                   ? "All Dates"
                   : dateFilterMode === "today"
-                  ? "Today"
-                  : "Other"}
+                    ? "Today"
+                    : "Other"}
               </Text>
               <ChevronDownIcon width={16} height={16} />
             </TouchableOpacity>
@@ -1100,18 +1230,17 @@ export default function StatusAndApprovalsScreen({ navigation, route }: Props) {
               value === "all"
                 ? passes.length
                 : value === "rejected"
-                ? passes.filter(
-                    (p) => p.overallStatus === "rejected" || p.overallStatus === "partial"
-                  ).length
-                : passes.filter((p) => p.overallStatus === value).length;
+                  ? passes.filter(
+                      (p) =>
+                        p.overallStatus === "rejected" ||
+                        p.overallStatus === "partial",
+                    ).length
+                  : passes.filter((p) => p.overallStatus === value).length;
 
             return (
               <TouchableOpacity
                 key={value}
-                style={[
-                  styles.tab,
-                  filter === value && styles.tabActive,
-                ]}
+                style={[styles.tab, filter === value && styles.tabActive]}
                 onPress={() => setFilter(value as typeof filter)}
               >
                 <Text
@@ -1142,9 +1271,15 @@ export default function StatusAndApprovalsScreen({ navigation, route }: Props) {
               const statusStyle = getStatusColor(request.overallStatus);
               const isExpanded = expandedRequests.has(request.id);
               const visitorCount = request.visitors.length;
-              const approvedCount = request.visitors.filter((v) => v.status === "approved").length;
-              const pendingCount = request.visitors.filter((v) => v.status === "pending").length;
-              const deniedCount = request.visitors.filter((v) => v.status === "denied").length;
+              const approvedCount = request.visitors.filter(
+                (v) => v.status === "approved",
+              ).length;
+              const pendingCount = request.visitors.filter(
+                (v) => v.status === "pending",
+              ).length;
+              const deniedCount = request.visitors.filter(
+                (v) => v.status === "denied",
+              ).length;
               const allPending = pendingCount === visitorCount;
 
               let requestApprovalStatus:
@@ -1210,7 +1345,8 @@ export default function StatusAndApprovalsScreen({ navigation, route }: Props) {
                               Visit Date:
                             </Text>
                             <Text style={styles.requestInfoValue}>
-                              {formatDate(request.visitDate)} {request.visitTime}
+                              {formatDate(request.visitDate)}{" "}
+                              {request.visitTime}
                             </Text>
                           </View>
                           <View style={styles.requestInfoRow}>
@@ -1232,9 +1368,14 @@ export default function StatusAndApprovalsScreen({ navigation, route }: Props) {
                               <TouchableOpacity
                                 style={styles.approveAllButton}
                                 onPress={() =>
-                                  setShowActionModal({ requestId: request.requestId, action: "approve" })
+                                  setShowActionModal({
+                                    requestId: request.requestId,
+                                    action: "approve",
+                                  })
                                 }
-                                disabled={processingStatus.has(request.requestId)}
+                                disabled={processingStatus.has(
+                                  request.requestId,
+                                )}
                               >
                                 <Text style={styles.approveAllButtonText}>
                                   Approve All
@@ -1243,9 +1384,14 @@ export default function StatusAndApprovalsScreen({ navigation, route }: Props) {
                               <TouchableOpacity
                                 style={styles.rejectAllButton}
                                 onPress={() =>
-                                  setShowActionModal({ requestId: request.requestId, action: "reject" })
+                                  setShowActionModal({
+                                    requestId: request.requestId,
+                                    action: "reject",
+                                  })
                                 }
-                                disabled={processingStatus.has(request.requestId)}
+                                disabled={processingStatus.has(
+                                  request.requestId,
+                                )}
                               >
                                 <Text style={styles.rejectAllButtonText}>
                                   Reject All
@@ -1261,231 +1407,253 @@ export default function StatusAndApprovalsScreen({ navigation, route }: Props) {
                               Visitors ({request.visitors.length})
                             </Text>
 
-                            {request.visitors.map((visitor: any, index: number) => {
-                              const visitorId =
-                                visitor.id || `${request.id}-${index}`;
-                              const isVisitorExpanded =
-                                expandedVisitorDetails.has(visitorId);
-                              const visitorStatusStyle = getStatusColor(visitor.status);
+                            {request.visitors.map(
+                              (visitor: any, index: number) => {
+                                const visitorId =
+                                  visitor.id || `${request.id}-${index}`;
+                                const isVisitorExpanded =
+                                  expandedVisitorDetails.has(visitorId);
+                                const visitorStatusStyle = getStatusColor(
+                                  visitor.status,
+                                );
 
-                              return (
-                                <View
-                                  key={visitorId}
-                                  style={styles.visitorItem}
-                                >
-                                  <TouchableOpacity
-                                    onPress={() => {
-                                      setExpandedVisitorDetails((prev) => {
-                                        const newSet = new Set(prev);
-                                        if (newSet.has(visitorId)) {
-                                          newSet.delete(visitorId);
-                                        } else {
-                                          newSet.add(visitorId);
-                                        }
-                                        return newSet;
-                                      });
-                                    }}
-                                    style={styles.visitorItemHeader}
-                                    activeOpacity={0.7}
+                                return (
+                                  <View
+                                    key={visitorId}
+                                    style={styles.visitorItem}
                                   >
-                                    <View style={styles.visitorInfo}>
-                                      <View
-                                        style={[
-                                          styles.avatar,
-                                          { backgroundColor: "#457E51" },
-                                        ]}
-                                      >
-                                        <Text style={styles.avatarText}>
-                                          {visitor.name
-                                            .split(" ")
-                                            .map((n: string) => n[0])
-                                            .join("")
-                                            .toUpperCase()
-                                            .slice(0, 2)}
-                                        </Text>
-                                      </View>
-                                      <View style={styles.visitorDetails}>
-                                        <Text style={styles.visitorName}>
-                                          {visitor.name}
-                                        </Text>
-                                        <Text style={styles.visitorId}>
-                                          ID: {visitor.identificationType} -{" "}
-                                          {visitor.identificationNumber}
-                                        </Text>
-                                      </View>
-                                    </View>
-
-                                    <ChevronDownIcon
-                                      width={18}
-                                      height={18}
-                                      style={{
-                                        transform: [
-                                          {
-                                            rotate: isVisitorExpanded
-                                              ? "180deg"
-                                              : "0deg",
-                                          },
-                                        ],
-                                      }}
-                                    />
-                                  </TouchableOpacity>
-
-                                  {isVisitorExpanded && (
-                                    <View style={styles.visitorItemContent}>
-                                      <View style={styles.visitorInfoRow}>
-                                        <Text style={styles.visitorInfoLabel}>
-                                          Status:
-                                        </Text>
-                                        <View
-                                          style={
-                                            styles.visitorStatusContainer
+                                    <TouchableOpacity
+                                      onPress={() => {
+                                        setExpandedVisitorDetails((prev) => {
+                                          const newSet = new Set(prev);
+                                          if (newSet.has(visitorId)) {
+                                            newSet.delete(visitorId);
+                                          } else {
+                                            newSet.add(visitorId);
                                           }
+                                          return newSet;
+                                        });
+                                      }}
+                                      style={styles.visitorItemHeader}
+                                      activeOpacity={0.7}
+                                    >
+                                      <View style={styles.visitorInfo}>
+                                        <View
+                                          style={[
+                                            styles.avatar,
+                                            { backgroundColor: "#457E51" },
+                                          ]}
                                         >
-                                          {visitor.status === "approved" ? (
-                                            <View
-                                              style={styles.approvedStatus}
-                                            >
-                                              <Text
-                                                style={
-                                                  styles.approvedStatusText
-                                                }
+                                          <Text style={styles.avatarText}>
+                                            {visitor.name
+                                              .split(" ")
+                                              .map((n: string) => n[0])
+                                              .join("")
+                                              .toUpperCase()
+                                              .slice(0, 2)}
+                                          </Text>
+                                        </View>
+                                        <View style={styles.visitorDetails}>
+                                          <Text style={styles.visitorName}>
+                                            {visitor.name}
+                                          </Text>
+                                          <Text style={styles.visitorId}>
+                                            ID: {visitor.identificationType} -{" "}
+                                            {visitor.identificationNumber}
+                                          </Text>
+                                        </View>
+                                      </View>
+
+                                      <ChevronDownIcon
+                                        width={18}
+                                        height={18}
+                                        style={{
+                                          transform: [
+                                            {
+                                              rotate: isVisitorExpanded
+                                                ? "180deg"
+                                                : "0deg",
+                                            },
+                                          ],
+                                        }}
+                                      />
+                                    </TouchableOpacity>
+
+                                    {isVisitorExpanded && (
+                                      <View style={styles.visitorItemContent}>
+                                        <View style={styles.visitorInfoRow}>
+                                          <Text style={styles.visitorInfoLabel}>
+                                            Status:
+                                          </Text>
+                                          <View
+                                            style={
+                                              styles.visitorStatusContainer
+                                            }
+                                          >
+                                            {visitor.status === "approved" ? (
+                                              <View
+                                                style={styles.approvedStatus}
                                               >
-                                                Approved
-                                              </Text>
-                                            </View>
-                                          ) : visitor.status === "denied" ? (
-                                            <View
-                                              style={styles.rejectedStatus}
-                                            >
-                                              <Text
-                                                style={
-                                                  styles.rejectedStatusText
-                                                }
+                                                <Text
+                                                  style={
+                                                    styles.approvedStatusText
+                                                  }
+                                                >
+                                                  Approved
+                                                </Text>
+                                              </View>
+                                            ) : visitor.status === "denied" ? (
+                                              <View
+                                                style={styles.rejectedStatus}
                                               >
-                                                Rejected
-                                              </Text>
-                                            </View>
-                                          ) : (
-                                            <View
-                                              style={styles.pendingStatus}
-                                            >
-                                              <Text
-                                                style={
-                                                  styles.pendingStatusText
-                                                }
+                                                <Text
+                                                  style={
+                                                    styles.rejectedStatusText
+                                                  }
+                                                >
+                                                  Rejected
+                                                </Text>
+                                              </View>
+                                            ) : (
+                                              <View
+                                                style={styles.pendingStatus}
                                               >
-                                                Pending
-                                              </Text>
+                                                <Text
+                                                  style={
+                                                    styles.pendingStatusText
+                                                  }
+                                                >
+                                                  Pending
+                                                </Text>
+                                              </View>
+                                            )}
+                                          </View>
+                                        </View>
+                                        <View style={styles.visitorInfoRow}>
+                                          <Text style={styles.visitorInfoLabel}>
+                                            Email:
+                                          </Text>
+                                          <Text style={styles.visitorInfoValue}>
+                                            {visitor.email}
+                                          </Text>
+                                        </View>
+                                        <View style={styles.visitorInfoRow}>
+                                          <Text style={styles.visitorInfoLabel}>
+                                            Phone:
+                                          </Text>
+                                          <Text style={styles.visitorInfoValue}>
+                                            {visitor.phone}
+                                          </Text>
+                                        </View>
+                                        {visitor.validFrom && (
+                                          <View style={styles.visitorInfoRow}>
+                                            <Text
+                                              style={styles.visitorInfoLabel}
+                                            >
+                                              Valid From:
+                                            </Text>
+                                            <Text
+                                              style={styles.visitorInfoValue}
+                                            >
+                                              {formatDate(visitor.validFrom)}
+                                            </Text>
+                                          </View>
+                                        )}
+                                        {visitor.validTo && (
+                                          <View style={styles.visitorInfoRow}>
+                                            <Text
+                                              style={styles.visitorInfoLabel}
+                                            >
+                                              Valid To:
+                                            </Text>
+                                            <Text
+                                              style={styles.visitorInfoValue}
+                                            >
+                                              {formatDate(visitor.validTo)}
+                                            </Text>
+                                          </View>
+                                        )}
+
+                                        {/* Approve/Reject Buttons for Approvers */}
+                                        {visitor.status === "pending" &&
+                                          isHodApprover && (
+                                            <View
+                                              style={
+                                                styles.approveRejectButtonsContainer
+                                              }
+                                            >
+                                              <TouchableOpacity
+                                                style={styles.approveButton}
+                                                onPress={() =>
+                                                  setShowVisitorActionModal({
+                                                    visitorId: visitor.id,
+                                                    requestId:
+                                                      request.requestId,
+                                                    action: "approve",
+                                                  })
+                                                }
+                                                disabled={processingVisitorStatus.has(
+                                                  visitor.id,
+                                                )}
+                                              >
+                                                <Text
+                                                  style={
+                                                    styles.approveButtonText
+                                                  }
+                                                >
+                                                  Approve
+                                                </Text>
+                                              </TouchableOpacity>
+                                              <TouchableOpacity
+                                                style={styles.rejectButton}
+                                                onPress={() =>
+                                                  setShowVisitorActionModal({
+                                                    visitorId: visitor.id,
+                                                    requestId:
+                                                      request.requestId,
+                                                    action: "reject",
+                                                  })
+                                                }
+                                                disabled={processingVisitorStatus.has(
+                                                  visitor.id,
+                                                )}
+                                              >
+                                                <Text
+                                                  style={
+                                                    styles.rejectButtonText
+                                                  }
+                                                >
+                                                  Reject
+                                                </Text>
+                                              </TouchableOpacity>
                                             </View>
                                           )}
-                                        </View>
-                                      </View>
-                                      <View style={styles.visitorInfoRow}>
-                                        <Text style={styles.visitorInfoLabel}>
-                                          Email:
-                                        </Text>
-                                        <Text style={styles.visitorInfoValue}>
-                                          {visitor.email}
-                                        </Text>
-                                      </View>
-                                      <View style={styles.visitorInfoRow}>
-                                        <Text style={styles.visitorInfoLabel}>
-                                          Phone:
-                                        </Text>
-                                        <Text style={styles.visitorInfoValue}>
-                                          {visitor.phone}
-                                        </Text>
-                                      </View>
-                                      {visitor.validFrom && (
-                                        <View style={styles.visitorInfoRow}>
-                                          <Text style={styles.visitorInfoLabel}>
-                                            Valid From:
-                                          </Text>
-                                          <Text style={styles.visitorInfoValue}>
-                                            {formatDate(visitor.validFrom)}
-                                          </Text>
-                                        </View>
-                                      )}
-                                      {visitor.validTo && (
-                                        <View style={styles.visitorInfoRow}>
-                                          <Text style={styles.visitorInfoLabel}>
-                                            Valid To:
-                                          </Text>
-                                          <Text style={styles.visitorInfoValue}>
-                                            {formatDate(visitor.validTo)}
-                                          </Text>
-                                        </View>
-                                      )}
 
-                                      {/* Approve/Reject Buttons for Approvers */}
-                                      {visitor.status === "pending" && isHodApprover && (
-                                        <View
-                                          style={
-                                            styles.approveRejectButtonsContainer
-                                          }
+                                        <TouchableOpacity
+                                          style={styles.viewDetailsButton}
+                                          onPress={() => {
+                                            // Navigate to RequestDetailsScreen
+                                            navigation.navigate(
+                                              "RequestDetails",
+                                              {
+                                                request: request,
+                                                visitor: visitor,
+                                              },
+                                            );
+                                          }}
                                         >
-                                          <TouchableOpacity
-                                            style={styles.approveButton}
-                                            onPress={() =>
-                                              setShowVisitorActionModal({
-                                                visitorId: visitor.id,
-                                                requestId: request.requestId,
-                                                action: "approve",
-                                              })
-                                            }
-                                            disabled={processingVisitorStatus.has(visitor.id)}
+                                          <Text
+                                            style={styles.viewDetailsButtonText}
                                           >
-                                            <Text
-                                              style={
-                                                styles.approveButtonText
-                                              }
-                                            >
-                                              Approve
-                                            </Text>
-                                          </TouchableOpacity>
-                                          <TouchableOpacity
-                                            style={styles.rejectButton}
-                                            onPress={() =>
-                                              setShowVisitorActionModal({
-                                                visitorId: visitor.id,
-                                                requestId: request.requestId,
-                                                action: "reject",
-                                              })
-                                            }
-                                            disabled={processingVisitorStatus.has(visitor.id)}
-                                          >
-                                            <Text
-                                              style={
-                                                styles.rejectButtonText
-                                              }
-                                            >
-                                              Reject
-                                            </Text>
-                                          </TouchableOpacity>
-                                        </View>
-                                      )}
-
-                                      <TouchableOpacity
-                                        style={styles.viewDetailsButton}
-                                        onPress={() => {
-                                          // Navigate to RequestDetailsScreen
-                                          navigation.navigate("RequestDetails", {
-                                            request: request,
-                                            visitor: visitor,
-                                          });
-                                        }}
-                                      >
-                                        <Text
-                                          style={styles.viewDetailsButtonText}
-                                        >
-                                          View Details
-                                        </Text>
-                                      </TouchableOpacity>
-                                    </View>
-                                  )}
-                                </View>
-                              );
-                            })}
+                                            View Details
+                                          </Text>
+                                        </TouchableOpacity>
+                                      </View>
+                                    )}
+                                  </View>
+                                );
+                              },
+                            )}
                           </View>
                         )}
                       </View>
@@ -1578,33 +1746,41 @@ export default function StatusAndApprovalsScreen({ navigation, route }: Props) {
                     : styles.modalRejectButton,
                 ]}
                 onPress={async () => {
-                  if (showActionModal?.action === "reject" && !actionComments.trim()) {
-                    Alert.alert("Error", "Please provide a reason for rejection");
+                  if (
+                    showActionModal?.action === "reject" &&
+                    !actionComments.trim()
+                  ) {
+                    Alert.alert(
+                      "Error",
+                      "Please provide a reason for rejection",
+                    );
                     return;
                   }
 
                   const requestData = passes.find(
-                    (p) => p.requestId === showActionModal?.requestId
+                    (p) => p.requestId === showActionModal?.requestId,
                   );
                   if (requestData && showActionModal) {
                     if (showActionModal.action === "approve") {
                       await handleApproveAll(
                         showActionModal.requestId,
                         requestData.visitors,
-                        actionComments || undefined
+                        actionComments || undefined,
                       );
                     } else {
                       await handleRejectAll(
                         showActionModal.requestId,
                         requestData.visitors,
-                        actionComments || undefined
+                        actionComments || undefined,
                       );
                     }
                   }
                 }}
               >
                 <Text style={styles.modalSubmitButtonText}>
-                  {showActionModal?.action === "approve" ? "Approve All" : "Reject All"}
+                  {showActionModal?.action === "approve"
+                    ? "Approve All"
+                    : "Reject All"}
                 </Text>
               </TouchableOpacity>
             </View>
@@ -1679,7 +1855,10 @@ export default function StatusAndApprovalsScreen({ navigation, route }: Props) {
                     showVisitorActionModal?.action === "reject" &&
                     !visitorActionComments.trim()
                   ) {
-                    Alert.alert("Error", "Please provide a reason for rejection");
+                    Alert.alert(
+                      "Error",
+                      "Please provide a reason for rejection",
+                    );
                     return;
                   }
 
@@ -1687,14 +1866,18 @@ export default function StatusAndApprovalsScreen({ navigation, route }: Props) {
                     await handleVisitorStatusUpdate(
                       showVisitorActionModal.visitorId,
                       showVisitorActionModal.requestId,
-                      showVisitorActionModal.action === "approve" ? "approved" : "rejected",
-                      visitorActionComments || undefined
+                      showVisitorActionModal.action === "approve"
+                        ? "approved"
+                        : "rejected",
+                      visitorActionComments || undefined,
                     );
                   }
                 }}
               >
                 <Text style={styles.modalSubmitButtonText}>
-                  {showVisitorActionModal?.action === "approve" ? "Approve" : "Reject"}
+                  {showVisitorActionModal?.action === "approve"
+                    ? "Approve"
+                    : "Reject"}
                 </Text>
               </TouchableOpacity>
             </View>

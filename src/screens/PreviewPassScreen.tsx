@@ -120,7 +120,7 @@ export default function PreviewPassScreen({ navigation, route }: Props) {
       () => {
         handleClose();
         return true; // Prevent default back behavior
-      }
+      },
     );
 
     return () => backHandler.remove();
@@ -203,12 +203,16 @@ export default function PreviewPassScreen({ navigation, route }: Props) {
       // Check if VisitorsScreen is already in the navigation stack
       const navigationState = navigation.getState();
       const visitorsRouteIndex = navigationState.routes.findIndex(
-        (route) => route.name === "Visitors"
+        (route) => route.name === "Visitors",
       );
-      
+
       // If VisitorsScreen is the previous screen in the stack, use goBack()
       // This preserves the navigation stack and VisitorsScreen's state
-      if (visitorsRouteIndex >= 0 && visitorsRouteIndex === navigationState.routes.length - 2 && navigation.canGoBack()) {
+      if (
+        visitorsRouteIndex >= 0 &&
+        visitorsRouteIndex === navigationState.routes.length - 2 &&
+        navigation.canGoBack()
+      ) {
         navigation.goBack();
       } else {
         // Otherwise, navigate to VisitorsScreen with params to ensure we get there
@@ -248,7 +252,6 @@ export default function PreviewPassScreen({ navigation, route }: Props) {
         Alert.alert("Error", errorMessage);
         return;
       }
-
     } catch (error) {
       Alert.alert("Error", "Failed to share pass. Please try again.");
     }

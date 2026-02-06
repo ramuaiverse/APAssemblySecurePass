@@ -114,7 +114,10 @@ export default function ResetPasswordScreen({ navigation, route }: Props) {
   };
 
   return (
-    <SafeAreaView style={styles.container} edges={["top", "bottom", "left", "right"]}>
+    <SafeAreaView
+      style={styles.container}
+      edges={["top", "bottom", "left", "right"]}
+    >
       <KeyboardAvoidingView
         behavior={Platform.OS === "ios" ? "padding" : "height"}
         style={styles.keyboardView}
@@ -133,14 +136,27 @@ export default function ResetPasswordScreen({ navigation, route }: Props) {
             >
               <BackButtonIcon width={20} height={20} />
             </TouchableOpacity>
-            <View style={[styles.logoContainer, isLandscape && styles.logoContainerLandscape]}>
-              <DigitalPass width={isLandscape ? 80 : 110} height={isLandscape ? 110 : 150} />
-              <Assembly width={isLandscape ? 80 : 110} height={isLandscape ? 110 : 150} />
+            <View
+              style={[
+                styles.logoContainer,
+                isLandscape && styles.logoContainerLandscape,
+              ]}
+            >
+              <DigitalPass
+                width={isLandscape ? 80 : 110}
+                height={isLandscape ? 110 : 150}
+              />
+              <Assembly
+                width={isLandscape ? 80 : 110}
+                height={isLandscape ? 110 : 150}
+              />
             </View>
           </View>
 
           {/* Modal Card */}
-          <View style={[styles.modalCard, isLandscape && styles.modalCardLandscape]}>
+          <View
+            style={[styles.modalCard, isLandscape && styles.modalCardLandscape]}
+          >
             {/* Header */}
             <View style={styles.modalHeader}>
               <Text style={styles.modalTitle}>Reset Password</Text>

@@ -409,7 +409,7 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     gap: 30,
     marginTop: 0,
-    marginBottom: 20, 
+    marginBottom: 20,
   },
   loginCard: {
     backgroundColor: "#fff",

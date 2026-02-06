@@ -208,7 +208,10 @@ export default function LoginScreen({ navigation }: Props) {
   };
 
   return (
-    <SafeAreaView style={styles.container} edges={["top", "bottom", "left", "right"]}>
+    <SafeAreaView
+      style={styles.container}
+      edges={["top", "bottom", "left", "right"]}
+    >
       {/* Back Button - Fixed Position */}
       <TouchableOpacity
         onPress={() => navigation.goBack()}
@@ -332,7 +335,10 @@ export default function LoginScreen({ navigation }: Props) {
 
               {/* Password Field - Optional */}
               <Text style={styles.inputLabel}>
-                Password <Text style={styles.helperTextInline}>(Optional for first time login)</Text>
+                Password{" "}
+                <Text style={styles.helperTextInline}>
+                  (Optional for first time login)
+                </Text>
               </Text>
               <View
                 style={[
@@ -444,7 +450,7 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     gap: 30,
     marginTop: 0,
-    marginBottom: 10, 
+    marginBottom: 10,
   },
   loginCard: {
     backgroundColor: "#fff",

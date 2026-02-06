@@ -189,7 +189,9 @@ export default function VisitorsScreen({ navigation, route }: Props) {
   const [showSuperiorModal, setShowSuperiorModal] = useState(false);
 
   // Pass type mapping state (for category-based pass types)
-  const [availablePassTypes, setAvailablePassTypes] = useState<PassTypeItem[]>([]);
+  const [availablePassTypes, setAvailablePassTypes] = useState<PassTypeItem[]>(
+    [],
+  );
   const [loadingPassTypes, setLoadingPassTypes] = useState(false);
 
   useEffect(() => {
@@ -207,7 +209,7 @@ export default function VisitorsScreen({ navigation, route }: Props) {
     useCallback(() => {
       // Reload visitors data to get latest status after actions from legislative screens
       fetchVisitors();
-    }, [])
+    }, []),
   );
 
   const fetchCategories = async () => {
@@ -275,10 +277,7 @@ export default function VisitorsScreen({ navigation, route }: Props) {
 
   // Helper function to determine visitor status based on visitor_status and pass generation
   // Priority: Suspended > Pass generated > Routed > Rejected > Approved (HOD) > Pending
-  const getVisitorStatus = (
-    visitor: any,
-    request: any,
-  ): string => {
+  const getVisitorStatus = (visitor: any, request: any): string => {
     // Priority 1: If visitor is suspended, show as suspended (highest priority)
     if (visitor.is_suspended) {
       return "suspended";
@@ -334,7 +333,7 @@ export default function VisitorsScreen({ navigation, route }: Props) {
     allPassTypes: PassTypeItem[],
   ): any[] => {
     const visitorRows: any[] = [];
-    
+
     allRequests.forEach((request: any) => {
       // Get category names
       const mainCategory = allCategories.find(
@@ -361,8 +360,7 @@ export default function VisitorsScreen({ navigation, route }: Props) {
 
         // Check if request is routed to legislative
         const hasRouting = !!request.routed_to || !!request.routed_at;
-        const isPendingWithRouting =
-          request.status === "pending" && hasRouting;
+        const isPendingWithRouting = request.status === "pending" && hasRouting;
         const isRoutedForApproval = request.status === "routed_for_approval";
         const isRequestApproved = request.status === "approved";
         const isPassGenerated = !!visitor.pass_generated_at;
@@ -481,7 +479,7 @@ export default function VisitorsScreen({ navigation, route }: Props) {
         });
       });
     });
-    
+
     return visitorRows;
   };
 
@@ -540,7 +538,11 @@ export default function VisitorsScreen({ navigation, route }: Props) {
       const allPassTypes = await api.getAllPassTypes();
 
       // Build visitor rows using the same logic as web
-      const visitorRows = buildVisitorRows(requests, allCategories, allPassTypes);
+      const visitorRows = buildVisitorRows(
+        requests,
+        allCategories,
+        allPassTypes,
+      );
 
       // Group visitors back by request for display
       const requestsWithVisitors: { [key: string]: any[] } = {};
@@ -662,13 +664,16 @@ export default function VisitorsScreen({ navigation, route }: Props) {
     visitors?.forEach((visitor: any) => {
       // Use processed status from visitorRows if available
       const visitorRow = visitorRows?.find(
-        (vr: any) => vr.visitor?.id === visitor.id || vr.id === visitor.id
+        (vr: any) => vr.visitor?.id === visitor.id || vr.id === visitor.id,
       );
-      const status = visitorRow?.status || 
-        (visitor.is_suspended ? "suspended" : 
-         visitor.visitor_routed_to ? "routed_for_approval" :
-         visitor.visitor_status || "pending");
-      
+      const status =
+        visitorRow?.status ||
+        (visitor.is_suspended
+          ? "suspended"
+          : visitor.visitor_routed_to
+            ? "routed_for_approval"
+            : visitor.visitor_status || "pending");
+
       if (status === "suspended") counts.suspended++;
       else if (status === "routed_for_approval") counts.routed++;
       else if (status === "approved") counts.approved++;
@@ -714,7 +719,7 @@ export default function VisitorsScreen({ navigation, route }: Props) {
     .map((req) => {
       // Use visitorRows if available, otherwise fall back to visitors
       const visitorRows = req.visitorRows || [];
-      
+
       // Filter visitors within the request based on pass type and status
       let filteredVisitorRows = visitorRows;
 
@@ -815,12 +820,16 @@ export default function VisitorsScreen({ navigation, route }: Props) {
       // Enhanced text search filter (matching web version)
       const searchLower = searchQuery.toLowerCase().trim();
       if (!searchLower) return true;
-      
+
       // Search in request details
-      const requestIdMatch = req.request_id?.toLowerCase().includes(searchLower);
-      const requestedByMatch = req.requested_by?.toLowerCase().includes(searchLower);
+      const requestIdMatch = req.request_id
+        ?.toLowerCase()
+        .includes(searchLower);
+      const requestedByMatch = req.requested_by
+        ?.toLowerCase()
+        .includes(searchLower);
       const purposeMatch = req.purpose?.toLowerCase().includes(searchLower);
-      
+
       // Search in category details
       const categoryMatch = getCategoryName(req.main_category_id)
         ?.toLowerCase()
@@ -828,14 +837,16 @@ export default function VisitorsScreen({ navigation, route }: Props) {
       const subCategoryMatch = getSubCategoryName(req.sub_category_id)
         ?.toLowerCase()
         .includes(searchLower);
-      
+
       // Search in visitor details
       const visitorMatch = req.visitors?.some((v: any) => {
-        const visitorName = `${v.first_name || ""} ${v.last_name || ""}`.toLowerCase();
+        const visitorName =
+          `${v.first_name || ""} ${v.last_name || ""}`.toLowerCase();
         const email = v.email?.toLowerCase() || "";
         const phone = v.phone?.toLowerCase() || "";
-        const identificationNumber = v.identification_number?.toLowerCase() || "";
-        
+        const identificationNumber =
+          v.identification_number?.toLowerCase() || "";
+
         return (
           visitorName.includes(searchLower) ||
           email.includes(searchLower) ||
@@ -843,7 +854,7 @@ export default function VisitorsScreen({ navigation, route }: Props) {
           identificationNumber.includes(searchLower)
         );
       });
-      
+
       // Search in dates (formatted)
       const validFromMatch = req.valid_from
         ? formatDate(req.valid_from).toLowerCase().includes(searchLower)
@@ -854,13 +865,13 @@ export default function VisitorsScreen({ navigation, route }: Props) {
       const submittedAtMatch = req.created_at
         ? formatDate(req.created_at).toLowerCase().includes(searchLower)
         : false;
-      
+
       // Search in status (using visitorRows if available)
       const statusMatch = req.visitorRows?.some((vr: any) => {
         const statusLabel = getStatusLabel(vr.status || "");
         return statusLabel.toLowerCase().includes(searchLower);
       });
-      
+
       // Search in user names (using userMap)
       const requestedByNameMatch = req.requested_by
         ? (userMap.get(req.requested_by) || req.requested_by)
@@ -891,14 +902,22 @@ export default function VisitorsScreen({ navigation, route }: Props) {
 
   useEffect(() => {
     setDisplayedItemsCount(20);
-  }, [searchQuery, selectedStatusValue, selectedPassTypeId, selectedCategoryFilterId, selectedDate]);
+  }, [
+    searchQuery,
+    selectedStatusValue,
+    selectedPassTypeId,
+    selectedCategoryFilterId,
+    selectedDate,
+  ]);
 
   const loadMore = () => {
     if (!loadingMore && hasMore) {
       setLoadingMore(true);
       // Simulate slight delay for smooth UX
       setTimeout(() => {
-        setDisplayedItemsCount((prev) => Math.min(prev + itemsPerPage, filteredRequests.length));
+        setDisplayedItemsCount((prev) =>
+          Math.min(prev + itemsPerPage, filteredRequests.length),
+        );
         setLoadingMore(false);
       }, 300);
     }
@@ -919,18 +938,21 @@ export default function VisitorsScreen({ navigation, route }: Props) {
     if (status && status !== "All Status") {
       // Map display status to filter value
       const statusMap: { [key: string]: string } = {
-        "pending": "pending",
-        "rejected": "rejected",
-        "approved": "approved",
+        pending: "pending",
+        rejected: "rejected",
+        approved: "approved",
         "routed for approval": "routed_for_approval",
         "assigned to me": "assigned_to_me",
-        "suspended": "suspended",
+        suspended: "suspended",
       };
-      const filterValue = statusMap[status.toLowerCase()] || status.toLowerCase();
-      
+      const filterValue =
+        statusMap[status.toLowerCase()] || status.toLowerCase();
+
       // Get the display label (proper case) to match what's shown in the dropdown
-      const displayLabel = getStatusLabel(status === "assigned to me" ? "assigned_to_me" : status);
-      
+      const displayLabel = getStatusLabel(
+        status === "assigned to me" ? "assigned_to_me" : status,
+      );
+
       setSelectedStatus(displayLabel);
       setSelectedStatusValue(filterValue);
     } else {
@@ -1127,7 +1149,7 @@ export default function VisitorsScreen({ navigation, route }: Props) {
   const handleApproveClick = (visitor: any, request: any) => {
     setSelectedVisitor(visitor);
     setSelectedRequest(request);
-    
+
     if (isLegislative) {
       // For legislative role, navigate to approve screen
       navigation.navigate("LegislativeApprove", {
@@ -1152,7 +1174,7 @@ export default function VisitorsScreen({ navigation, route }: Props) {
     if (request) {
       setSelectedRequest(request);
     }
-    
+
     if (isLegislative) {
       // For legislative role, navigate to reject screen
       navigation.navigate("LegislativeReject", {
@@ -1568,11 +1590,13 @@ export default function VisitorsScreen({ navigation, route }: Props) {
       try {
         // Get mapped pass type IDs for the selected category
         const passTypeIds = await api.getCategoryPassTypes(selectedCategoryId);
-        
+
         // Filter pass types to only include mapped ones
-        const mappedPassTypes = passTypes.filter(pt => passTypeIds.includes(pt.id));
+        const mappedPassTypes = passTypes.filter((pt) =>
+          passTypeIds.includes(pt.id),
+        );
         setAvailablePassTypes(mappedPassTypes);
-        
+
         // Auto-select if only one pass type is available
         if (mappedPassTypes.length === 1) {
           setSelectedPassTypeId(mappedPassTypes[0].id);
@@ -1632,10 +1656,10 @@ export default function VisitorsScreen({ navigation, route }: Props) {
               // Try to preserve existing HomeScreen params (including userFullName) from navigation state
               const navigationState = navigation.getState();
               const homeRoute = navigationState.routes.find(
-                (route) => route.name === "Home"
+                (route) => route.name === "Home",
               );
               const existingHomeParams = homeRoute?.params as any;
-              
+
               navigation.navigate("Home", {
                 userId: userId,
                 role: userRole,
@@ -1673,10 +1697,12 @@ export default function VisitorsScreen({ navigation, route }: Props) {
           showsHorizontalScrollIndicator={false}
           keyboardShouldPersistTaps="handled"
           onScroll={({ nativeEvent }) => {
-            const { layoutMeasurement, contentOffset, contentSize } = nativeEvent;
+            const { layoutMeasurement, contentOffset, contentSize } =
+              nativeEvent;
             const paddingToBottom = 20;
             const isCloseToBottom =
-              layoutMeasurement.height + contentOffset.y >= contentSize.height - paddingToBottom;
+              layoutMeasurement.height + contentOffset.y >=
+              contentSize.height - paddingToBottom;
             if (isCloseToBottom && hasMore && !loadingMore) {
               loadMore();
             }
@@ -1823,7 +1849,8 @@ export default function VisitorsScreen({ navigation, route }: Props) {
                               Requested By:
                             </Text>
                             <Text style={styles.requestInfoValue}>
-                              {userMap.get(request.requested_by) || request.requested_by}
+                              {userMap.get(request.requested_by) ||
+                                request.requested_by}
                             </Text>
                           </View>
                           <View style={styles.requestInfoRow}>
@@ -1886,15 +1913,20 @@ export default function VisitorsScreen({ navigation, route }: Props) {
                                   visitor.id || `${request.id}-${index}`;
                                 const isVisitorExpanded =
                                   expandedVisitors[visitorId] ?? true;
-                                
+
                                 // Get processed status from visitorRows if available
                                 const visitorRow = request.visitorRows?.find(
-                                  (vr: any) => vr.visitor?.id === visitor.id || vr.id === visitor.id
+                                  (vr: any) =>
+                                    vr.visitor?.id === visitor.id ||
+                                    vr.id === visitor.id,
                                 );
-                                const displayStatus = visitorRow?.status || 
-                                  (visitor.is_suspended ? "suspended" : 
-                                   visitor.visitor_routed_to ? "routed_for_approval" :
-                                   visitor.visitor_status || "pending");
+                                const displayStatus =
+                                  visitorRow?.status ||
+                                  (visitor.is_suspended
+                                    ? "suspended"
+                                    : visitor.visitor_routed_to
+                                      ? "routed_for_approval"
+                                      : visitor.visitor_status || "pending");
 
                                 return (
                                   <View
@@ -1994,7 +2026,8 @@ export default function VisitorsScreen({ navigation, route }: Props) {
                                                   Rejected
                                                 </Text>
                                               </View>
-                                            ) : displayStatus === "routed_for_approval" ? (
+                                            ) : displayStatus ===
+                                              "routed_for_approval" ? (
                                               <View
                                                 style={styles.pendingStatus}
                                               >
@@ -2448,7 +2481,9 @@ export default function VisitorsScreen({ navigation, route }: Props) {
                 <View style={styles.legislativeModalIconContainer}>
                   <Ionicons name="close-circle" size={48} color="#EF4444" />
                 </View>
-                <Text style={styles.rejectModalTitle}>Reject Visitor Request</Text>
+                <Text style={styles.rejectModalTitle}>
+                  Reject Visitor Request
+                </Text>
                 <Text style={styles.rejectModalSubtitle}>
                   Provide a reason for rejection
                 </Text>
@@ -2501,7 +2536,9 @@ export default function VisitorsScreen({ navigation, route }: Props) {
                           REQUESTED BY
                         </Text>
                         <Text style={styles.legislativeModalDetailValue}>
-                          {userMap.get(selectedRequest.requested_by) || selectedRequest.requested_by || "—"}
+                          {userMap.get(selectedRequest.requested_by) ||
+                            selectedRequest.requested_by ||
+                            "—"}
                         </Text>
                       </View>
                     )}
@@ -2511,7 +2548,8 @@ export default function VisitorsScreen({ navigation, route }: Props) {
                           CATEGORY
                         </Text>
                         <Text style={styles.legislativeModalDetailValue}>
-                          {getCategoryName(selectedRequest.main_category_id) || "—"}{" "}
+                          {getCategoryName(selectedRequest.main_category_id) ||
+                            "—"}{" "}
                           {selectedRequest.sub_category_id &&
                             `• ${getSubCategoryName(selectedRequest.sub_category_id)}`}
                         </Text>
@@ -2528,56 +2566,119 @@ export default function VisitorsScreen({ navigation, route }: Props) {
                       </View>
                     )}
                     {/* Car Passes Section */}
-                    {selectedVisitor.car_passes && selectedVisitor.car_passes.length > 0 && (
-                      <View style={styles.legislativeModalDetailRow}>
-                        <Text style={styles.legislativeModalDetailLabel}>
-                          CAR PASSES ({selectedVisitor.car_passes.length})
-                        </Text>
-                        <View style={{ marginTop: 8 }}>
-                          {selectedVisitor.car_passes.map((carPass: any, index: number) => (
-                            <View key={index} style={styles.carPassCard}>
-                              <Text style={styles.carPassLabel}>
-                                CAR PASS #{index + 1}
-                              </Text>
-                              <View style={styles.carPassDetails}>
-                                <View style={styles.legislativeModalDetailRow}>
-                                  <Text style={styles.legislativeModalDetailLabel}>MAKE</Text>
-                                  <Text style={styles.legislativeModalDetailValue}>
-                                    {carPass.car_make || "—"}
+                    {selectedVisitor.car_passes &&
+                      selectedVisitor.car_passes.length > 0 && (
+                        <View style={styles.legislativeModalDetailRow}>
+                          <Text style={styles.legislativeModalDetailLabel}>
+                            CAR PASSES ({selectedVisitor.car_passes.length})
+                          </Text>
+                          <View style={{ marginTop: 8 }}>
+                            {selectedVisitor.car_passes.map(
+                              (carPass: any, index: number) => (
+                                <View key={index} style={styles.carPassCard}>
+                                  <Text style={styles.carPassLabel}>
+                                    CAR PASS #{index + 1}
                                   </Text>
-                                </View>
-                                <View style={styles.legislativeModalDetailRow}>
-                                  <Text style={styles.legislativeModalDetailLabel}>MODEL</Text>
-                                  <Text style={styles.legislativeModalDetailValue}>
-                                    {carPass.car_model || "—"}
-                                  </Text>
-                                </View>
-                                <View style={styles.legislativeModalDetailRow}>
-                                  <Text style={styles.legislativeModalDetailLabel}>COLOR</Text>
-                                  <Text style={styles.legislativeModalDetailValue}>
-                                    {carPass.car_color || "—"}
-                                  </Text>
-                                </View>
-                                <View style={styles.legislativeModalDetailRow}>
-                                  <Text style={styles.legislativeModalDetailLabel}>NUMBER</Text>
-                                  <Text style={styles.legislativeModalDetailValue}>
-                                    {carPass.car_number || "—"}
-                                  </Text>
-                                </View>
-                                {carPass.car_tag && (
-                                  <View style={styles.legislativeModalDetailRow}>
-                                    <Text style={styles.legislativeModalDetailLabel}>TAG</Text>
-                                    <Text style={styles.legislativeModalDetailValue}>
-                                      {carPass.car_tag}
-                                    </Text>
+                                  <View style={styles.carPassDetails}>
+                                    <View
+                                      style={styles.legislativeModalDetailRow}
+                                    >
+                                      <Text
+                                        style={
+                                          styles.legislativeModalDetailLabel
+                                        }
+                                      >
+                                        MAKE
+                                      </Text>
+                                      <Text
+                                        style={
+                                          styles.legislativeModalDetailValue
+                                        }
+                                      >
+                                        {carPass.car_make || "—"}
+                                      </Text>
+                                    </View>
+                                    <View
+                                      style={styles.legislativeModalDetailRow}
+                                    >
+                                      <Text
+                                        style={
+                                          styles.legislativeModalDetailLabel
+                                        }
+                                      >
+                                        MODEL
+                                      </Text>
+                                      <Text
+                                        style={
+                                          styles.legislativeModalDetailValue
+                                        }
+                                      >
+                                        {carPass.car_model || "—"}
+                                      </Text>
+                                    </View>
+                                    <View
+                                      style={styles.legislativeModalDetailRow}
+                                    >
+                                      <Text
+                                        style={
+                                          styles.legislativeModalDetailLabel
+                                        }
+                                      >
+                                        COLOR
+                                      </Text>
+                                      <Text
+                                        style={
+                                          styles.legislativeModalDetailValue
+                                        }
+                                      >
+                                        {carPass.car_color || "—"}
+                                      </Text>
+                                    </View>
+                                    <View
+                                      style={styles.legislativeModalDetailRow}
+                                    >
+                                      <Text
+                                        style={
+                                          styles.legislativeModalDetailLabel
+                                        }
+                                      >
+                                        NUMBER
+                                      </Text>
+                                      <Text
+                                        style={
+                                          styles.legislativeModalDetailValue
+                                        }
+                                      >
+                                        {carPass.car_number || "—"}
+                                      </Text>
+                                    </View>
+                                    {carPass.car_tag && (
+                                      <View
+                                        style={styles.legislativeModalDetailRow}
+                                      >
+                                        <Text
+                                          style={
+                                            styles.legislativeModalDetailLabel
+                                          }
+                                        >
+                                          TAG
+                                        </Text>
+                                        <Text
+                                          style={
+                                            styles.legislativeModalDetailValue
+                                          }
+                                        >
+                                          {carPass.car_tag}
+                                        </Text>
+                                      </View>
+                                    )}
                                   </View>
-                                )}
-                              </View>
-                            </View>
-                          ))}
+                                </View>
+                              ),
+                            )}
+                          </View>
                         </View>
-                      </View>
-                    )}
+                      )}
                   </>
                 )}
               </View>
@@ -2709,7 +2810,9 @@ export default function VisitorsScreen({ navigation, route }: Props) {
                           REQUESTED BY
                         </Text>
                         <Text style={styles.legislativeModalDetailValue}>
-                          {userMap.get(selectedRequest.requested_by) || selectedRequest.requested_by || "—"}
+                          {userMap.get(selectedRequest.requested_by) ||
+                            selectedRequest.requested_by ||
+                            "—"}
                         </Text>
                       </View>
                     )}
@@ -2724,56 +2827,119 @@ export default function VisitorsScreen({ navigation, route }: Props) {
                       </View>
                     )}
                     {/* Car Passes Section */}
-                    {selectedVisitor.car_passes && selectedVisitor.car_passes.length > 0 && (
-                      <View style={styles.legislativeModalDetailRow}>
-                        <Text style={styles.legislativeModalDetailLabel}>
-                          CAR PASSES ({selectedVisitor.car_passes.length})
-                        </Text>
-                        <View style={{ marginTop: 8 }}>
-                          {selectedVisitor.car_passes.map((carPass: any, index: number) => (
-                            <View key={index} style={styles.carPassCard}>
-                              <Text style={styles.carPassLabel}>
-                                CAR PASS #{index + 1}
-                              </Text>
-                              <View style={styles.carPassDetails}>
-                                <View style={styles.legislativeModalDetailRow}>
-                                  <Text style={styles.legislativeModalDetailLabel}>MAKE</Text>
-                                  <Text style={styles.legislativeModalDetailValue}>
-                                    {carPass.car_make || "—"}
+                    {selectedVisitor.car_passes &&
+                      selectedVisitor.car_passes.length > 0 && (
+                        <View style={styles.legislativeModalDetailRow}>
+                          <Text style={styles.legislativeModalDetailLabel}>
+                            CAR PASSES ({selectedVisitor.car_passes.length})
+                          </Text>
+                          <View style={{ marginTop: 8 }}>
+                            {selectedVisitor.car_passes.map(
+                              (carPass: any, index: number) => (
+                                <View key={index} style={styles.carPassCard}>
+                                  <Text style={styles.carPassLabel}>
+                                    CAR PASS #{index + 1}
                                   </Text>
-                                </View>
-                                <View style={styles.legislativeModalDetailRow}>
-                                  <Text style={styles.legislativeModalDetailLabel}>MODEL</Text>
-                                  <Text style={styles.legislativeModalDetailValue}>
-                                    {carPass.car_model || "—"}
-                                  </Text>
-                                </View>
-                                <View style={styles.legislativeModalDetailRow}>
-                                  <Text style={styles.legislativeModalDetailLabel}>COLOR</Text>
-                                  <Text style={styles.legislativeModalDetailValue}>
-                                    {carPass.car_color || "—"}
-                                  </Text>
-                                </View>
-                                <View style={styles.legislativeModalDetailRow}>
-                                  <Text style={styles.legislativeModalDetailLabel}>NUMBER</Text>
-                                  <Text style={styles.legislativeModalDetailValue}>
-                                    {carPass.car_number || "—"}
-                                  </Text>
-                                </View>
-                                {carPass.car_tag && (
-                                  <View style={styles.legislativeModalDetailRow}>
-                                    <Text style={styles.legislativeModalDetailLabel}>TAG</Text>
-                                    <Text style={styles.legislativeModalDetailValue}>
-                                      {carPass.car_tag}
-                                    </Text>
+                                  <View style={styles.carPassDetails}>
+                                    <View
+                                      style={styles.legislativeModalDetailRow}
+                                    >
+                                      <Text
+                                        style={
+                                          styles.legislativeModalDetailLabel
+                                        }
+                                      >
+                                        MAKE
+                                      </Text>
+                                      <Text
+                                        style={
+                                          styles.legislativeModalDetailValue
+                                        }
+                                      >
+                                        {carPass.car_make || "—"}
+                                      </Text>
+                                    </View>
+                                    <View
+                                      style={styles.legislativeModalDetailRow}
+                                    >
+                                      <Text
+                                        style={
+                                          styles.legislativeModalDetailLabel
+                                        }
+                                      >
+                                        MODEL
+                                      </Text>
+                                      <Text
+                                        style={
+                                          styles.legislativeModalDetailValue
+                                        }
+                                      >
+                                        {carPass.car_model || "—"}
+                                      </Text>
+                                    </View>
+                                    <View
+                                      style={styles.legislativeModalDetailRow}
+                                    >
+                                      <Text
+                                        style={
+                                          styles.legislativeModalDetailLabel
+                                        }
+                                      >
+                                        COLOR
+                                      </Text>
+                                      <Text
+                                        style={
+                                          styles.legislativeModalDetailValue
+                                        }
+                                      >
+                                        {carPass.car_color || "—"}
+                                      </Text>
+                                    </View>
+                                    <View
+                                      style={styles.legislativeModalDetailRow}
+                                    >
+                                      <Text
+                                        style={
+                                          styles.legislativeModalDetailLabel
+                                        }
+                                      >
+                                        NUMBER
+                                      </Text>
+                                      <Text
+                                        style={
+                                          styles.legislativeModalDetailValue
+                                        }
+                                      >
+                                        {carPass.car_number || "—"}
+                                      </Text>
+                                    </View>
+                                    {carPass.car_tag && (
+                                      <View
+                                        style={styles.legislativeModalDetailRow}
+                                      >
+                                        <Text
+                                          style={
+                                            styles.legislativeModalDetailLabel
+                                          }
+                                        >
+                                          TAG
+                                        </Text>
+                                        <Text
+                                          style={
+                                            styles.legislativeModalDetailValue
+                                          }
+                                        >
+                                          {carPass.car_tag}
+                                        </Text>
+                                      </View>
+                                    )}
                                   </View>
-                                )}
-                              </View>
-                            </View>
-                          ))}
+                                </View>
+                              ),
+                            )}
+                          </View>
                         </View>
-                      </View>
-                    )}
+                      )}
                   </>
                 )}
               </View>
@@ -2789,13 +2955,20 @@ export default function VisitorsScreen({ navigation, route }: Props) {
                   <Text style={styles.legislativeModalInputLabel}>
                     Category
                   </Text>
-                  <View style={[styles.legislativeModalDropdown, { backgroundColor: "#F3F4F6" }]}>
+                  <View
+                    style={[
+                      styles.legislativeModalDropdown,
+                      { backgroundColor: "#F3F4F6" },
+                    ]}
+                  >
                     <Text style={styles.legislativeModalDropdownText}>
                       {selectedRequest && selectedRequest.main_category_id
-                        ? getCategoryNameForLegislative(selectedRequest.main_category_id)
+                        ? getCategoryNameForLegislative(
+                            selectedRequest.main_category_id,
+                          )
                         : selectedCategoryId
-                        ? getCategoryNameForLegislative(selectedCategoryId)
-                        : "—"}
+                          ? getCategoryNameForLegislative(selectedCategoryId)
+                          : "—"}
                     </Text>
                   </View>
                 </View>
@@ -2806,9 +2979,16 @@ export default function VisitorsScreen({ navigation, route }: Props) {
                     <Text style={styles.legislativeModalInputLabel}>
                       Sub-Category
                     </Text>
-                    <View style={[styles.legislativeModalDropdown, { backgroundColor: "#F3F4F6" }]}>
+                    <View
+                      style={[
+                        styles.legislativeModalDropdown,
+                        { backgroundColor: "#F3F4F6" },
+                      ]}
+                    >
                       <Text style={styles.legislativeModalDropdownText}>
-                        {getSubCategoryNameForLegislative(selectedRequest.sub_category_id)}
+                        {getSubCategoryNameForLegislative(
+                          selectedRequest.sub_category_id,
+                        )}
                       </Text>
                     </View>
                   </View>
@@ -2857,12 +3037,24 @@ export default function VisitorsScreen({ navigation, route }: Props) {
                 <View style={styles.legislativeModalInputContainer}>
                   <Text style={styles.legislativeModalInputLabel}>
                     Pass Type<Text style={styles.requiredAsterisk}>*</Text>
-                    {loadingPassTypes && <Text style={{ fontSize: 12, color: "#6B7280", marginLeft: 8 }}>(Loading...)</Text>}
+                    {loadingPassTypes && (
+                      <Text
+                        style={{
+                          fontSize: 12,
+                          color: "#6B7280",
+                          marginLeft: 8,
+                        }}
+                      >
+                        (Loading...)
+                      </Text>
+                    )}
                   </Text>
                   <TouchableOpacity
                     style={styles.legislativeModalDropdown}
                     onPress={() => setShowPassTypeModalLegislative(true)}
-                    disabled={loadingPassTypes || availablePassTypes.length === 0}
+                    disabled={
+                      loadingPassTypes || availablePassTypes.length === 0
+                    }
                   >
                     <Text
                       style={[
@@ -2872,26 +3064,37 @@ export default function VisitorsScreen({ navigation, route }: Props) {
                       ]}
                     >
                       {selectedPassTypeId
-                        ? availablePassTypes.find((pt) => pt.id === selectedPassTypeId)
-                            ?.name || passTypes.find((pt) => pt.id === selectedPassTypeId)?.name || "Select Pass Type"
+                        ? availablePassTypes.find(
+                            (pt) => pt.id === selectedPassTypeId,
+                          )?.name ||
+                          passTypes.find((pt) => pt.id === selectedPassTypeId)
+                            ?.name ||
+                          "Select Pass Type"
                         : loadingPassTypes
-                        ? "Loading pass types..."
-                        : availablePassTypes.length === 0
-                        ? "No pass types available"
-                        : "Select Pass Type"}
+                          ? "Loading pass types..."
+                          : availablePassTypes.length === 0
+                            ? "No pass types available"
+                            : "Select Pass Type"}
                     </Text>
                     <ChevronDownIcon width={20} height={20} />
                   </TouchableOpacity>
                   {!loadingPassTypes && availablePassTypes.length === 1 && (
-                    <Text style={{ fontSize: 12, color: "#10B981", marginTop: 4 }}>
+                    <Text
+                      style={{ fontSize: 12, color: "#10B981", marginTop: 4 }}
+                    >
                       Auto-selected: {availablePassTypes[0].name}
                     </Text>
                   )}
-                  {!loadingPassTypes && availablePassTypes.length === 0 && selectedCategoryId && (
-                    <Text style={{ fontSize: 12, color: "#F59E0B", marginTop: 4 }}>
-                      No pass types are mapped to this category. Please map pass types in the admin portal.
-                    </Text>
-                  )}
+                  {!loadingPassTypes &&
+                    availablePassTypes.length === 0 &&
+                    selectedCategoryId && (
+                      <Text
+                        style={{ fontSize: 12, color: "#F59E0B", marginTop: 4 }}
+                      >
+                        No pass types are mapped to this category. Please map
+                        pass types in the admin portal.
+                      </Text>
+                    )}
                 </View>
 
                 {/* Session */}
@@ -3580,24 +3783,31 @@ export default function VisitorsScreen({ navigation, route }: Props) {
                 "assigned to me",
                 "suspended",
               ].map((status) => {
-                const displayLabel = status === "All Status" 
-                  ? "All Status"
-                  : getStatusLabel(status === "assigned to me" ? "assigned_to_me" : status);
+                const displayLabel =
+                  status === "All Status"
+                    ? "All Status"
+                    : getStatusLabel(
+                        status === "assigned to me" ? "assigned_to_me" : status,
+                      );
                 return (
                   <TouchableOpacity
                     key={status}
                     style={[
                       styles.modalItem,
-                      selectedStatus === displayLabel && styles.modalItemSelected,
+                      selectedStatus === displayLabel &&
+                        styles.modalItemSelected,
                     ]}
                     onPress={() =>
-                      handleStatusSelect(status === "All Status" ? null : status)
+                      handleStatusSelect(
+                        status === "All Status" ? null : status,
+                      )
                     }
                   >
                     <Text
                       style={[
                         styles.modalItemText,
-                        selectedStatus === displayLabel && styles.modalItemTextSelected,
+                        selectedStatus === displayLabel &&
+                          styles.modalItemTextSelected,
                       ]}
                     >
                       {displayLabel}
@@ -3774,7 +3984,11 @@ export default function VisitorsScreen({ navigation, route }: Props) {
               </TouchableOpacity>
               <View style={styles.legislativeModalHeader}>
                 <View style={styles.legislativeModalIconContainer}>
-                  <Ionicons name="arrow-forward-circle" size={48} color="#3B82F6" />
+                  <Ionicons
+                    name="arrow-forward-circle"
+                    size={48}
+                    color="#3B82F6"
+                  />
                 </View>
                 <Text style={styles.legislativeModalTitle}>
                   Route for Superior Approval
@@ -3831,7 +4045,9 @@ export default function VisitorsScreen({ navigation, route }: Props) {
                           REQUESTED BY
                         </Text>
                         <Text style={styles.legislativeModalDetailValue}>
-                          {userMap.get(selectedRequest.requested_by) || selectedRequest.requested_by || "—"}
+                          {userMap.get(selectedRequest.requested_by) ||
+                            selectedRequest.requested_by ||
+                            "—"}
                         </Text>
                       </View>
                     )}
@@ -3841,7 +4057,8 @@ export default function VisitorsScreen({ navigation, route }: Props) {
                           CATEGORY
                         </Text>
                         <Text style={styles.legislativeModalDetailValue}>
-                          {getCategoryName(selectedRequest.main_category_id) || "—"}{" "}
+                          {getCategoryName(selectedRequest.main_category_id) ||
+                            "—"}{" "}
                           {selectedRequest.sub_category_id &&
                             `• ${getSubCategoryName(selectedRequest.sub_category_id)}`}
                         </Text>
@@ -3858,56 +4075,119 @@ export default function VisitorsScreen({ navigation, route }: Props) {
                       </View>
                     )}
                     {/* Car Passes Section */}
-                    {selectedVisitor.car_passes && selectedVisitor.car_passes.length > 0 && (
-                      <View style={styles.legislativeModalDetailRow}>
-                        <Text style={styles.legislativeModalDetailLabel}>
-                          CAR PASSES ({selectedVisitor.car_passes.length})
-                        </Text>
-                        <View style={{ marginTop: 8 }}>
-                          {selectedVisitor.car_passes.map((carPass: any, index: number) => (
-                            <View key={index} style={styles.carPassCard}>
-                              <Text style={styles.carPassLabel}>
-                                CAR PASS #{index + 1}
-                              </Text>
-                              <View style={styles.carPassDetails}>
-                                <View style={styles.legislativeModalDetailRow}>
-                                  <Text style={styles.legislativeModalDetailLabel}>MAKE</Text>
-                                  <Text style={styles.legislativeModalDetailValue}>
-                                    {carPass.car_make || "—"}
+                    {selectedVisitor.car_passes &&
+                      selectedVisitor.car_passes.length > 0 && (
+                        <View style={styles.legislativeModalDetailRow}>
+                          <Text style={styles.legislativeModalDetailLabel}>
+                            CAR PASSES ({selectedVisitor.car_passes.length})
+                          </Text>
+                          <View style={{ marginTop: 8 }}>
+                            {selectedVisitor.car_passes.map(
+                              (carPass: any, index: number) => (
+                                <View key={index} style={styles.carPassCard}>
+                                  <Text style={styles.carPassLabel}>
+                                    CAR PASS #{index + 1}
                                   </Text>
-                                </View>
-                                <View style={styles.legislativeModalDetailRow}>
-                                  <Text style={styles.legislativeModalDetailLabel}>MODEL</Text>
-                                  <Text style={styles.legislativeModalDetailValue}>
-                                    {carPass.car_model || "—"}
-                                  </Text>
-                                </View>
-                                <View style={styles.legislativeModalDetailRow}>
-                                  <Text style={styles.legislativeModalDetailLabel}>COLOR</Text>
-                                  <Text style={styles.legislativeModalDetailValue}>
-                                    {carPass.car_color || "—"}
-                                  </Text>
-                                </View>
-                                <View style={styles.legislativeModalDetailRow}>
-                                  <Text style={styles.legislativeModalDetailLabel}>NUMBER</Text>
-                                  <Text style={styles.legislativeModalDetailValue}>
-                                    {carPass.car_number || "—"}
-                                  </Text>
-                                </View>
-                                {carPass.car_tag && (
-                                  <View style={styles.legislativeModalDetailRow}>
-                                    <Text style={styles.legislativeModalDetailLabel}>TAG</Text>
-                                    <Text style={styles.legislativeModalDetailValue}>
-                                      {carPass.car_tag}
-                                    </Text>
+                                  <View style={styles.carPassDetails}>
+                                    <View
+                                      style={styles.legislativeModalDetailRow}
+                                    >
+                                      <Text
+                                        style={
+                                          styles.legislativeModalDetailLabel
+                                        }
+                                      >
+                                        MAKE
+                                      </Text>
+                                      <Text
+                                        style={
+                                          styles.legislativeModalDetailValue
+                                        }
+                                      >
+                                        {carPass.car_make || "—"}
+                                      </Text>
+                                    </View>
+                                    <View
+                                      style={styles.legislativeModalDetailRow}
+                                    >
+                                      <Text
+                                        style={
+                                          styles.legislativeModalDetailLabel
+                                        }
+                                      >
+                                        MODEL
+                                      </Text>
+                                      <Text
+                                        style={
+                                          styles.legislativeModalDetailValue
+                                        }
+                                      >
+                                        {carPass.car_model || "—"}
+                                      </Text>
+                                    </View>
+                                    <View
+                                      style={styles.legislativeModalDetailRow}
+                                    >
+                                      <Text
+                                        style={
+                                          styles.legislativeModalDetailLabel
+                                        }
+                                      >
+                                        COLOR
+                                      </Text>
+                                      <Text
+                                        style={
+                                          styles.legislativeModalDetailValue
+                                        }
+                                      >
+                                        {carPass.car_color || "—"}
+                                      </Text>
+                                    </View>
+                                    <View
+                                      style={styles.legislativeModalDetailRow}
+                                    >
+                                      <Text
+                                        style={
+                                          styles.legislativeModalDetailLabel
+                                        }
+                                      >
+                                        NUMBER
+                                      </Text>
+                                      <Text
+                                        style={
+                                          styles.legislativeModalDetailValue
+                                        }
+                                      >
+                                        {carPass.car_number || "—"}
+                                      </Text>
+                                    </View>
+                                    {carPass.car_tag && (
+                                      <View
+                                        style={styles.legislativeModalDetailRow}
+                                      >
+                                        <Text
+                                          style={
+                                            styles.legislativeModalDetailLabel
+                                          }
+                                        >
+                                          TAG
+                                        </Text>
+                                        <Text
+                                          style={
+                                            styles.legislativeModalDetailValue
+                                          }
+                                        >
+                                          {carPass.car_tag}
+                                        </Text>
+                                      </View>
+                                    )}
                                   </View>
-                                )}
-                              </View>
-                            </View>
-                          ))}
+                                </View>
+                              ),
+                            )}
+                          </View>
                         </View>
-                      </View>
-                    )}
+                      )}
                   </>
                 )}
               </View>
@@ -3929,13 +4209,16 @@ export default function VisitorsScreen({ navigation, route }: Props) {
                     ]}
                   >
                     {selectedSuperior
-                      ? superiors.find((s: any) => s.id === selectedSuperior)?.full_name || "Select Superior"
+                      ? superiors.find((s: any) => s.id === selectedSuperior)
+                          ?.full_name || "Select Superior"
                       : "Select Superior"}
                   </Text>
                   <ChevronDownIcon width={20} height={20} />
                 </TouchableOpacity>
                 {superiors.length === 0 && (
-                  <Text style={{ fontSize: 12, color: "#F59E0B", marginTop: 4 }}>
+                  <Text
+                    style={{ fontSize: 12, color: "#F59E0B", marginTop: 4 }}
+                  >
                     No active superiors available. Please add superiors first.
                   </Text>
                 )}
@@ -3976,7 +4259,11 @@ export default function VisitorsScreen({ navigation, route }: Props) {
                 <TouchableOpacity
                   style={styles.legislativeModalApproveButton}
                   onPress={executeRoute}
-                  disabled={processingStatus || !selectedSuperior || !routeComments.trim()}
+                  disabled={
+                    processingStatus ||
+                    !selectedSuperior ||
+                    !routeComments.trim()
+                  }
                 >
                   {processingStatus ? (
                     <ActivityIndicator color="#FFFFFF" />
@@ -4025,12 +4312,24 @@ export default function VisitorsScreen({ navigation, route }: Props) {
                         {superior.full_name}
                       </Text>
                       {superior.email && (
-                        <Text style={{ fontSize: 12, color: "#6B7280", marginTop: 2 }}>
+                        <Text
+                          style={{
+                            fontSize: 12,
+                            color: "#6B7280",
+                            marginTop: 2,
+                          }}
+                        >
                           {superior.email}
                         </Text>
                       )}
                       {superior.approval_level && (
-                        <Text style={{ fontSize: 11, color: "#9CA3AF", marginTop: 2 }}>
+                        <Text
+                          style={{
+                            fontSize: 11,
+                            color: "#9CA3AF",
+                            marginTop: 2,
+                          }}
+                        >
                           Level: {superior.approval_level}
                         </Text>
                       )}
