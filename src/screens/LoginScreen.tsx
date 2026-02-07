@@ -116,6 +116,7 @@ export default function LoginScreen({ navigation }: Props) {
             userFullName: response.full_name,
             userId: response.id,
             role: response.role,
+            designation: response.designation ?? undefined,
             hod_approver: response.hod_approver,
             sub_categories: response.sub_categories || [],
           });

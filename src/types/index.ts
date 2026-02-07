@@ -101,6 +101,7 @@ export type RootStackParamList = {
     userFullName?: string;
     userId?: string;
     role?: string;
+    designation?: string;
     hod_approver?: boolean;
     sub_categories?: Array<any>;
   };
@@ -137,11 +138,13 @@ export type RootStackParamList = {
   MyPassRequests: {
     userId?: string;
     userFullName?: string;
+    designation?: string;
     sub_categories?: Array<any>;
   };
   RequestVisitorPass: {
     userId?: string;
     userFullName?: string;
+    designation?: string;
     sub_categories?: Array<any>;
   };
   MyPassRequestDetails: {

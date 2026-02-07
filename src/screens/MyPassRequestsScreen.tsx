@@ -39,6 +39,7 @@ type Props = {
 export default function MyPassRequestsScreen({ navigation, route }: Props) {
   const userId = route.params?.userId || "";
   const userFullName = route.params?.userFullName || "";
+  const designation = route.params?.designation || null;
   const userSubCategories = route.params?.sub_categories || [];
 
   const [requests, setRequests] = useState<any[]>([]);
@@ -156,6 +157,7 @@ export default function MyPassRequestsScreen({ navigation, route }: Props) {
     navigation.navigate("RequestVisitorPass", {
       userId,
       userFullName,
+      designation: designation || undefined,
       sub_categories: userSubCategories,
     });
   };

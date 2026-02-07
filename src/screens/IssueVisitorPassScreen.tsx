@@ -453,10 +453,8 @@ export default function IssueVisitorPassScreen({ navigation, route }: Props) {
       hasError = true;
     }
 
-    if (!email.trim()) {
-      setEmailError("Email is required");
-      hasError = true;
-    } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) {
+    // Validate email format only if email is provided
+    if (email.trim() && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) {
       setEmailError("Please enter a valid email");
       hasError = true;
     }
@@ -898,7 +896,7 @@ export default function IssueVisitorPassScreen({ navigation, route }: Props) {
 
             {/* Email */}
             <Text style={styles.inputLabel}>
-              Email<Text style={styles.required}>*</Text>
+              Email
             </Text>
             <View
               style={[

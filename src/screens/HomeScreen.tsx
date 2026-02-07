@@ -8,12 +8,13 @@ import {
   ActivityIndicator,
   Dimensions,
   Alert,
+  RefreshControl,
 } from "react-native";
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { RouteProp, useFocusEffect } from "@react-navigation/native";
 import { RootStackParamList } from "@/types";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { api, MainCategory } from "@/services/api";
+import { api, MainCategory, PassTypeItem } from "@/services/api";
 import Assembly from "../../assets/assembly.svg";
 import DigitalPass from "../../assets/digitalPass.svg";
 import VisitorIcon from "../../assets/visitor.svg";
@@ -53,6 +54,7 @@ export default function HomeScreen({ navigation, route }: Props) {
   const userRole = route.params?.role || "";
   const hodApprover = route.params?.hod_approver || false;
   const userSubCategories = route.params?.sub_categories || [];
+  const designation = route.params?.designation || null;
 
   // Store userFullName in state to persist it even when navigating back
   const [userFullName, setUserFullName] = useState<string>(
@@ -72,6 +74,7 @@ export default function HomeScreen({ navigation, route }: Props) {
     todayRequests: 0,
   });
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
 
   // Update userFullName from route params if provided (e.g., on initial load or when navigating with params)
   // Only update if route params have userFullName - don't clear it if route params don't have it
@@ -100,24 +103,12 @@ export default function HomeScreen({ navigation, route }: Props) {
 
   useEffect(() => {
     fetchDashboardData();
-
-    // Set up interval to refresh data every 1 minute (60000 ms)
-    const intervalId = setInterval(
-      () => {
-        fetchDashboardData();
-      },
-      5 * 60 * 1000,
-    );
-
-    // Cleanup interval on unmount
-    return () => {
-      clearInterval(intervalId);
-    };
   }, []);
 
   const fetchDashboardData = async () => {
     try {
       setLoading(true);
+      setRefreshing(true);
       let passRequests = await api.getAllPassRequests(10000);
 
       // Filter requests by sub_category_id if role is department or peshi
@@ -136,8 +127,141 @@ export default function HomeScreen({ navigation, route }: Props) {
         });
       }
 
-      // For non-department/peshi roles, use web logic with visitor filtering
-      if (userRole !== "department" && userRole !== "peshi") {
+      // For legislative role, use visitor-level counts (same as VisitorsScreen)
+      if (userRole === "legislative") {
+        // Fetch categories and pass types for buildVisitorRows
+        const allCategories = await api.getMainCategories();
+        const allPassTypes = await api.getAllPassTypes();
+
+        // Helper function to determine visitor status (same logic as VisitorsScreen)
+        const getVisitorStatus = (visitor: any, request: any): string => {
+          // Priority 1: If visitor is suspended, show as suspended (highest priority)
+          if (visitor.is_suspended) {
+            return "suspended";
+          }
+          // Priority 2: If pass has been generated, it's approved
+          if (visitor.pass_generated_at) {
+            return "approved";
+          }
+          // Priority 3: If visitor is individually routed to superior, show as routed
+          if (visitor.visitor_routed_to) {
+            return "routed_for_approval";
+          }
+          // Priority 4: If visitor is rejected, show rejected
+          if (visitor.visitor_status === "rejected") {
+            return "rejected";
+          }
+          // Priority 5: If request is approved, check if pass is generated
+          if (request.status === "approved") {
+            if (visitor.pass_generated_at) {
+              return "approved";
+            } else {
+              return "pending"; // Approved but pass not generated yet
+            }
+          }
+          // Priority 6: If request is routed_for_approval, check routing type
+          if (request.status === "routed_for_approval") {
+            if (!request.routed_by) {
+              return "pending"; // Auto-routed from weblink - show as pending (awaiting legislative approval)
+            } else {
+              return "routed_for_approval"; // Manually routed by HOD
+            }
+          }
+          // Priority 7: If request is pending but routed to legislative, show as pending
+          if (request.routed_to && request.status === "pending") {
+            return "pending"; // Request routed directly to legislative (non-department/peshi categories)
+          }
+          // Priority 8: Otherwise, use visitor status logic
+          if (visitor.visitor_status === "approved" && !visitor.pass_generated_at) {
+            return "pending"; // Pending legislative approval
+          }
+          return visitor.visitor_status || "pending";
+        };
+
+        // Helper function to check if visitor should be shown (same logic as VisitorsScreen)
+        const shouldShowVisitor = (request: any, visitor: any): boolean => {
+          // Check if request is routed to legislative
+          const hasRouting = !!request.routed_to || !!request.routed_at;
+          const isPendingWithRouting = request.status === "pending" && hasRouting;
+          const isRoutedForApproval = request.status === "routed_for_approval";
+          const isRequestApproved = request.status === "approved";
+          const isPassGenerated = !!visitor.pass_generated_at;
+          const isVisitorApprovedOrRejected =
+            visitor.visitor_status === "approved" ||
+            visitor.visitor_status === "rejected";
+          const isVisitorRouted = !!visitor.visitor_routed_to;
+
+          // Show visitor if:
+          // 1. Request is pending but routed to legislative
+          // 2. Request is routed_for_approval
+          // 3. Request is approved
+          // 4. Pass has been generated
+          // 5. Visitor is approved or rejected
+          // 6. Visitor has been routed to superior (show it with routed status)
+          return (
+            isPendingWithRouting ||
+            isRoutedForApproval ||
+            isRequestApproved ||
+            isPassGenerated ||
+            isVisitorApprovedOrRejected ||
+            isVisitorRouted
+          );
+        };
+
+        // Build visitor rows (same logic as VisitorsScreen)
+        const visitorRows: any[] = [];
+        passRequests.forEach((request: any) => {
+          request.visitors?.forEach((visitor: any) => {
+            if (!shouldShowVisitor(request, visitor)) {
+              return; // Skip this visitor (pending department approval)
+            }
+
+            // Determine status with clear priority
+            const visitorStatus = getVisitorStatus(visitor, request);
+
+            visitorRows.push({
+              id: visitor.id,
+              requestId: request.request_id,
+              status: visitorStatus,
+            });
+          });
+        });
+
+        // Calculate stats based on visitor rows (using processed status) - same as VisitorsScreen
+        let pending = 0;
+        let routed = 0;
+        let approved = 0;
+        let rejected = 0;
+        let suspended = 0;
+
+        visitorRows.forEach((visitorRow) => {
+          const status = visitorRow.status;
+          if (status === "suspended") {
+            suspended++;
+          } else if (status === "routed_for_approval") {
+            routed++;
+          } else if (status === "approved") {
+            approved++;
+          } else if (status === "rejected") {
+            rejected++;
+          } else if (status === "pending") {
+            pending++;
+          }
+        });
+
+        // Total visitors is the sum of all categories
+        const totalVisitors = pending + routed + approved + rejected + suspended;
+
+        setDashboardData({
+          totalRequests: visitorRows.length > 0 ? new Set(visitorRows.map((vr) => vr.requestId)).size : 0,
+          pendingRequests: pending, // Visitor-level count
+          approvedRequests: approved, // Visitor-level count
+          rejectedRequests: rejected, // Visitor-level count
+          routedRequests: routed, // Visitor-level count
+          totalVisitors,
+        });
+      } else if (userRole !== "department" && userRole !== "peshi") {
+        // For other non-department/peshi roles, use web logic with visitor filtering
         // Helper function to check if visitor should be shown (same logic as visitors page)
         const shouldShowVisitor = (request: any, visitor: any): boolean => {
           // Check if request is routed to legislative (either pending with routing or routed_for_approval)
@@ -420,8 +544,13 @@ export default function HomeScreen({ navigation, route }: Props) {
       });
     } finally {
       setLoading(false);
+      setRefreshing(false);
     }
   };
+
+  const onRefresh = useCallback(() => {
+    fetchDashboardData();
+  }, []);
 
   const handleLogout = () => {
     Alert.alert("Logout", "Do you want to log out?", [
@@ -443,6 +572,7 @@ export default function HomeScreen({ navigation, route }: Props) {
       navigation.navigate("MyPassRequests", {
         userId,
         userFullName,
+        designation: designation || undefined,
         sub_categories: userSubCategories,
       });
     } else {
@@ -509,6 +639,9 @@ export default function HomeScreen({ navigation, route }: Props) {
         showsVerticalScrollIndicator={true}
         showsHorizontalScrollIndicator={false}
         style={styles.scrollView}
+        refreshControl={
+          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
+        }
       >
         {/* Dashboard Section */}
         <View style={styles.dashboardSectionContainer}>
@@ -530,24 +663,20 @@ export default function HomeScreen({ navigation, route }: Props) {
               </View>
             ) : (
               <View style={styles.metricsContainer}>
-                {/* Total Requests */}
-                <View style={[styles.metricCard, styles.totalRequestsCard]}>
+                {/* Total Visitors */}
+                <View style={[styles.metricCard, styles.totalVisitorsCard]}>
                   <View style={styles.iconAndCountContainer}>
-                    <View style={[styles.iconBox, styles.totalRequestsIconBox]}>
-                      <View style={styles.documentIcon}>
-                        <View style={styles.documentLine} />
-                        <View style={[styles.documentLine, { width: "60%" }]} />
-                        <View style={[styles.documentLine, { width: "80%" }]} />
-                      </View>
+                    <View style={[styles.iconBox, styles.totalVisitorsIconBox]}>
+                      <VisitorIcon width={16} height={16} />
                     </View>
                     <Text
-                      style={[styles.metricValue, styles.totalRequestsValue]}
+                      style={[styles.metricValue, styles.totalVisitorsValue]}
                     >
-                      {dashboardData.totalRequests}
+                      {dashboardData.totalVisitors}
                     </Text>
                   </View>
-                  <Text style={[styles.metricLabel, styles.totalRequestsLabel]}>
-                    TOTAL REQUESTS
+                  <Text style={[styles.metricLabel, styles.totalVisitorsLabel]}>
+                    VISITORS
                   </Text>
                 </View>
 
@@ -676,20 +805,24 @@ export default function HomeScreen({ navigation, route }: Props) {
                   </Text>
                 </View>
 
-                {/* Total Visitors */}
-                <View style={[styles.metricCard, styles.totalVisitorsCard]}>
+                {/* Total Requests */}
+                <View style={[styles.metricCard, styles.totalRequestsCard]}>
                   <View style={styles.iconAndCountContainer}>
-                    <View style={[styles.iconBox, styles.totalVisitorsIconBox]}>
-                      <VisitorIcon width={16} height={16} />
+                    <View style={[styles.iconBox, styles.totalRequestsIconBox]}>
+                      <View style={styles.documentIcon}>
+                        <View style={styles.documentLine} />
+                        <View style={[styles.documentLine, { width: "60%" }]} />
+                        <View style={[styles.documentLine, { width: "80%" }]} />
+                      </View>
                     </View>
                     <Text
-                      style={[styles.metricValue, styles.totalVisitorsValue]}
+                      style={[styles.metricValue, styles.totalRequestsValue]}
                     >
-                      {dashboardData.totalVisitors}
+                      {dashboardData.totalRequests}
                     </Text>
                   </View>
-                  <Text style={[styles.metricLabel, styles.totalVisitorsLabel]}>
-                    VISITORS
+                  <Text style={[styles.metricLabel, styles.totalRequestsLabel]}>
+                    TOTAL REQUESTS
                   </Text>
                 </View>
               </View>

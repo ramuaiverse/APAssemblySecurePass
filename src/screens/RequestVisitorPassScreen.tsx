@@ -44,6 +44,7 @@ type Props = {
     params?: {
       userFullName?: string;
       userId?: string;
+      designation?: string;
       sub_categories?: Array<{ id: string; name: string }>;
     };
   };
@@ -149,6 +150,9 @@ export default function RequestVisitorPassScreen({ navigation, route }: Props) {
   const [passCategory, setPassCategory] = useState("");
   const [requestedBy, setRequestedBy] = useState(
     route.params?.userFullName || "",
+  );
+  const [designation, setDesignation] = useState(
+    route.params?.designation || "",
   );
   const [session, setSession] = useState("");
   const [sessionId, setSessionId] = useState<string | null>(null);
@@ -322,6 +326,7 @@ export default function RequestVisitorPassScreen({ navigation, route }: Props) {
     setPassTypes([]);
     setAllPassTypes([]);
     setRequestedBy(route.params?.userFullName || "");
+    setDesignation(route.params?.designation || "");
     setSession("");
     setSessionId(null);
     setComments("");
@@ -612,10 +617,11 @@ export default function RequestVisitorPassScreen({ navigation, route }: Props) {
         visitorHasError = true;
       }
 
-      if (!visitor.email.trim()) {
-        errors.emailError = "Email is required";
-        visitorHasError = true;
-      } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(visitor.email.trim())) {
+      // Validate email format only if email is provided
+      if (
+        visitor.email.trim() &&
+        !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(visitor.email.trim())
+      ) {
         errors.emailError = "Please enter a valid email";
         visitorHasError = true;
       }
@@ -1240,6 +1246,20 @@ export default function RequestVisitorPassScreen({ navigation, route }: Props) {
               />
             </View>
             <Text style={styles.helperText}>Auto-filled with your name</Text>
+
+            {/* Designation */}
+            <Text style={styles.inputLabel}>Designation</Text>
+            <View style={styles.inputContainer}>
+              <TextInput
+                style={styles.input}
+                placeholder="Enter designation"
+                placeholderTextColor="#ADAEBC"
+                value={designation}
+                onChangeText={setDesignation}
+                editable={false}
+              />
+            </View>
+            <Text style={styles.helperText}>Auto-filled from login</Text>
           </View>
 
           {/* Visitors Section */}
@@ -1409,9 +1429,7 @@ export default function RequestVisitorPassScreen({ navigation, route }: Props) {
                       ) : null}
 
                       {/* Email */}
-                      <Text style={styles.inputLabel}>
-                        Email<Text style={styles.required}>*</Text>
-                      </Text>
+                      <Text style={styles.inputLabel}>Email</Text>
                       <View
                         style={[
                           styles.inputContainer,

@@ -585,16 +585,19 @@ export default function StatusAndApprovalsScreen({ navigation, route }: Props) {
         );
         setPasses(transformedRequests);
 
-        // Initialize all cards as expanded by default
+        // Initialize only first request as expanded by default
         const initialExpandedRequests = new Set<string>();
         const initialExpandedVisitorDetails = new Set<string>();
 
-        transformedRequests.forEach((request) => {
-          initialExpandedRequests.add(request.id);
-          request.visitors.forEach((visitor: any, index: number) => {
-            const visitorId = visitor.id || `${request.id}-${index}`;
-            initialExpandedVisitorDetails.add(visitorId);
-          });
+        transformedRequests.forEach((request, requestIndex) => {
+          // Only expand the first request
+          if (requestIndex === 0) {
+            initialExpandedRequests.add(request.id);
+            request.visitors.forEach((visitor: any, index: number) => {
+              const visitorId = visitor.id || `${request.id}-${index}`;
+              initialExpandedVisitorDetails.add(visitorId);
+            });
+          }
         });
 
         setExpandedRequests(initialExpandedRequests);
@@ -651,16 +654,19 @@ export default function StatusAndApprovalsScreen({ navigation, route }: Props) {
       );
       setPasses(transformedRequests);
 
-      // Initialize all cards as expanded by default
+      // Initialize only first request as expanded by default
       const initialExpandedRequests = new Set<string>();
       const initialExpandedVisitorDetails = new Set<string>();
 
-      transformedRequests.forEach((request) => {
-        initialExpandedRequests.add(request.id);
-        request.visitors.forEach((visitor: any, index: number) => {
-          const visitorId = visitor.id || `${request.id}-${index}`;
-          initialExpandedVisitorDetails.add(visitorId);
-        });
+      transformedRequests.forEach((request, requestIndex) => {
+        // Only expand the first request
+        if (requestIndex === 0) {
+          initialExpandedRequests.add(request.id);
+          request.visitors.forEach((visitor: any, index: number) => {
+            const visitorId = visitor.id || `${request.id}-${index}`;
+            initialExpandedVisitorDetails.add(visitorId);
+          });
+        }
       });
 
       setExpandedRequests(initialExpandedRequests);
@@ -738,16 +744,19 @@ export default function StatusAndApprovalsScreen({ navigation, route }: Props) {
       );
       setPasses(transformedRequests);
 
-      // Initialize all cards as expanded by default
+      // Initialize only first request as expanded by default
       const initialExpandedRequests = new Set<string>();
       const initialExpandedVisitorDetails = new Set<string>();
 
-      transformedRequests.forEach((request) => {
-        initialExpandedRequests.add(request.id);
-        request.visitors.forEach((visitor: any, index: number) => {
-          const visitorId = visitor.id || `${request.id}-${index}`;
-          initialExpandedVisitorDetails.add(visitorId);
-        });
+      transformedRequests.forEach((request, requestIndex) => {
+        // Only expand the first request
+        if (requestIndex === 0) {
+          initialExpandedRequests.add(request.id);
+          request.visitors.forEach((visitor: any, index: number) => {
+            const visitorId = visitor.id || `${request.id}-${index}`;
+            initialExpandedVisitorDetails.add(visitorId);
+          });
+        }
       });
 
       setExpandedRequests(initialExpandedRequests);
@@ -802,16 +811,19 @@ export default function StatusAndApprovalsScreen({ navigation, route }: Props) {
       );
       setPasses(transformedRequests);
 
-      // Initialize all cards as expanded by default
+      // Initialize only first request as expanded by default
       const initialExpandedRequests = new Set<string>();
       const initialExpandedVisitorDetails = new Set<string>();
 
-      transformedRequests.forEach((request) => {
-        initialExpandedRequests.add(request.id);
-        request.visitors.forEach((visitor: any, index: number) => {
-          const visitorId = visitor.id || `${request.id}-${index}`;
-          initialExpandedVisitorDetails.add(visitorId);
-        });
+      transformedRequests.forEach((request, requestIndex) => {
+        // Only expand the first request
+        if (requestIndex === 0) {
+          initialExpandedRequests.add(request.id);
+          request.visitors.forEach((visitor: any, index: number) => {
+            const visitorId = visitor.id || `${request.id}-${index}`;
+            initialExpandedVisitorDetails.add(visitorId);
+          });
+        }
       });
 
       setExpandedRequests(initialExpandedRequests);

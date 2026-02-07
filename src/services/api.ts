@@ -17,6 +17,7 @@ export interface LoginResponse {
   mobile: string;
   employee_id: string | null;
   role: string;
+  designation: string | null;
   approval_level: string | null;
   hod_approver: boolean;
   legislative_approver: boolean;

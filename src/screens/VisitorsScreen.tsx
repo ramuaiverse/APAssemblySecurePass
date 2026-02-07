@@ -568,16 +568,19 @@ export default function VisitorsScreen({ navigation, route }: Props) {
 
       setPassRequests(processedRequests);
 
-      // Initialize all cards as expanded (open) by default
+      // Initialize only first request as expanded (open) by default
       const initialExpandedRows: ExpandedRow = {};
       const initialExpandedVisitors: ExpandedVisitor = {};
 
-      processedRequests.forEach((req) => {
-        initialExpandedRows[req.id] = true;
-        req.visitors?.forEach((visitor: any, index: number) => {
-          const visitorId = visitor.id || `${req.id}-${index}`;
-          initialExpandedVisitors[visitorId] = true;
-        });
+      processedRequests.forEach((req, requestIndex) => {
+        // Only expand the first request
+        if (requestIndex === 0) {
+          initialExpandedRows[req.id] = true;
+          req.visitors?.forEach((visitor: any, index: number) => {
+            const visitorId = visitor.id || `${req.id}-${index}`;
+            initialExpandedVisitors[visitorId] = true;
+          });
+        }
       });
 
       setExpandedRows(initialExpandedRows);
@@ -1801,7 +1804,7 @@ export default function VisitorsScreen({ navigation, route }: Props) {
           {/* Request Cards */}
           <View style={styles.cardsListContainer}>
             {displayedRequests.map((request) => {
-              const isExpanded = expandedRows[request.id] ?? true;
+              const isExpanded = expandedRows[request.id] ?? false;
               const statusCounts = getVisitorStatusCounts(
                 request.visitors || [],
                 request.visitorRows || [],
