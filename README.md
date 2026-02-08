@@ -1,4 +1,4 @@
-# AP Legislature Digital Pass
+# APLDP
 
 Secure pass application for AP Legislature - A React Native Expo app for scanning, validating, and issuing visitor passes.
 
@@ -264,40 +264,45 @@ The application consists of 23 screens organized by functionality:
 ### Dashboard & Navigation (1 screen)
 
 11. **HomeScreen** - Role-based dashboard showing:
-   - Statistics cards (Total Requests, Pending, Approved, Routed, Rejected, Visitors)
-   - Quick action cards (Insta Pass/Request Pass, Visitors/Status & Approvals)
-   - Different metrics and actions based on user role (legislative, department, peshi)
+
+- Statistics cards (Total Requests, Pending, Approved, Routed, Rejected, Visitors)
+- Quick action cards (Insta Pass/Request Pass, Visitors/Status & Approvals)
+- Different metrics and actions based on user role (legislative, department, peshi)
 
 ### Visitor Management Screens (3 screens)
 
 12. **VisitorsScreen** - Comprehensive visitor request management for legislative users:
-   - Filtering by status, pass type, category, date
-   - Search functionality
-   - Lazy loading with infinite scroll
-   - Approve, reject, route for approval actions
-   - Suspend/activate visitor passes
-   - View visitor details
+
+- Filtering by status, pass type, category, date
+- Search functionality
+- Lazy loading with infinite scroll
+- Approve, reject, route for approval actions
+- Suspend/activate visitor passes
+- View visitor details
 
 13. **VisitorDetailsScreen** - Detailed visitor pass view showing:
-   - Visitor information (name, email, phone, identification, car passes)
-   - Request information
-   - Dates & timeline
-   - Approval timeline with status history
-   - Pass information (if generated)
+
+- Visitor information (name, email, phone, identification, car passes)
+- Request information
+- Dates & timeline
+- Approval timeline with status history
+- Pass information (if generated)
 
 14. **RequestDetailsScreen** - Request details view showing:
-   - Visitor information with car pass details
-   - Request information
-   - Timeline of request status changes
+
+- Visitor information with car pass details
+- Request information
+- Timeline of request status changes
 
 ### Department & Peshi User Screens (4 screens)
 
 15. **StatusAndApprovalsScreen** - Pass requests and approval screen for department and peshi users:
-   - View all pass requests filtered by role (department/peshi)
-   - Filter by status, date, and search
-   - Approve/reject individual visitors or bulk actions
-   - HOD approval workflow
-   - Lazy loading support
+
+- View all pass requests filtered by role (department/peshi)
+- Filter by status, date, and search
+- Approve/reject individual visitors or bulk actions
+- HOD approval workflow
+- Lazy loading support
 
 16. **MyPassRequestsScreen** - List of user's own pass requests (department/peshi users)
 17. **RequestVisitorPassScreen** - Form to request a new visitor pass (department/peshi users)
@@ -306,10 +311,11 @@ The application consists of 23 screens organized by functionality:
 ### Legislative Approval Screens (3 screens)
 
 19. **LegislativeApproveScreen** - Screen for legislative users to approve visitor requests:
-   - View visitor and request details
-   - Select pass type and session
-   - Approve and generate pass
-   - Car pass information display
+
+- View visitor and request details
+- Select pass type and session
+- Approve and generate pass
+- Car pass information display
 
 20. **LegislativeRejectScreen** - Screen for legislative users to reject visitor requests with reason
 21. **LegislativeRouteScreen** - Screen for legislative users to route requests to superiors for approval
@@ -317,18 +323,20 @@ The application consists of 23 screens organized by functionality:
 ### Pass Issuance Screens (2 screens)
 
 22. **IssueVisitorPassScreen** - Form to create new visitor pass instantly (legislative users):
-   - Category and sub-category selection
-   - Pass type selection
-   - Visitor information form
-   - Session selection
-   - Date and time selection
-   - File uploads (photos, documents)
-   - Car pass information
+
+- Category and sub-category selection
+- Pass type selection
+- Visitor information form
+- Session selection
+- Date and time selection
+- File uploads (photos, documents)
+- Car pass information
 
 23. **PreviewPassScreen** - Preview generated pass with QR code:
-   - Pass details display
-   - QR code visualization
-   - Share and print options
+
+- Pass details display
+- QR code visualization
+- Share and print options
 
 ## Features & Functionality
 
