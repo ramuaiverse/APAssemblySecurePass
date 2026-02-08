@@ -2,6 +2,9 @@
 export const API_BASE_URL =
   "https://category-service-714903368119.us-central1.run.app";
 
+export const STAGE_API_BASE_URL =
+  "https://apld-stg-apiserivce-714903368119.us-central1.run.app";
+
 // UserLoginRequest schema from new API
 export interface LoginRequest {
   username: string;
