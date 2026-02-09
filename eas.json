@@ -30,6 +30,24 @@
       "android": {
         "buildType": "apk"
       }
+    },
+    "production-aab": {
+      "ios": {
+        "resourceClass": "m-medium"
+      },
+      "android": {
+        "buildType": "app-bundle"
+      }
+    },
+    "preview-aab": {
+      "distribution": "internal",
+      "ios": {
+        "resourceClass": "m-medium",
+        "simulator": true
+      },
+      "android": {
+        "buildType": "app-bundle"
+      }
     }
   },
   "submit": {
