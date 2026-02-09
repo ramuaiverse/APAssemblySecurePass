@@ -31,6 +31,7 @@ import BackButtonIcon from "../../assets/backButton.svg";
 import ChevronDownIcon from "../../assets/chevronDown.svg";
 import CalendarIcon from "../../assets/calendar.svg";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { handleLogout } from "@/utils/logout";
 
 type IssueVisitorPassScreenNavigationProp = NativeStackNavigationProp<
   RootStackParamList,
@@ -219,21 +220,6 @@ export default function IssueVisitorPassScreen({ navigation, route }: Props) {
       resetForm();
     }, []),
   );
-
-  const handleLogout = () => {
-    Alert.alert("Logout", "Do you want to log out?", [
-      {
-        text: "Cancel",
-        style: "cancel",
-      },
-      {
-        text: "Yes",
-        onPress: () => {
-          navigation.replace("LoginMethodSelection");
-        },
-      },
-    ]);
-  };
 
   // Format date and time together
   const formatDateTime = (date: Date): string => {
@@ -829,7 +815,7 @@ export default function IssueVisitorPassScreen({ navigation, route }: Props) {
           <View style={styles.headerContent}>
             <Text style={styles.headerTitle}>Insta Pass</Text>
           </View>
-          <TouchableOpacity onPress={handleLogout} style={styles.headerButton}>
+          <TouchableOpacity onPress={() => handleLogout(navigation)} style={styles.headerButton}>
             <LogOutIcon width={24} height={24} />
           </TouchableOpacity>
         </View>

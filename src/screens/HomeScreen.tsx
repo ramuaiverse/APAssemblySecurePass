@@ -15,6 +15,7 @@ import { RouteProp, useFocusEffect } from "@react-navigation/native";
 import { RootStackParamList } from "@/types";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { api, MainCategory, PassTypeItem } from "@/services/api";
+import { handleLogout } from "@/utils/logout";
 import Assembly from "../../assets/assembly.svg";
 import DigitalPass from "../../assets/digitalPass.svg";
 import VisitorIcon from "../../assets/visitor.svg";
@@ -552,20 +553,6 @@ export default function HomeScreen({ navigation, route }: Props) {
     fetchDashboardData();
   }, []);
 
-  const handleLogout = () => {
-    Alert.alert("Logout", "Do you want to log out?", [
-      {
-        text: "Cancel",
-        style: "cancel",
-      },
-      {
-        text: "Yes",
-        onPress: () => {
-          navigation.replace("LoginMethodSelection");
-        },
-      },
-    ]);
-  };
 
   const handleInstaPass = () => {
     if (userRole === "department" || userRole === "peshi") {
@@ -628,7 +615,7 @@ export default function HomeScreen({ navigation, route }: Props) {
               </Text>
             )}
           </View>
-          <TouchableOpacity onPress={handleLogout} style={styles.logoutButton}>
+          <TouchableOpacity onPress={() => handleLogout(navigation)} style={styles.logoutButton}>
             <LogOutIcon width={20} height={20} />
           </TouchableOpacity>
         </View>

@@ -13,6 +13,7 @@ import { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { RouteProp, useFocusEffect } from "@react-navigation/native";
 import { RootStackParamList } from "@/types";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { handleLogout } from "@/utils/logout";
 import { api, MainCategory } from "@/services/api";
 import { Ionicons } from "@expo/vector-icons";
 import BackButtonIcon from "../../assets/backButton.svg";
@@ -138,20 +139,6 @@ export default function MyPassRequestsScreen({ navigation, route }: Props) {
     }
   };
 
-  const handleLogout = () => {
-    Alert.alert("Logout", "Do you want to log out?", [
-      {
-        text: "Cancel",
-        style: "cancel",
-      },
-      {
-        text: "Yes",
-        onPress: () => {
-          navigation.replace("LoginMethodSelection");
-        },
-      },
-    ]);
-  };
 
   const handleNewRequest = () => {
     navigation.navigate("RequestVisitorPass", {
@@ -260,7 +247,7 @@ export default function MyPassRequestsScreen({ navigation, route }: Props) {
           <View style={styles.headerContent}>
             <Text style={styles.headerTitle}>My Pass Requests</Text>
           </View>
-          <TouchableOpacity onPress={handleLogout} style={styles.logoutButton}>
+          <TouchableOpacity onPress={() => handleLogout(navigation)} style={styles.logoutButton}>
             <LogOutIcon width={22} height={22} />
           </TouchableOpacity>
         </View>

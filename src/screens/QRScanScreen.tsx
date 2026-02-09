@@ -18,6 +18,8 @@ import { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { RouteProp, useFocusEffect } from "@react-navigation/native";
 import { RootStackParamList } from "@/types";
 import { api } from "@/services/api";
+import { authStorage } from "@/utils/authStorage";
+import { handleLogout } from "@/utils/logout";
 import { Alert } from "react-native";
 import FlashIcon from "../../assets/flash.svg";
 import LogOutIcon from "../../assets/logOut.svg";
@@ -115,20 +117,6 @@ export default function QRScanScreen({ navigation, route }: Props) {
     }, [navigation]),
   );
 
-  const handleLogout = async () => {
-    Alert.alert("Logout", "Do you want to log out?", [
-      {
-        text: "Cancel",
-        style: "cancel",
-      },
-      {
-        text: "Yes",
-        onPress: () => {
-          navigation.replace("LoginMethodSelection");
-        },
-      },
-    ]);
-  };
 
   const handleUniqueIdValidation = async () => {
     const idString = uniqueId.join("");
@@ -206,6 +194,7 @@ export default function QRScanScreen({ navigation, route }: Props) {
             text: "OK",
             onPress: async () => {
               isProcessingRef.current = false;
+              await authStorage.clearAuthData();
               navigation.replace("LoginMethodSelection");
             },
           },
@@ -409,6 +398,7 @@ export default function QRScanScreen({ navigation, route }: Props) {
             text: "OK",
             onPress: async () => {
               isProcessingRef.current = false;
+              await authStorage.clearAuthData();
               navigation.replace("LoginMethodSelection");
             },
           },
@@ -471,7 +461,7 @@ export default function QRScanScreen({ navigation, route }: Props) {
         <Text style={styles.headerTitle}>
           {activeTab === "scan" ? "Scan QR Code" : "Scan or Unique ID"}
         </Text>
-        <TouchableOpacity onPress={handleLogout} style={styles.headerButton}>
+        <TouchableOpacity onPress={() => handleLogout(navigation)} style={styles.headerButton}>
           <LogOutIcon width={24} height={24} />
         </TouchableOpacity>
       </View>

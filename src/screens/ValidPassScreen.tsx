@@ -30,6 +30,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import AssemblyIcon from "../../assets/assembly.svg";
 import BackGroundIcon from "../../assets/backGround.svg";
 import { api } from "@/services/api";
+import { handleLogout } from "@/utils/logout";
 
 type ValidPassScreenNavigationProp = NativeStackNavigationProp<
   RootStackParamList,
@@ -221,21 +222,6 @@ export default function ValidPassScreen({ navigation, route }: Props) {
     setSuspendReason("");
   };
 
-  const handleLogout = () => {
-    Alert.alert("Logout", "Do you want to log out?", [
-      {
-        text: "Cancel",
-        style: "cancel",
-      },
-      {
-        text: "Yes",
-        onPress: () => {
-          navigation.replace("LoginMethodSelection");
-        },
-      },
-    ]);
-  };
-
   const handleTakePhoto = async () => {
     if (openingCamera) {
       // Prevent multiple rapid taps while camera is opening
@@ -339,7 +325,7 @@ export default function ValidPassScreen({ navigation, route }: Props) {
           <BackButtonIcon width={10} height={24} />
         </TouchableOpacity>
         <View style={styles.headerButton} />
-        <TouchableOpacity onPress={handleLogout} style={styles.headerButton}>
+        <TouchableOpacity onPress={() => handleLogout(navigation)} style={styles.headerButton}>
           <LogOutIcon width={24} height={24} />
         </TouchableOpacity>
       </View>

@@ -12,6 +12,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { RouteProp, useFocusEffect } from "@react-navigation/native";
 import { RootStackParamList } from "@/types";
+import { handleLogout } from "@/utils/logout";
 import LogOutIcon from "../../assets/logOut.svg";
 import BackButtonIcon from "../../assets/backButton.svg";
 
@@ -79,20 +80,6 @@ export default function InvalidPassScreen({ navigation, route }: Props) {
     }, [navigation]),
   );
 
-  const handleLogout = () => {
-    Alert.alert("Logout", "Do you want to log out?", [
-      {
-        text: "Cancel",
-        style: "cancel",
-      },
-      {
-        text: "Yes",
-        onPress: () => {
-          navigation.replace("LoginMethodSelection");
-        },
-      },
-    ]);
-  };
 
   return (
     <LinearGradient
@@ -105,7 +92,7 @@ export default function InvalidPassScreen({ navigation, route }: Props) {
           <BackButtonIcon width={20} height={20} />
         </TouchableOpacity>
         <View style={styles.headerButton} />
-        <TouchableOpacity onPress={handleLogout} style={styles.headerButton}>
+        <TouchableOpacity onPress={() => handleLogout(navigation)} style={styles.headerButton}>
           <LogOutIcon width={24} height={24} />
         </TouchableOpacity>
       </View>

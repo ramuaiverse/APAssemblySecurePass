@@ -15,6 +15,7 @@ import { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { RootStackParamList } from "@/types";
 import { api } from "@/services/api";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { authStorage } from "@/utils/authStorage";
 import Assembly from "../../assets/assembly.svg";
 import DigitalPass from "../../assets/digitalPass.svg";
 import UserNameIcon from "../../assets/userName.svg";
@@ -109,19 +110,49 @@ export default function LoginScreen({ navigation }: Props) {
           return;
         }
 
-        // Navigate based on selected login mode
-        // Login navigation - navigate to Home screen
+        // Save auth data to storage
         if (activeTab === "login") {
-          navigation.replace("Home", {
+          await authStorage.saveAuthData({
             userFullName: response.full_name,
             userId: response.id,
             role: response.role,
             designation: response.designation ?? undefined,
             hod_approver: response.hod_approver,
             sub_categories: response.sub_categories || [],
+            loginType: activeTab,
+            initialScreen: "Home",
+          });
+          
+          // Reset navigation stack to Home screen (prevents back gesture to login screens)
+          navigation.reset({
+            index: 0,
+            routes: [
+              {
+                name: "Home",
+                params: {
+                  userFullName: response.full_name,
+                  userId: response.id,
+                  role: response.role,
+                  designation: response.designation ?? undefined,
+                  hod_approver: response.hod_approver,
+                  sub_categories: response.sub_categories || [],
+                },
+              },
+            ],
           });
         } else {
-          navigation.replace("PreCheck");
+          await authStorage.saveAuthData({
+            userId: response.id,
+            userFullName: response.full_name,
+            loginType: activeTab,
+            initialScreen: "PreCheck",
+          });
+          
+          // Reset navigation stack to PreCheck screen (prevents back gesture to login screens)
+          navigation.reset({
+            index: 0,
+            routes: [{ name: "PreCheck" }],
+          });
         }
       } else {
         // If user is not active or no ID, show an error

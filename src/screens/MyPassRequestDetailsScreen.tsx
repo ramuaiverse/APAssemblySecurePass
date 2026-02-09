@@ -13,6 +13,7 @@ import { RouteProp } from "@react-navigation/native";
 import { RootStackParamList } from "@/types";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { api, MainCategory, PassTypeItem } from "@/services/api";
+import { handleLogout } from "@/utils/logout";
 import {
   Ionicons,
   MaterialIcons,
@@ -210,21 +211,6 @@ export default function MyPassRequestDetailsScreen({
     return "pending";
   };
 
-  const handleLogout = () => {
-    Alert.alert("Logout", "Do you want to log out?", [
-      {
-        text: "Cancel",
-        style: "cancel",
-      },
-      {
-        text: "Yes",
-        onPress: () => {
-          navigation.replace("LoginMethodSelection");
-        },
-      },
-    ]);
-  };
-
   const toggleVisitorExpansion = (visitorId: string) => {
     setExpandedVisitors((prev) => ({
       ...prev,
@@ -255,7 +241,7 @@ export default function MyPassRequestDetailsScreen({
         <View style={styles.headerTitleContainer}>
           <Text style={styles.headerTitle}>Request Details</Text>
         </View>
-        <TouchableOpacity onPress={handleLogout} style={styles.logoutButton}>
+        <TouchableOpacity onPress={() => handleLogout(navigation)} style={styles.logoutButton}>
           <LogOutIcon width={22} height={22} />
         </TouchableOpacity>
       </View>

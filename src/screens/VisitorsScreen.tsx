@@ -17,6 +17,7 @@ import { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { RouteProp, useFocusEffect } from "@react-navigation/native";
 import { RootStackParamList } from "@/types";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { handleLogout } from "@/utils/logout";
 import {
   api,
   MainCategory,
@@ -1025,20 +1026,6 @@ export default function VisitorsScreen({ navigation, route }: Props) {
     navigation.navigate("VisitorDetails", { request, visitor, role: userRole });
   };
 
-  const handleLogout = () => {
-    Alert.alert("Logout", "Do you want to log out?", [
-      {
-        text: "Cancel",
-        style: "cancel",
-      },
-      {
-        text: "Yes",
-        onPress: () => {
-          navigation.replace("LoginMethodSelection");
-        },
-      },
-    ]);
-  };
 
   // Handler for Resend WhatsApp
   const handleResendWhatsApp = async (request: any, visitor: any) => {
@@ -1680,7 +1667,7 @@ export default function VisitorsScreen({ navigation, route }: Props) {
         <View style={styles.headerTitleContainer}>
           <Text style={styles.headerTitle}>Visitors</Text>
         </View>
-        <TouchableOpacity onPress={handleLogout} style={styles.logoutButton}>
+        <TouchableOpacity onPress={() => handleLogout(navigation)} style={styles.logoutButton}>
           <LogOutIcon width={24} height={24} />
         </TouchableOpacity>
       </View>

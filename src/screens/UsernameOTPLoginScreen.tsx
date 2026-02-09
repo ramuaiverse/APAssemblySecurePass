@@ -14,6 +14,7 @@ import {
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { RootStackParamList } from "@/types";
 import { api } from "@/services/api";
+import { authStorage } from "@/utils/authStorage";
 import { SafeAreaView } from "react-native-safe-area-context";
 import Assembly from "../../assets/assembly.svg";
 import DigitalPass from "../../assets/digitalPass.svg";
@@ -103,14 +104,41 @@ export default function UsernameOTPLoginScreen({ navigation }: Props) {
 
       // Check if user is active and login is successful
       if (response.id && response.is_active) {
-        // Navigate based on selected login mode (same as LoginScreen)
+        // Save auth data to storage
         if (activeTab === "admin") {
-          navigation.replace("IssueVisitorPass", {
+          await authStorage.saveAuthData({
             userFullName: response.full_name,
             userId: response.id,
+            loginType: activeTab,
+            initialScreen: "IssueVisitorPass",
+          });
+          
+          // Reset navigation stack to IssueVisitorPass screen (prevents back gesture to login screens)
+          navigation.reset({
+            index: 0,
+            routes: [
+              {
+                name: "IssueVisitorPass",
+                params: {
+                  userFullName: response.full_name,
+                  userId: response.id,
+                },
+              },
+            ],
           });
         } else {
-          navigation.replace("PreCheck");
+          await authStorage.saveAuthData({
+            userId: response.id,
+            userFullName: response.full_name,
+            loginType: activeTab,
+            initialScreen: "PreCheck",
+          });
+          
+          // Reset navigation stack to PreCheck screen (prevents back gesture to login screens)
+          navigation.reset({
+            index: 0,
+            routes: [{ name: "PreCheck" }],
+          });
         }
       } else {
         // If user is not active or no ID, show an error

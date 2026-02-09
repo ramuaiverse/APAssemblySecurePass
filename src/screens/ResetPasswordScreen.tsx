@@ -15,6 +15,7 @@ import {
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { RouteProp } from "@react-navigation/native";
 import { RootStackParamList } from "@/types";
+import { authStorage } from "@/utils/authStorage";
 import { api } from "@/services/api";
 import { SafeAreaView } from "react-native-safe-area-context";
 import Assembly from "../../assets/assembly.svg";
@@ -81,8 +82,9 @@ export default function ResetPasswordScreen({ navigation, route }: Props) {
         [
           {
             text: "OK",
-            onPress: () => {
-              // Navigate to login method selection (logout)
+            onPress: async () => {
+              // Clear auth data and navigate to login method selection (logout)
+              await authStorage.clearAuthData();
               navigation.replace("LoginMethodSelection");
             },
           },

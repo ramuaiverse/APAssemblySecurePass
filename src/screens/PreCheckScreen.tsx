@@ -11,6 +11,7 @@ import {
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { RouteProp, useFocusEffect } from "@react-navigation/native";
 import { RootStackParamList } from "@/types";
+import { handleLogout } from "@/utils/logout";
 import AssemblyIcon from "../../assets/assembly.svg";
 import LogOutIcon from "../../assets/logOut.svg";
 import BackButtonIcon from "../../assets/backButton.svg";
@@ -27,8 +28,8 @@ type Props = {
 
 export default function PreCheckScreen({ navigation }: Props) {
   const handleBack = () => {
-    // Navigate to LoginMethodSelection (logout)
-    navigation.replace("LoginMethodSelection");
+    // Use logout utility for consistency (shows confirmation dialog)
+    handleLogout(navigation);
   };
 
   // Handle Android back button
@@ -48,20 +49,6 @@ export default function PreCheckScreen({ navigation }: Props) {
     }, [navigation]),
   );
 
-  const handleLogout = () => {
-    Alert.alert("Logout", "Do you want to log out?", [
-      {
-        text: "Cancel",
-        style: "cancel",
-      },
-      {
-        text: "Yes",
-        onPress: () => {
-          navigation.replace("LoginMethodSelection");
-        },
-      },
-    ]);
-  };
 
   const handleGateEntryExit = () => {
     navigation.navigate("QRScan", { mode: "gateEntryExit" });
@@ -79,7 +66,7 @@ export default function PreCheckScreen({ navigation }: Props) {
           <BackButtonIcon width={20} height={20} />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Select Mode</Text>
-        <TouchableOpacity onPress={handleLogout} style={styles.headerButton}>
+        <TouchableOpacity onPress={() => handleLogout(navigation)} style={styles.headerButton}>
           <LogOutIcon width={24} height={24} />
         </TouchableOpacity>
       </View>

@@ -34,11 +34,13 @@ const Stack = createNativeStackNavigator<RootStackParamList>();
 
 export const setUpNavigation = (
   navigationRef?: React.RefObject<NavigationContainerRef<RootStackParamList> | null>,
+  initialRouteName: keyof RootStackParamList = "LoginMethodSelection",
+  initialParams?: any,
 ) => {
   return (
     <NavigationContainer ref={navigationRef || undefined}>
       <Stack.Navigator
-        initialRouteName="LoginMethodSelection"
+        initialRouteName={initialRouteName}
         screenOptions={{
           headerShown: false,
         }}
@@ -59,7 +61,13 @@ export const setUpNavigation = (
         <Stack.Screen name="QRScan" component={QRScanScreen} />
         <Stack.Screen name="ValidPass" component={ValidPassScreen} />
         <Stack.Screen name="InvalidPass" component={InvalidPassScreen} />
-        <Stack.Screen name="Home" component={HomeScreen} />
+        <Stack.Screen 
+          name="Home" 
+          component={HomeScreen}
+          options={{
+            gestureEnabled: false, // Disable swipe back gesture to prevent going back to login
+          }}
+        />
         <Stack.Screen name="Visitors" component={VisitorsScreen} />
         <Stack.Screen name="VisitorDetails" component={VisitorDetailsScreen} />
         <Stack.Screen

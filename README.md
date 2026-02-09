@@ -81,6 +81,9 @@ APAssemblySecurePass/
     │   └── CustomSplashScreen.tsx   # Custom splash screen component
     ├── navigation/                  # Navigation setup
     │   └── index.tsx                # Navigation configuration with stack navigator
+    ├── utils/                       # Utility functions
+    │   ├── authStorage.ts           # Persistent authentication storage using AsyncStorage
+    │   └── logout.ts                # Centralized logout utility function
     ├── screens/                     # Screen components
     │   ├── LoginMethodSelectionScreen.tsx  # Initial screen to choose login method (Username/Password or Username/OTP)
     │   ├── LoginScreen.tsx          # Username/password authentication screen for admin and security roles
@@ -162,6 +165,12 @@ The app integrates with backend APIs for authentication and pass management:
   - Username and password authentication
   - Username and OTP (One-Time Password) authentication
 - **First-Time Login**: Users with `is_first_time_login: true` are redirected to set password screen
+- **Persistent Login**:
+  - User authentication state is persisted using AsyncStorage
+  - Users remain logged in even when app is closed or backgrounded
+  - Authentication data includes: user info, role, designation, login type, and initial screen
+  - Users are only logged out when they explicitly trigger logout action
+  - On app restart, users are automatically navigated to their last screen (Home, PreCheck, or IssueVisitorPass)
 - **Forgot Password Flow**:
   1. User clicks "Forgot Password?" on login screen
   2. Enter username to receive OTP
@@ -172,8 +181,17 @@ The app integrates with backend APIs for authentication and pass management:
 - **Role-Based Access**: Separate login flows for admin and security roles
 - **Admin Access**: Full access to issue visitor passes
 - **Security Access**: Access to QR scanning and pass validation
-- **Session Management**: Simple session-based navigation (no persistent storage)
+- **Session Management**: Persistent authentication storage with automatic session restoration
 - **OTP System**: OTP is sent to registered email/phone for username-based login and password reset
+- **Logout Functionality**:
+  - Centralized logout utility function (`src/utils/logout.ts`)
+  - Consistent logout behavior across all screens
+  - Shows confirmation dialog before logging out
+  - Clears authentication data and navigates to login screen
+- **Navigation Security**:
+  - After login, navigation stack is reset to prevent back navigation to login screens
+  - Swipe-back gestures are disabled on Home screen to prevent accidental logout
+  - Works consistently across iOS, Android, tablets, and iPads
 
 ## Technologies Used
 
@@ -193,6 +211,7 @@ The app integrates with backend APIs for authentication and pass management:
 - **Expo Print** (~15.0.8) - Print functionality
 - **React Native Calendars** (^1.1313.0) - Date picker
 - **Expo File System** (~19.0.20) - File operations
+- **AsyncStorage** (@react-native-async-storage/async-storage ^2.2.0) - Persistent storage for authentication data
 
 ## Configuration
 
@@ -265,9 +284,12 @@ The application consists of 23 screens organized by functionality:
 
 11. **HomeScreen** - Role-based dashboard showing:
 
-- Statistics cards (Total Requests, Pending, Approved, Routed, Rejected, Visitors)
+- Statistics cards (Total Visitors, Total Requests, Pending, Approved, Routed, Rejected)
 - Quick action cards (Insta Pass/Request Pass, Visitors/Status & Approvals)
 - Different metrics and actions based on user role (legislative, department, peshi)
+- **Legislative Role**: Shows visitor-level statistics (pending, approved, rejected, etc.) instead of request-level counts
+- **Pull-to-Refresh**: Swipe down to refresh dashboard data
+- **Metric Card Order**: "Total Visitors" displayed first, "Total Requests" displayed last
 
 ### Visitor Management Screens (3 screens)
 
@@ -279,6 +301,7 @@ The application consists of 23 screens organized by functionality:
 - Approve, reject, route for approval actions
 - Suspend/activate visitor passes
 - View visitor details
+- **Default Expansion**: Only the first request is expanded by default, all other requests remain collapsed
 
 13. **VisitorDetailsScreen** - Detailed visitor pass view showing:
 
@@ -303,9 +326,19 @@ The application consists of 23 screens organized by functionality:
 - Approve/reject individual visitors or bulk actions
 - HOD approval workflow
 - Lazy loading support
+- **Default Expansion**: Only the first request is expanded by default, all other requests remain collapsed
 
 16. **MyPassRequestsScreen** - List of user's own pass requests (department/peshi users)
-17. **RequestVisitorPassScreen** - Form to request a new visitor pass (department/peshi users)
+17. **RequestVisitorPassScreen** - Form to request a new visitor pass (department/peshi users):
+
+- **Designation Field**: Auto-populated from login response, displayed below "Requested By" field
+- **Email Field**: Optional field with regex validation (validated only if provided)
+- Visitor information form with multiple visitors support
+- Category, pass type, and session selection
+- Date and time selection
+- File uploads (photos, documents)
+- Car pass information
+
 18. **MyPassRequestDetailsScreen** - Details of user's own pass request
 
 ### Legislative Approval Screens (3 screens)
@@ -331,6 +364,7 @@ The application consists of 23 screens organized by functionality:
 - Date and time selection
 - File uploads (photos, documents)
 - Car pass information
+- **Email Field**: Optional field with regex validation (validated only if provided)
 
 23. **PreviewPassScreen** - Preview generated pass with QR code:
 
@@ -360,6 +394,20 @@ The application consists of 23 screens organized by functionality:
 5. **Validation**: Pass is validated against backend system
 6. **Result Display**: Show valid pass details or invalid pass alert
 
+### Authentication & Session Management
+
+- **Persistent Login**: Implemented persistent authentication using AsyncStorage. Users remain logged in across app restarts and backgrounding.
+- **Centralized Logout**: Created unified logout utility function (`src/utils/logout.ts`) used across all screens for consistent behavior.
+- **Navigation Security**: Fixed navigation stack to prevent swipe-back gestures from returning to login screens after successful login.
+
+### User Experience Improvements
+
+- **Pull-to-Refresh**: Added pull-to-refresh functionality to HomeScreen dashboard for manual data refresh.
+
+### Dashboard Enhancements
+
+- **Legislative Dashboard**: Legislative users now see visitor-level statistics instead of request-level counts in Home screen.
+
 ## Notes
 
 - The app uses role-based authentication (admin/security)
@@ -371,3 +419,4 @@ The application consists of 23 screens organized by functionality:
 - The app supports various pass types including daily, single, multiple, and event passes
 - Passes are automatically approved and generated upon submission for instant issuance
 - All logout actions navigate to the login method selection screen
+- **Cross-Platform Compatibility**: All navigation and authentication features work consistently across iOS, Android, tablets, and iPads

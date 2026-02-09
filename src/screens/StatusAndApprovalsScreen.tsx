@@ -17,6 +17,7 @@ import { RouteProp } from "@react-navigation/native";
 import { RootStackParamList } from "@/types";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { api, MainCategory, User } from "@/services/api";
+import { handleLogout } from "@/utils/logout";
 import BackButtonIcon from "../../assets/backButton.svg";
 import CloseIcon from "../../assets/close.svg";
 import CalendarIcon from "../../assets/calendar.svg";
@@ -139,20 +140,6 @@ export default function StatusAndApprovalsScreen({ navigation, route }: Props) {
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [datePickerType, setDatePickerType] = useState<"from" | "to">("from");
 
-  const handleLogout = () => {
-    Alert.alert("Logout", "Do you want to log out?", [
-      {
-        text: "Cancel",
-        style: "cancel",
-      },
-      {
-        text: "Yes",
-        onPress: () => {
-          navigation.replace("LoginMethodSelection");
-        },
-      },
-    ]);
-  };
 
   useEffect(() => {
     if (dateFilterMode === "today") {
@@ -1054,7 +1041,7 @@ export default function StatusAndApprovalsScreen({ navigation, route }: Props) {
         <View style={styles.headerTitleContainer}>
           <Text style={styles.headerTitle}>Pass Requests and Approval</Text>
         </View>
-        <TouchableOpacity onPress={handleLogout} style={styles.logoutButton}>
+        <TouchableOpacity onPress={() => handleLogout(navigation)} style={styles.logoutButton}>
           <LogOutIcon width={24} height={24} />
         </TouchableOpacity>
       </View>

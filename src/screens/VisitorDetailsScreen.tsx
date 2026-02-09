@@ -15,6 +15,7 @@ import { RouteProp } from "@react-navigation/native";
 import { RootStackParamList } from "@/types";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { api, MainCategory, PassTypeItem, User } from "@/services/api";
+import { handleLogout } from "@/utils/logout";
 import {
   Ionicons,
   MaterialIcons,
@@ -344,21 +345,6 @@ export default function VisitorDetailsScreen({ navigation, route }: Props) {
     }
   };
 
-  const handleLogout = () => {
-    Alert.alert("Logout", "Do you want to log out?", [
-      {
-        text: "Cancel",
-        style: "cancel",
-      },
-      {
-        text: "Yes",
-        onPress: () => {
-          navigation.replace("LoginMethodSelection");
-        },
-      },
-    ]);
-  };
-
   return (
     <SafeAreaView style={styles.container} edges={["top"]}>
       {/* Background Assembly Image - Center */}
@@ -382,7 +368,7 @@ export default function VisitorDetailsScreen({ navigation, route }: Props) {
         <View style={styles.headerTitleContainer}>
           <Text style={styles.headerTitle}>Visitor Details</Text>
         </View>
-        <TouchableOpacity onPress={handleLogout} style={styles.logoutButton}>
+        <TouchableOpacity onPress={() => handleLogout(navigation)} style={styles.logoutButton}>
           <LogOutIcon width={22} height={22} />
         </TouchableOpacity>
       </View>
