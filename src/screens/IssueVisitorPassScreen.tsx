@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import {
   View,
   Text,
@@ -59,19 +59,30 @@ const IDENTIFICATION_TYPES = [
 ];
 
 export default function IssueVisitorPassScreen({ navigation, route }: Props) {
-  // Visitor Information
-  const [firstName, setFirstName] = useState("");
-  const [lastName, setLastName] = useState("");
-  const [email, setEmail] = useState("");
-  const [phone, setPhone] = useState("+91");
-  const [idType, setIdType] = useState("Aadhaar");
-  const [idNumber, setIdNumber] = useState("");
-  const [identificationPhoto, setIdentificationPhoto] = useState<string | null>(
-    null,
-  );
-  const [identificationDocument, setIdentificationDocument] = useState<
-    string | null
-  >(null);
+  // Visitors (support multiple)
+  const createNewVisitor = () => ({
+    id: `${Date.now()}_${Math.random().toString(36).slice(2, 9)}`,
+    firstName: "",
+    lastName: "",
+    email: "",
+    phone: "+91",
+    idType: "Aadhaar",
+    idNumber: "",
+    identificationPhoto: null as string | null,
+    identificationDocument: null as string | null,
+    carPass: false,
+    carMake: "",
+    carModel: "",
+    carColor: "",
+    carNumber: "",
+    carTag: "",
+    errors: {} as Record<string, string>,
+  });
+  const [visitors, setVisitors] = useState<Array<any>>([createNewVisitor()]);
+  const [expandedVisitors, setExpandedVisitors] = useState<Record<
+    string,
+    boolean
+  >>({});
 
   // Request Details
   const [passCategory, setPassCategory] = useState("");
@@ -94,19 +105,7 @@ export default function IssueVisitorPassScreen({ navigation, route }: Props) {
   });
   const [comments, setComments] = useState("");
 
-  // Car Pass
-  const [carPass, setCarPass] = useState<boolean>(false);
-  const [carMake, setCarMake] = useState("");
-  const [carModel, setCarModel] = useState("");
-  const [carColor, setCarColor] = useState("");
-  const [carNumber, setCarNumber] = useState("");
-  const [carTag, setCarTag] = useState("");
-
-  // Car Pass Error states
-  const [carMakeError, setCarMakeError] = useState("");
-  const [carModelError, setCarModelError] = useState("");
-  const [carColorError, setCarColorError] = useState("");
-  const [carNumberError, setCarNumberError] = useState("");
+  // (Car pass fields are per-visitor now; kept global error states above)
 
   // UI States
   const [showIdTypeModal, setShowIdTypeModal] = useState(false);
@@ -116,6 +115,81 @@ export default function IssueVisitorPassScreen({ navigation, route }: Props) {
   const [showValidFromPicker, setShowValidFromPicker] = useState(false);
   const [showValidToPicker, setShowValidToPicker] = useState(false);
   const [loading, setLoading] = useState(false);
+
+  // Prevent automatic scrolling when modals close by restoring previous scroll position
+  const scrollRef = useRef<ScrollView | null>(null);
+  const [lastScrollY, setLastScrollY] = useState(0);
+  const prevModalOpenRef = useRef(false);
+  const dropdownRefs = useRef<Record<string, any>>({});
+  const [targetScrollY, setTargetScrollY] = useState<number | null>(null);
+
+  const measureAndOpenRefKey = (key: string | null, openFn: () => void) => {
+    try {
+      const refNode = key ? dropdownRefs.current[key] : null;
+      const scrollNode = (scrollRef.current && (scrollRef.current as any)._nativeTag) || null;
+      const targetNode = refNode && (refNode._nativeTag || refNode);
+      // fallback to findNodeHandle/ UIManager if tags not available
+      if (!targetNode || !scrollNode) {
+        openFn();
+        return;
+      }
+      // UIManager.measureLayout: node, relativeToNode, error, success
+      const UIManager = require("react-native").UIManager;
+      const findNodeHandle = require("react-native").findNodeHandle;
+      const targetHandle = findNodeHandle(refNode);
+      const scrollHandle = findNodeHandle(scrollRef.current);
+      if (!targetHandle || !scrollHandle) {
+        openFn();
+        return;
+      }
+      UIManager.measureLayout(
+        targetHandle,
+        scrollHandle,
+        () => {
+          openFn();
+        },
+        (x: number, y: number) => {
+          setTargetScrollY(Math.max(0, y - 8));
+          openFn();
+        },
+      );
+    } catch {
+      openFn();
+    }
+  };
+
+  useEffect(() => {
+    const anyModalOpen =
+      showIdTypeModal ||
+      showPassCategoryModal ||
+      showPassTypeModal ||
+      showSessionModal ||
+      showValidFromPicker ||
+      showValidToPicker;
+
+    if (!anyModalOpen && prevModalOpenRef.current) {
+      // Restore previous scroll position or target position after modal closes
+      const toY = targetScrollY ?? lastScrollY;
+      setTimeout(() => {
+        try {
+          scrollRef.current?.scrollTo({ y: toY, animated: false });
+        } catch {
+          // ignore
+        }
+        setTargetScrollY(null);
+      }, 50);
+    }
+    prevModalOpenRef.current = anyModalOpen;
+  }, [
+    showIdTypeModal,
+    showPassCategoryModal,
+    showPassTypeModal,
+    showSessionModal,
+    showValidFromPicker,
+    showValidToPicker,
+    lastScrollY,
+    targetScrollY,
+  ]);
 
   // Error states
   const [firstNameError, setFirstNameError] = useState("");
@@ -165,14 +239,7 @@ export default function IssueVisitorPassScreen({ navigation, route }: Props) {
 
   // Reset form
   const resetForm = () => {
-    setFirstName("");
-    setLastName("");
-    setEmail("");
-    setPhone("+91");
-    setIdType("Aadhaar");
-    setIdNumber("");
-    setIdentificationPhoto(null);
-    setIdentificationDocument(null);
+    setVisitors([createNewVisitor()]);
     setPassCategory("");
     setPassType("");
     setSelectedCategoryId(null);
@@ -192,12 +259,8 @@ export default function IssueVisitorPassScreen({ navigation, route }: Props) {
     toDate.setHours(17, 0, 0, 0);
     setValidTo(toDate);
     setComments("");
-    setCarPass(false);
-    setCarMake("");
-    setCarModel("");
-    setCarColor("");
-    setCarNumber("");
-    setCarTag("");
+    // reset expanded map
+    setExpandedVisitors({});
     // Clear errors
     setFirstNameError("");
     setLastNameError("");
@@ -209,10 +272,10 @@ export default function IssueVisitorPassScreen({ navigation, route }: Props) {
     setPassTypeError("");
     setPurposeError("");
     setValidFromError("");
-    setCarMakeError("");
-    setCarModelError("");
-    setCarColorError("");
-    setCarNumberError("");
+    // clear visitor-specific errors
+    setVisitors((prev) =>
+      prev.map((v) => ({ ...v, errors: {} as Record<string, string> })),
+    );
   };
 
   useFocusEffect(
@@ -263,7 +326,12 @@ export default function IssueVisitorPassScreen({ navigation, route }: Props) {
       });
 
       if (!result.canceled && result.assets[0]) {
-        setIdentificationPhoto(result.assets[0].uri);
+        // default to first visitor if none specified - helper for global legacy usage
+        setVisitors((prev) => {
+          const next = [...prev];
+          next[0] = { ...next[0], identificationPhoto: result.assets[0].uri };
+          return next;
+        });
       }
     } catch (error) {
       Alert.alert("Error", "Failed to pick image");
@@ -290,7 +358,11 @@ export default function IssueVisitorPassScreen({ navigation, route }: Props) {
       });
 
       if (!result.canceled && result.assets[0]) {
-        setIdentificationDocument(result.assets[0].uri);
+        setVisitors((prev) => {
+          const next = [...prev];
+          next[0] = { ...next[0], identificationDocument: result.assets[0].uri };
+          return next;
+        });
       }
     } catch (error) {
       Alert.alert("Error", "Failed to pick document");
@@ -323,8 +395,11 @@ export default function IssueVisitorPassScreen({ navigation, route }: Props) {
 
       try {
         // Fetch all pass types and (optionally) category-specific pass type ids in parallel
-        const [/* categoryPassTypeIdsData */, allPassTypesData] =
-          await Promise.all([api.getCategoryPassTypes(categoryId), api.getAllPassTypes()]);
+        const [, /* categoryPassTypeIdsData */ allPassTypesData] =
+          await Promise.all([
+            api.getCategoryPassTypes(categoryId),
+            api.getAllPassTypes(),
+          ]);
 
         // Store all pass types for future use
         setAllPassTypes(allPassTypesData);
@@ -333,7 +408,9 @@ export default function IssueVisitorPassScreen({ navigation, route }: Props) {
         // Fall back to subcategory name if mapping is missing.
         const matchedPassTypes = activeSubCategories
           .map((subCat) => {
-            const pt = allPassTypesData.find((p) => p.id === subCat.pass_type_id);
+            const pt = allPassTypesData.find(
+              (p) => p.id === subCat.pass_type_id,
+            );
             return pt?.name || subCat.name;
           })
           // dedupe
@@ -416,107 +493,152 @@ export default function IssueVisitorPassScreen({ navigation, route }: Props) {
     setTempValidToDate(selectedDate);
   };
 
+  // Visitor helpers
+  const addVisitor = () => {
+    const newVisitor = createNewVisitor();
+    setVisitors((prev) => [...prev, newVisitor]);
+    setExpandedVisitors((prev) => ({ ...prev, [newVisitor.id]: true }));
+  };
+
+  const removeVisitor = (visitorId: string) => {
+    setVisitors((prev) => prev.filter((v) => v.id !== visitorId));
+    setExpandedVisitors((prev) => {
+      const next = { ...prev };
+      delete next[visitorId];
+      return next;
+    });
+  };
+
+  const toggleVisitorExpanded = (visitorId: string) => {
+    setExpandedVisitors((prev) => ({
+      ...prev,
+      [visitorId]: !(prev[visitorId] ?? true),
+    }));
+  };
+
+  const updateVisitorField = (visitorId: string, field: string, value: any) => {
+    setVisitors((prev) =>
+      prev.map((v) => (v.id === visitorId ? { ...v, [field]: value } : v)),
+    );
+  };
+
+  const handleIdentificationPhotoUploadFor = async (visitorId: string) => {
+    try {
+      const { status } =
+        await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (status !== "granted") {
+        Alert.alert("Permission needed", "Please grant camera roll permissions");
+        return;
+      }
+
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        allowsEditing: true,
+        aspect: [4, 3],
+        quality: 0.8,
+      });
+
+      if (!result.canceled && result.assets[0]) {
+        updateVisitorField(visitorId, "identificationPhoto", result.assets[0].uri);
+      }
+    } catch (error) {
+      Alert.alert("Error", "Failed to pick image");
+    }
+  };
+
+  const handleIdentificationDocumentUploadFor = async (visitorId: string) => {
+    try {
+      const { status } =
+        await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (status !== "granted") {
+        Alert.alert("Permission needed", "Please grant camera roll permissions");
+        return;
+      }
+
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        allowsEditing: false,
+        quality: 0.8,
+      });
+
+      if (!result.canceled && result.assets[0]) {
+        updateVisitorField(
+          visitorId,
+          "identificationDocument",
+          result.assets[0].uri,
+        );
+      }
+    } catch (error) {
+      Alert.alert("Error", "Failed to pick document");
+    }
+  };
+
   // Handle issue pass
   const handleIssuePass = async () => {
-    // Clear previous errors
-    setFirstNameError("");
-    setLastNameError("");
-    setEmailError("");
-    setPhoneError("");
-    setIdTypeError("");
-    setIdNumberError("");
+    // Clear previous top-level errors
     setPassCategoryError("");
     setPassTypeError("");
     setPurposeError("");
     setValidFromError("");
-    setCarMakeError("");
-    setCarModelError("");
-    setCarColorError("");
-    setCarNumberError("");
 
-    // Validate required fields
+    // Validate visitors
     let hasError = false;
+    const visitorsWithErrors = visitors.map((v) => {
+      const errors: Record<string, string> = {};
+      if (!v.firstName || !v.firstName.trim()) {
+        errors.firstName = "First name is required";
+        hasError = true;
+      }
+      if (!v.lastName || !v.lastName.trim()) {
+        errors.lastName = "Last name is required";
+        hasError = true;
+      }
+      if (!v.phone || v.phone === "+91") {
+        errors.phone = "Phone number is required";
+        hasError = true;
+      } else if ((v.phone || "").replace(/[^0-9]/g, "").length < 10) {
+        errors.phone = "Please enter a valid phone number";
+        hasError = true;
+      }
+      if (!v.idType) {
+        errors.idType = "ID type is required";
+        hasError = true;
+      }
+      if (!v.idNumber || !v.idNumber.trim()) {
+        errors.idNumber = "ID number is required";
+        hasError = true;
+      }
+      return { ...v, errors };
+    });
 
-    if (!firstName.trim()) {
-      setFirstNameError("First name is required");
-      hasError = true;
+    if (hasError) {
+      setVisitors(visitorsWithErrors);
+      // Expand all visitors with errors so user can see them
+      const expanded: Record<string, boolean> = {};
+      visitorsWithErrors.forEach((v: any) => {
+        if (Object.keys(v.errors || {}).length > 0) expanded[v.id] = true;
+      });
+      setExpandedVisitors((prev) => ({ ...prev, ...expanded }));
+      return;
     }
 
-    if (!lastName.trim()) {
-      setLastNameError("Last name is required");
-      hasError = true;
-    }
-
-    // Validate email format only if email is provided
-    if (email.trim() && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) {
-      setEmailError("Please enter a valid email");
-      hasError = true;
-    }
-
-    if (!phone.trim() || phone === "+91") {
-      setPhoneError("Phone number is required");
-      hasError = true;
-    } else if (phone.replace(/[^0-9]/g, "").length < 10) {
-      setPhoneError("Please enter a valid phone number");
-      hasError = true;
-    }
-
-    if (!idType) {
-      setIdTypeError("ID type is required");
-      hasError = true;
-    }
-
-    if (!idNumber.trim()) {
-      setIdNumberError("ID number is required");
-      hasError = true;
-    }
-
+    // Validate request-level fields
     if (!passCategory.trim()) {
       setPassCategoryError("Pass category is required");
-      hasError = true;
+      return;
     }
 
     if (!passType.trim()) {
       setPassTypeError("Pass type is required");
-      hasError = true;
+      return;
     }
 
     if (!purpose.trim()) {
       setPurposeError("Purpose is required");
-      hasError = true;
-    }
-
-    // Validate valid from date/time - removed validation to allow showing 8am to 5pm even if current time is between 8am to 5pm
-    //   setValidFromError("Valid from date/time must be in the future");
-    //   hasError = true;
-    // }
-
-    // Validate car passes if car pass is enabled
-    if (carPass) {
-      if (!carMake.trim()) {
-        setCarMakeError("Car make is required");
-        hasError = true;
-      }
-      if (!carModel.trim()) {
-        setCarModelError("Car model is required");
-        hasError = true;
-      }
-      if (!carColor.trim()) {
-        setCarColorError("Car color is required");
-        hasError = true;
-      }
-      if (!carNumber.trim()) {
-        setCarNumberError("Car number is required");
-        hasError = true;
-      }
-    }
-
-    if (hasError) {
       return;
     }
 
     setLoading(true);
-
     try {
       // Format dates for API - Convert to UTC
       const formatLocalISOString = (dateObj: Date): string => {
@@ -571,31 +693,6 @@ export default function IssueVisitorPassScreen({ navigation, route }: Props) {
         return;
       }
 
-      // Build visitor object
-      const visitor: any = {
-        first_name: firstName.trim(),
-        last_name: lastName.trim(),
-        email: email.trim(),
-        phone: phone.replace(/[^0-9+]/g, ""),
-        identification_type: idType.toLowerCase(),
-        identification_number: idNumber.trim(),
-      };
-
-      // Add car passes if car pass is enabled
-      if (carPass) {
-        visitor.car_passes = [
-          {
-            car_make: carMake.trim(),
-            car_model: carModel.trim(),
-            car_color: carColor.trim(),
-            car_number: carNumber.trim(),
-            ...(carTag.trim() && { car_tag: carTag.trim() }),
-          },
-        ];
-      } else {
-        visitor.car_passes = [];
-      }
-
       // Create FormData
       const formData = new FormData();
 
@@ -640,35 +737,60 @@ export default function IssueVisitorPassScreen({ navigation, route }: Props) {
         "comments",
         comments.trim() || "Instant pass issued by Legislature",
       );
-      formData.append("visitors", JSON.stringify([visitor]));
 
-      // Add visitor photo if available
-      if (identificationPhoto) {
-        const photoUri = identificationPhoto;
-        const filename = photoUri.split("/").pop() || "photo.jpg";
-        const match = /\.(\w+)$/.exec(filename);
-        const type = match ? `image/${match[1]}` : "image/jpeg";
+      // Build visitors payload and append to formData
+      const visitorsPayload = visitors.map((v) => {
+        const visitorObj: any = {
+          first_name: (v.firstName || "").trim(),
+          last_name: (v.lastName || "").trim(),
+          email: (v.email || "").trim(),
+          phone: (v.phone || "").replace(/[^0-9+]/g, ""),
+          identification_type: (v.idType || "Aadhaar").toLowerCase(),
+          identification_number: (v.idNumber || "").trim(),
+        };
+        if (v.carPass) {
+          visitorObj.car_passes = [
+            {
+              car_make: (v.carMake || "").trim(),
+              car_model: (v.carModel || "").trim(),
+              car_color: (v.carColor || "").trim(),
+              car_number: (v.carNumber || "").trim(),
+              ...(v.carTag && { car_tag: (v.carTag || "").trim() }),
+            },
+          ];
+        } else {
+          visitorObj.car_passes = [];
+        }
+        return visitorObj;
+      });
 
-        formData.append("visitor_photos", {
-          uri: photoUri,
-          type: type,
-          name: filename,
-        } as any);
-      }
+      formData.append("visitors", JSON.stringify(visitorsPayload));
 
-      // Add visitor document if available
-      if (identificationDocument) {
-        const docUri = identificationDocument;
-        const filename = docUri.split("/").pop() || "document.jpg";
-        const match = /\.(\w+)$/.exec(filename);
-        const type = match ? `image/${match[1]}` : "image/jpeg";
-
-        formData.append("visitor_documents", {
-          uri: docUri,
-          type: type,
-          name: filename,
-        } as any);
-      }
+      // Add visitor photos and documents (one per visitor if provided)
+      visitors.forEach((v, idx) => {
+        if (v.identificationPhoto) {
+          const photoUri = v.identificationPhoto;
+          const filename = photoUri.split("/").pop() || `photo_${idx}.jpg`;
+          const match = /\.(\w+)$/.exec(filename);
+          const type = match ? `image/${match[1]}` : "image/jpeg";
+          formData.append("visitor_photos", {
+            uri: photoUri,
+            type,
+            name: filename,
+          } as any);
+        }
+        if (v.identificationDocument) {
+          const docUri = v.identificationDocument;
+          const filename = docUri.split("/").pop() || `document_${idx}.jpg`;
+          const match = /\.(\w+)$/.exec(filename);
+          const type = match ? `image/${match[1]}` : "image/jpeg";
+          formData.append("visitor_documents", {
+            uri: docUri,
+            type,
+            name: filename,
+          } as any);
+        }
+      });
 
       // Submit the form
       const submitResponse = await api.submitPassRequestWithFiles(formData);
@@ -679,13 +801,19 @@ export default function IssueVisitorPassScreen({ navigation, route }: Props) {
         throw new Error("Request ID not found in response");
       }
 
-      // Extract visitor_id from response (first visitor)
-      const visitorId =
-        submitResponse?.visitors?.[0]?.id ||
-        submitResponse?.visitor_id ||
-        submitResponse?.visitors?.[0]?.visitor_id;
+      // Extract visitor ids from response (support multiple)
+      const visitorIds: string[] =
+        submitResponse?.visitors
+          ?.map(
+            (v: any) => v?.id || v?.visitor_id,
+          )
+          .filter(Boolean) || [];
+      // Fallback single id
+      if (visitorIds.length === 0 && submitResponse?.visitor_id) {
+        visitorIds.push(submitResponse.visitor_id);
+      }
 
-      if (!visitorId) {
+      if (visitorIds.length === 0) {
         throw new Error("Visitor ID not found in response");
       }
 
@@ -711,14 +839,18 @@ export default function IssueVisitorPassScreen({ navigation, route }: Props) {
         season: selectedSessionName,
       });
 
-      // Step 2: Generate pass
-      await api.generatePass(requestId, {
-        visitor_id: visitorId,
-        pass_category_id: selectedCategoryId,
-        pass_sub_category_id: selectedSubCategoryId || undefined,
-        pass_type_id: selectedPassTypeId || undefined,
-        current_user_id: currentUserId,
-      });
+      // Step 2: Generate pass for each visitor
+      await Promise.all(
+        visitorIds.map((vid) =>
+          api.generatePass(requestId, {
+            visitor_id: vid,
+            pass_category_id: selectedCategoryId,
+            pass_sub_category_id: selectedSubCategoryId || undefined,
+            pass_type_id: selectedPassTypeId || undefined,
+            current_user_id: currentUserId,
+          }),
+        ),
+      );
 
       // Step 3: Get pass request details
       const passRequestData = await api.getPassRequest(requestId);
@@ -832,195 +964,422 @@ export default function IssueVisitorPassScreen({ navigation, route }: Props) {
         </View>
 
         <ScrollView
+          ref={(ref) => {
+            scrollRef.current = ref;
+          }}
           contentContainerStyle={styles.scrollContent}
           showsVerticalScrollIndicator={true}
           showsHorizontalScrollIndicator={false}
           keyboardShouldPersistTaps="handled"
+          onScroll={(e) => setLastScrollY(e.nativeEvent.contentOffset.y)}
+          scrollEventThrottle={16}
         >
-          {/* Visitor Information Section */}
+          {/* Visitors Section */}
           <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Visitor Information</Text>
-
-            {/* First Name */}
-            <Text style={styles.inputLabel}>
-              First Name<Text style={styles.required}>*</Text>
-            </Text>
             <View
-              style={[
-                styles.inputContainer,
-                firstNameError && styles.inputContainerError,
-              ]}
+              style={{
+                flexDirection: "row",
+                justifyContent: "space-between",
+                alignItems: "center",
+                marginBottom: 16,
+              }}
             >
-              <TextInput
-                style={styles.input}
-                placeholder="Enter first name"
-                placeholderTextColor="#ADAEBC"
-                value={firstName}
-                onChangeText={(text) => {
-                  setFirstName(text);
-                  if (firstNameError) setFirstNameError("");
+              <Text style={styles.sectionTitle}>Visitors</Text>
+              <TouchableOpacity
+                style={{
+                  flexDirection: "row",
+                  alignItems: "center",
+                  backgroundColor: "#457E51",
+                  paddingHorizontal: 12,
+                  paddingVertical: 8,
+                  borderRadius: 8,
+                  gap: 6,
                 }}
-              />
+                onPress={addVisitor}
+              >
+                <Ionicons name="add" size={18} color="#FFFFFF" />
+                <Text
+                  style={{
+                    color: "#FFFFFF",
+                    fontSize: 14,
+                    fontWeight: "600",
+                  }}
+                >
+                  Add Visitor
+                </Text>
+              </TouchableOpacity>
             </View>
-            {firstNameError ? (
-              <Text style={styles.errorText}>{firstNameError}</Text>
-            ) : null}
 
-            {/* Last Name */}
-            <Text style={styles.inputLabel}>
-              Last Name<Text style={styles.required}>*</Text>
-            </Text>
-            <View
-              style={[
-                styles.inputContainer,
-                lastNameError && styles.inputContainerError,
-              ]}
-            >
-              <TextInput
-                style={styles.input}
-                placeholder="Enter last name"
-                placeholderTextColor="#ADAEBC"
-                value={lastName}
-                onChangeText={(text) => {
-                  setLastName(text);
-                  if (lastNameError) setLastNameError("");
-                }}
-              />
-            </View>
-            {lastNameError ? (
-              <Text style={styles.errorText}>{lastNameError}</Text>
-            ) : null}
+            {visitors.map((visitor, visitorIndex) => {
+              const isExpanded = expandedVisitors[visitor.id] ?? true;
+              return (
+                <View
+                  key={visitor.id}
+                  style={{
+                    marginBottom: 16,
+                    borderWidth: 1,
+                    borderColor: "#E5E7EB",
+                    borderRadius: 8,
+                    backgroundColor: "#FFFFFF",
+                  }}
+                >
+                  <TouchableOpacity
+                    style={{
+                      flexDirection: "row",
+                      justifyContent: "space-between",
+                      alignItems: "center",
+                      padding: 16,
+                      borderBottomWidth: isExpanded ? 1 : 0,
+                      borderBottomColor: "#E5E7EB",
+                    }}
+                    onPress={() => toggleVisitorExpanded(visitor.id)}
+                  >
+                    <Text
+                      style={{
+                        fontSize: 16,
+                        fontWeight: "600",
+                        color: "#111827",
+                      }}
+                    >
+                      Visitor {visitorIndex + 1}
+                    </Text>
+                    <View
+                      style={{
+                        flexDirection: "row",
+                        alignItems: "center",
+                        gap: 12,
+                      }}
+                    >
+                      {visitors.length > 1 && (
+                        <TouchableOpacity
+                          onPress={() => removeVisitor(visitor.id)}
+                          style={{ padding: 4 }}
+                        >
+                          <Ionicons
+                            name="trash-outline"
+                            size={20}
+                            color="#EF4444"
+                          />
+                        </TouchableOpacity>
+                      )}
+                      <ChevronDownIcon
+                        width={20}
+                        height={20}
+                        style={{
+                          transform: [{ rotate: isExpanded ? "180deg" : "0deg" }],
+                        }}
+                      />
+                    </View>
+                  </TouchableOpacity>
 
-            {/* Email */}
-            <Text style={styles.inputLabel}>Email</Text>
-            <View
-              style={[
-                styles.inputContainer,
-                emailError && styles.inputContainerError,
-              ]}
-            >
-              <TextInput
-                style={styles.input}
-                placeholder="Enter email"
-                placeholderTextColor="#ADAEBC"
-                value={email}
-                onChangeText={(text) => {
-                  setEmail(text);
-                  if (emailError) setEmailError("");
-                }}
-                keyboardType="email-address"
-                autoCapitalize="none"
-              />
-            </View>
-            {emailError ? (
-              <Text style={styles.errorText}>{emailError}</Text>
-            ) : null}
+                  {isExpanded && (
+                    <View style={{ padding: 16 }}>
+                      {/* First Name */}
+                      <Text style={styles.inputLabel}>
+                        First Name<Text style={styles.required}>*</Text>
+                      </Text>
+                      <View
+                        style={[
+                          styles.inputContainer,
+                          visitor.errors?.firstName && styles.inputContainerError,
+                        ]}
+                      >
+                        <TextInput
+                          style={styles.input}
+                          placeholder="Enter first name"
+                          placeholderTextColor="#ADAEBC"
+                          value={visitor.firstName}
+                          onChangeText={(text) => {
+                            updateVisitorField(visitor.id, "firstName", text);
+                          }}
+                        />
+                      </View>
+                      {visitor.errors?.firstName ? (
+                        <Text style={styles.errorText}>
+                          {visitor.errors.firstName}
+                        </Text>
+                      ) : null}
 
-            {/* Phone */}
-            <Text style={styles.inputLabel}>
-              Phone<Text style={styles.required}>*</Text>
-            </Text>
-            <View
-              style={[
-                styles.inputContainer,
-                phoneError && styles.inputContainerError,
-              ]}
-            >
-              <TextInput
-                style={styles.input}
-                placeholder="Enter phone number"
-                placeholderTextColor="#ADAEBC"
-                value={phone}
-                onChangeText={(text) => {
-                  // Keep +91 prefix
-                  if (text.startsWith("+91")) {
-                    setPhone(text);
-                  } else if (text.length === 0) {
-                    setPhone("+91");
-                  } else if (!text.startsWith("+")) {
-                    setPhone("+91" + text.replace(/[^0-9]/g, ""));
-                  }
-                  if (phoneError) setPhoneError("");
-                }}
-                keyboardType="phone-pad"
-              />
-            </View>
-            {phoneError ? (
-              <Text style={styles.errorText}>{phoneError}</Text>
-            ) : null}
+                      {/* Last Name */}
+                      <Text style={styles.inputLabel}>
+                        Last Name<Text style={styles.required}>*</Text>
+                      </Text>
+                      <View
+                        style={[
+                          styles.inputContainer,
+                          visitor.errors?.lastName && styles.inputContainerError,
+                        ]}
+                      >
+                        <TextInput
+                          style={styles.input}
+                          placeholder="Enter last name"
+                          placeholderTextColor="#ADAEBC"
+                          value={visitor.lastName}
+                          onChangeText={(text) =>
+                            updateVisitorField(visitor.id, "lastName", text)
+                          }
+                        />
+                      </View>
+                      {visitor.errors?.lastName ? (
+                        <Text style={styles.errorText}>
+                          {visitor.errors.lastName}
+                        </Text>
+                      ) : null}
 
-            {/* ID Type */}
-            <Text style={styles.inputLabel}>
-              ID Type<Text style={styles.required}>*</Text>
-            </Text>
-            <TouchableOpacity
-              style={[
-                styles.inputContainer,
-                idTypeError && styles.inputContainerError,
-              ]}
-              onPress={() => setShowIdTypeModal(true)}
-            >
-              <Text style={[styles.input, !idType && styles.placeholderText]}>
-                {idType || "Select ID Type"}
-              </Text>
-              <ChevronDownIcon width={20} height={20} />
-            </TouchableOpacity>
-            {idTypeError ? (
-              <Text style={styles.errorText}>{idTypeError}</Text>
-            ) : null}
+                      {/* Email */}
+                      <Text style={styles.inputLabel}>Email</Text>
+                      <View
+                        style={[
+                          styles.inputContainer,
+                          visitor.errors?.email && styles.inputContainerError,
+                        ]}
+                      >
+                        <TextInput
+                          style={styles.input}
+                          placeholder="Enter email"
+                          placeholderTextColor="#ADAEBC"
+                          value={visitor.email}
+                          onChangeText={(text) =>
+                            updateVisitorField(visitor.id, "email", text)
+                          }
+                          keyboardType="email-address"
+                          autoCapitalize="none"
+                        />
+                      </View>
 
-            {/* ID Number */}
-            <Text style={styles.inputLabel}>
-              ID Number<Text style={styles.required}>*</Text>
-            </Text>
-            <View
-              style={[
-                styles.inputContainer,
-                idNumberError && styles.inputContainerError,
-              ]}
-            >
-              <TextInput
-                style={styles.input}
-                placeholder="Enter ID number"
-                placeholderTextColor="#ADAEBC"
-                value={idNumber}
-                onChangeText={(text) => {
-                  setIdNumber(text);
-                  if (idNumberError) setIdNumberError("");
-                }}
-              />
-            </View>
-            {idNumberError ? (
-              <Text style={styles.errorText}>{idNumberError}</Text>
-            ) : null}
+                      {/* Phone */}
+                      <Text style={styles.inputLabel}>
+                        Phone<Text style={styles.required}>*</Text>
+                      </Text>
+                      <View
+                        style={[
+                          styles.inputContainer,
+                          visitor.errors?.phone && styles.inputContainerError,
+                        ]}
+                      >
+                        <TextInput
+                          style={styles.input}
+                          placeholder="Enter phone number"
+                          placeholderTextColor="#ADAEBC"
+                          value={visitor.phone}
+                          onChangeText={(text) => {
+                            // Keep +91 prefix
+                            if (text.startsWith("+91")) {
+                              updateVisitorField(visitor.id, "phone", text);
+                            } else if (text.length === 0) {
+                              updateVisitorField(visitor.id, "phone", "+91");
+                            } else if (!text.startsWith("+")) {
+                              updateVisitorField(
+                                visitor.id,
+                                "phone",
+                                "+91" + text.replace(/[^0-9]/g, ""),
+                              );
+                            }
+                          }}
+                          keyboardType="phone-pad"
+                        />
+                      </View>
+                      {visitor.errors?.phone ? (
+                        <Text style={styles.errorText}>{visitor.errors.phone}</Text>
+                      ) : null}
 
-            {/* Identification Photo */}
-            <Text style={styles.inputLabel}>Identification Photo</Text>
-            <TouchableOpacity
-              style={styles.fileUploadButton}
-              onPress={handleIdentificationPhotoUpload}
-            >
-              <Text style={styles.fileUploadText}>
-                {identificationPhoto ? "File chosen" : "Choose File"}
-              </Text>
-              {!identificationPhoto && (
-                <Text style={styles.fileUploadSubtext}>No file chosen</Text>
-              )}
-            </TouchableOpacity>
+                      {/* ID Type */}
+                      <Text style={styles.inputLabel}>
+                        ID Type<Text style={styles.required}>*</Text>
+                      </Text>
+                      <TouchableOpacity
+                        ref={(el) => {
+                          dropdownRefs.current[`idType_${visitor.id}`] = el;
+                        }}
+                        style={[
+                          styles.inputContainer,
+                          visitor.errors?.idType && styles.inputContainerError,
+                        ]}
+                        onPress={() =>
+                          measureAndOpenRefKey(`idType_${visitor.id}`, () => {
+                            setShowIdTypeModal(true);
+                            setExpandedVisitors((prev) => ({
+                              ...prev,
+                              _idTypeTarget: visitor.id,
+                            }));
+                          })
+                        }
+                      >
+                        <Text
+                          style={[styles.input, !visitor.idType && styles.placeholderText]}
+                        >
+                          {visitor.idType || "Select ID Type"}
+                        </Text>
+                        <ChevronDownIcon width={20} height={20} />
+                      </TouchableOpacity>
 
-            {/* Identification Document */}
-            <Text style={styles.inputLabel}>Identification Document</Text>
-            <TouchableOpacity
-              style={styles.fileUploadButton}
-              onPress={handleIdentificationDocumentUpload}
-            >
-              <Text style={styles.fileUploadText}>
-                {identificationDocument ? "File chosen" : "Choose File"}
-              </Text>
-              {!identificationDocument && (
-                <Text style={styles.fileUploadSubtext}>No file chosen</Text>
-              )}
-            </TouchableOpacity>
+                      {/* ID Number */}
+                      <Text style={styles.inputLabel}>
+                        ID Number<Text style={styles.required}>*</Text>
+                      </Text>
+                      <View
+                        style={[
+                          styles.inputContainer,
+                          visitor.errors?.idNumber && styles.inputContainerError,
+                        ]}
+                      >
+                        <TextInput
+                          style={styles.input}
+                          placeholder="Enter ID number"
+                          placeholderTextColor="#ADAEBC"
+                          value={visitor.idNumber}
+                          onChangeText={(text) =>
+                            updateVisitorField(visitor.id, "idNumber", text)
+                          }
+                        />
+                      </View>
+
+                      {/* Identification Photo */}
+                      <Text style={styles.inputLabel}>Identification Photo</Text>
+                      <TouchableOpacity
+                        style={styles.fileUploadButton}
+                        onPress={() => handleIdentificationPhotoUploadFor(visitor.id)}
+                      >
+                        <Text style={styles.fileUploadText}>
+                          {visitor.identificationPhoto ? "File chosen" : "Choose File"}
+                        </Text>
+                        {!visitor.identificationPhoto && (
+                          <Text style={styles.fileUploadSubtext}>No file chosen</Text>
+                        )}
+                      </TouchableOpacity>
+
+                      {/* Identification Document */}
+                      <Text style={styles.inputLabel}>Identification Document</Text>
+                      <TouchableOpacity
+                        style={styles.fileUploadButton}
+                        onPress={() =>
+                          handleIdentificationDocumentUploadFor(visitor.id)
+                        }
+                      >
+                        <Text style={styles.fileUploadText}>
+                          {visitor.identificationDocument ? "File chosen" : "Choose File"}
+                        </Text>
+                        {!visitor.identificationDocument && (
+                          <Text style={styles.fileUploadSubtext}>No file chosen</Text>
+                        )}
+                      </TouchableOpacity>
+
+                      {/* Car Pass (per visitor) */}
+                      <View style={{ marginTop: 12 }}>
+                        <View style={styles.carPassHeader}>
+                          <Text style={styles.sectionTitle}>Car Pass</Text>
+                          {visitor.carPass && (
+                            <TouchableOpacity
+                              onPress={() =>
+                                updateVisitorField(visitor.id, "carPass", false)
+                              }
+                              style={styles.removeCarPassButton}
+                            >
+                              <Text style={styles.removeCarPassText}>Remove</Text>
+                            </TouchableOpacity>
+                          )}
+                        </View>
+                        <Text style={styles.carPassDescription}>
+                          Add a car pass for this visitor (optional, maximum 1)
+                        </Text>
+                        {!visitor.carPass ? (
+                          <>
+                            <Text style={styles.carPassStatus}>
+                              No car pass added yet. Click "Add Car Pass" to add one.
+                            </Text>
+                            <TouchableOpacity
+                              style={styles.addCarPassButton}
+                              onPress={() => updateVisitorField(visitor.id, "carPass", true)}
+                            >
+                              <Text style={styles.addCarPassButtonText}>
+                                + Add Car Pass
+                              </Text>
+                            </TouchableOpacity>
+                          </>
+                        ) : (
+                          <View style={styles.carPassFormContainer}>
+                            <Text style={styles.inputLabel}>
+                              Car Make<Text style={styles.required}>*</Text>
+                            </Text>
+                            <View style={[styles.inputContainer]}>
+                              <TextInput
+                                style={styles.input}
+                                placeholder="e.g., Toyota, Honda, BMW"
+                                placeholderTextColor="#ADAEBC"
+                                value={visitor.carMake}
+                                onChangeText={(t) =>
+                                  updateVisitorField(visitor.id, "carMake", t)
+                                }
+                              />
+                            </View>
+
+                            <Text style={styles.inputLabel}>
+                              Car Model<Text style={styles.required}>*</Text>
+                            </Text>
+                            <View style={[styles.inputContainer]}>
+                              <TextInput
+                                style={styles.input}
+                                placeholder="e.g., Camry, Civic, X5"
+                                placeholderTextColor="#ADAEBC"
+                                value={visitor.carModel}
+                                onChangeText={(t) =>
+                                  updateVisitorField(visitor.id, "carModel", t)
+                                }
+                              />
+                            </View>
+
+                            <Text style={styles.inputLabel}>
+                              Car Color<Text style={styles.required}>*</Text>
+                            </Text>
+                            <View style={[styles.inputContainer]}>
+                              <TextInput
+                                style={styles.input}
+                                placeholder="e.g., Red, Blue, White"
+                                placeholderTextColor="#ADAEBC"
+                                value={visitor.carColor}
+                                onChangeText={(t) =>
+                                  updateVisitorField(visitor.id, "carColor", t)
+                                }
+                              />
+                            </View>
+
+                            <Text style={styles.inputLabel}>
+                              Car Number (Registration)
+                              <Text style={styles.required}>*</Text>
+                            </Text>
+                            <View style={[styles.inputContainer]}>
+                              <TextInput
+                                style={styles.input}
+                                placeholder="e.g., AP39AB1234"
+                                placeholderTextColor="#ADAEBC"
+                                value={visitor.carNumber}
+                                onChangeText={(t) =>
+                                  updateVisitorField(visitor.id, "carNumber", t)
+                                }
+                                autoCapitalize="characters"
+                              />
+                            </View>
+
+                            <Text style={styles.inputLabel}>Car Tag (Optional)</Text>
+                            <View style={styles.inputContainer}>
+                              <TextInput
+                                style={styles.input}
+                                placeholder="Optional tag or label for this car pass"
+                                placeholderTextColor="#ADAEBC"
+                                value={visitor.carTag}
+                                onChangeText={(t) =>
+                                  updateVisitorField(visitor.id, "carTag", t)
+                                }
+                              />
+                            </View>
+                          </View>
+                        )}
+                      </View>
+                    </View>
+                  )}
+                </View>
+              );
+            })}
           </View>
 
           {/* Request Details Section */}
@@ -1034,11 +1393,18 @@ export default function IssueVisitorPassScreen({ navigation, route }: Props) {
               </Text>
             </View>
             <TouchableOpacity
+              ref={(el) => {
+                dropdownRefs.current["passCategory"] = el;
+              }}
               style={[
                 styles.inputContainer,
                 passCategoryError && styles.inputContainerError,
               ]}
-              onPress={() => setShowPassCategoryModal(true)}
+              onPress={() =>
+                measureAndOpenRefKey("passCategory", () =>
+                  setShowPassCategoryModal(true),
+                )
+              }
             >
               <Text
                 style={[styles.input, !passCategory && styles.placeholderText]}
@@ -1056,6 +1422,9 @@ export default function IssueVisitorPassScreen({ navigation, route }: Props) {
               Pass Type<Text style={styles.required}>*</Text>
             </Text>
             <TouchableOpacity
+              ref={(el) => {
+                dropdownRefs.current["passType"] = el;
+              }}
               style={[
                 styles.inputContainer,
                 passTypeError && styles.inputContainerError,
@@ -1063,7 +1432,7 @@ export default function IssueVisitorPassScreen({ navigation, route }: Props) {
               ]}
               onPress={() => {
                 if (passCategory) {
-                  setShowPassTypeModal(true);
+                  measureAndOpenRefKey("passType", () => setShowPassTypeModal(true));
                 }
               }}
               disabled={!passCategory}
@@ -1126,8 +1495,13 @@ export default function IssueVisitorPassScreen({ navigation, route }: Props) {
             {/* Session */}
             <Text style={styles.inputLabel}>Session</Text>
             <TouchableOpacity
+              ref={(el) => {
+                dropdownRefs.current["session"] = el;
+              }}
               style={styles.inputContainer}
-              onPress={() => setShowSessionModal(true)}
+              onPress={() =>
+                measureAndOpenRefKey("session", () => setShowSessionModal(true))
+              }
             >
               <Text style={[styles.input, !session && styles.placeholderText]}>
                 {session || "Select Session"}
@@ -1140,11 +1514,14 @@ export default function IssueVisitorPassScreen({ navigation, route }: Props) {
               Valid From<Text style={styles.required}>*</Text>
             </Text>
             <TouchableOpacity
+              ref={(el) => {
+                dropdownRefs.current["validFrom"] = el;
+              }}
               style={[
                 styles.inputContainer,
                 validFromError && styles.inputContainerError,
               ]}
-              onPress={openValidFromPicker}
+              onPress={() => measureAndOpenRefKey("validFrom", openValidFromPicker)}
             >
               <Text style={styles.input}>{formatDateTime(validFrom)}</Text>
               <CalendarIcon width={20} height={20} />
@@ -1156,8 +1533,11 @@ export default function IssueVisitorPassScreen({ navigation, route }: Props) {
             {/* Valid To (Optional) */}
             <Text style={styles.inputLabel}>Valid To (Optional)</Text>
             <TouchableOpacity
+              ref={(el) => {
+                dropdownRefs.current["validTo"] = el;
+              }}
               style={styles.inputContainer}
-              onPress={openValidToPicker}
+              onPress={() => measureAndOpenRefKey("validTo", openValidToPicker)}
             >
               <Text style={styles.input}>
                 {validTo ? formatDateTime(validTo) : "Select date and time"}
@@ -1181,165 +1561,7 @@ export default function IssueVisitorPassScreen({ navigation, route }: Props) {
             </View>
           </View>
 
-          {/* Car Pass Section */}
-          <View style={styles.section}>
-            <View style={styles.carPassHeader}>
-              <Text style={styles.sectionTitle}>Car Pass</Text>
-              {carPass && (
-                <TouchableOpacity
-                  onPress={() => {
-                    setCarPass(false);
-                    setCarMake("");
-                    setCarModel("");
-                    setCarColor("");
-                    setCarNumber("");
-                    setCarTag("");
-                    setCarMakeError("");
-                    setCarModelError("");
-                    setCarColorError("");
-                    setCarNumberError("");
-                  }}
-                  style={styles.removeCarPassButton}
-                >
-                  <Text style={styles.removeCarPassText}>Remove</Text>
-                </TouchableOpacity>
-              )}
-            </View>
-            <Text style={styles.carPassDescription}>
-              Add a car pass for the visitor (optional, maximum 1)
-            </Text>
-            {!carPass ? (
-              <>
-                <Text style={styles.carPassStatus}>
-                  No car pass added yet. Click "Add Car Pass" to add one.
-                </Text>
-                <TouchableOpacity
-                  style={styles.addCarPassButton}
-                  onPress={() => setCarPass(true)}
-                >
-                  <Text style={styles.addCarPassButtonText}>
-                    + Add Car Pass
-                  </Text>
-                </TouchableOpacity>
-              </>
-            ) : (
-              <View style={styles.carPassFormContainer}>
-                {/* Car Make */}
-                <Text style={styles.inputLabel}>
-                  Car Make<Text style={styles.required}>*</Text>
-                </Text>
-                <View
-                  style={[
-                    styles.inputContainer,
-                    carMakeError && styles.inputContainerError,
-                  ]}
-                >
-                  <TextInput
-                    style={styles.input}
-                    placeholder="e.g., Toyota, Honda, BMW"
-                    placeholderTextColor="#ADAEBC"
-                    value={carMake}
-                    onChangeText={(text) => {
-                      setCarMake(text);
-                      if (carMakeError) setCarMakeError("");
-                    }}
-                  />
-                </View>
-                {carMakeError ? (
-                  <Text style={styles.errorText}>{carMakeError}</Text>
-                ) : null}
-
-                {/* Car Model */}
-                <Text style={styles.inputLabel}>
-                  Car Model<Text style={styles.required}>*</Text>
-                </Text>
-                <View
-                  style={[
-                    styles.inputContainer,
-                    carModelError && styles.inputContainerError,
-                  ]}
-                >
-                  <TextInput
-                    style={styles.input}
-                    placeholder="e.g., Camry, Civic, X5"
-                    placeholderTextColor="#ADAEBC"
-                    value={carModel}
-                    onChangeText={(text) => {
-                      setCarModel(text);
-                      if (carModelError) setCarModelError("");
-                    }}
-                  />
-                </View>
-                {carModelError ? (
-                  <Text style={styles.errorText}>{carModelError}</Text>
-                ) : null}
-
-                {/* Car Color */}
-                <Text style={styles.inputLabel}>
-                  Car Color<Text style={styles.required}>*</Text>
-                </Text>
-                <View
-                  style={[
-                    styles.inputContainer,
-                    carColorError && styles.inputContainerError,
-                  ]}
-                >
-                  <TextInput
-                    style={styles.input}
-                    placeholder="e.g., Red, Blue, White"
-                    placeholderTextColor="#ADAEBC"
-                    value={carColor}
-                    onChangeText={(text) => {
-                      setCarColor(text);
-                      if (carColorError) setCarColorError("");
-                    }}
-                  />
-                </View>
-                {carColorError ? (
-                  <Text style={styles.errorText}>{carColorError}</Text>
-                ) : null}
-
-                {/* Car Number */}
-                <Text style={styles.inputLabel}>
-                  Car Number (Registration)
-                  <Text style={styles.required}>*</Text>
-                </Text>
-                <View
-                  style={[
-                    styles.inputContainer,
-                    carNumberError && styles.inputContainerError,
-                  ]}
-                >
-                  <TextInput
-                    style={styles.input}
-                    placeholder="e.g., AP39AB1234"
-                    placeholderTextColor="#ADAEBC"
-                    value={carNumber}
-                    onChangeText={(text) => {
-                      setCarNumber(text);
-                      if (carNumberError) setCarNumberError("");
-                    }}
-                    autoCapitalize="characters"
-                  />
-                </View>
-                {carNumberError ? (
-                  <Text style={styles.errorText}>{carNumberError}</Text>
-                ) : null}
-
-                {/* Car Tag (Optional) */}
-                <Text style={styles.inputLabel}>Car Tag (Optional)</Text>
-                <View style={styles.inputContainer}>
-                  <TextInput
-                    style={styles.input}
-                    placeholder="Optional tag or label for this car pass"
-                    placeholderTextColor="#ADAEBC"
-                    value={carTag}
-                    onChangeText={setCarTag}
-                  />
-                </View>
-              </View>
-            )}
-          </View>
+          {/* Car Pass is now part of each visitor entry */}
 
           {/* Action Buttons */}
           <View style={styles.actionButtons}>
@@ -1387,13 +1609,26 @@ export default function IssueVisitorPassScreen({ navigation, route }: Props) {
                     key={type}
                     style={styles.modalItem}
                     onPress={() => {
-                      setIdType(type);
-                      setIdTypeError("");
+                      const targetId = (expandedVisitors as any)?._idTypeTarget;
+                      if (targetId) {
+                        updateVisitorField(targetId, "idType", type);
+                        // clear visitor specific idType error if present
+                        setVisitors((prev) =>
+                          prev.map((v) =>
+                            v.id === targetId
+                              ? { ...v, errors: { ...(v.errors || {}), idType: "" } }
+                              : v,
+                          ),
+                        );
+                      }
                       setShowIdTypeModal(false);
                     }}
                   >
                     <Text style={styles.modalItemText}>{type}</Text>
-                    {idType === type && (
+                    {/* show checkmark if any visitor currently has this type selected as the target */}
+                    {((expandedVisitors as any)?._idTypeTarget &&
+                      visitors.find((v) => v.id === (expandedVisitors as any)?._idTypeTarget)
+                        ?.idType) === type && (
                       <Ionicons name="checkmark" size={20} color="#457E51" />
                     )}
                   </TouchableOpacity>

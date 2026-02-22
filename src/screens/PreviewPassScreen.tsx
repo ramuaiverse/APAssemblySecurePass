@@ -42,11 +42,27 @@ const QRCodeDisplay = ({
 }) => {
   const qrData = qrCodeString || "";
 
-  // Extract the last QR code ID from the string
+  // Extract the QR code ID ('v' field if QR string is JSON, otherwise fall back)
   const getLastQrCodeId = (qrString: string) => {
     if (!qrString) return "";
-    // Split on commas or slashes (not hyphens, as they're part of UUID format)
-    // This handles cases like "id1,id2,id3" or "path/to/id" or "prefix-id1,prefix-id2"
+    // If the QR payload is JSON like {"v":"<id>","r":"REQ-..."}, prefer the v value
+    try {
+      const parsed = JSON.parse(qrString);
+      if (parsed && typeof parsed === "object" && parsed.v) {
+        return String(parsed.v);
+      }
+    } catch {
+      // not JSON - continue to fallback parsing
+    }
+
+    // Try to extract a "v" field from an inline JSON-like string
+    const vMatch =
+      qrString.match(/"v"\s*[:=]\s*"([^"]+)"/) ||
+      qrString.match(/'v'\s*[:=]\s*'([^']+)'/) ||
+      qrString.match(/\bv\s*[:=]\s*([A-Za-z0-9-]+)/);
+    if (vMatch) return vMatch[1];
+
+    // Fallback: Split on commas or slashes (not hyphens, as they're part of UUID format)
     const segments = qrString.split(/[,\/\\]/);
     const lastSegment = segments[segments.length - 1]?.trim() || qrString;
     return lastSegment;
@@ -126,26 +142,18 @@ export default function PreviewPassScreen({ navigation, route }: Props) {
     return () => backHandler.remove();
   }, [returnTo, returnToParams, navigation]);
 
-  const firstVisitor = passRequestData?.visitors?.[0];
-  const carPasses = firstVisitor?.car_passes || [];
+  // Disable swipe-to-go-back gesture for this screen
+  useEffect(() => {
+    navigation.setOptions?.({ gestureEnabled: false });
+  }, [navigation]);
 
-  const visitorName =
-    firstVisitor?.first_name && firstVisitor?.last_name
-      ? `${firstVisitor.first_name} ${firstVisitor.last_name}`.trim()
-      : "N/A";
-  const passNumber = firstVisitor?.pass_number || null;
-  const identificationType = firstVisitor?.identification_type || null;
-  const identificationNumber = firstVisitor?.identification_number || null;
-  const identificationPhotoUrl = firstVisitor?.identification_photo_url || null;
+  const visitors: any[] = passRequestData?.visitors || [];
   const requestedBy = passRequestData?.requested_by || null;
   const season = passRequestData?.season || null;
-  const qrCodeString = firstVisitor?.pass_qr_string || "";
 
   // Get visitor initial for avatar
-  const getVisitorInitial = () => {
-    if (firstVisitor?.first_name) {
-      return firstVisitor.first_name.charAt(0).toUpperCase();
-    }
+  const getVisitorInitial = (v?: any) => {
+    if (v?.first_name) return v.first_name.charAt(0).toUpperCase();
     return "V";
   };
 
@@ -171,8 +179,11 @@ export default function PreviewPassScreen({ navigation, route }: Props) {
     ? formatDateTime(passRequestData.valid_to)
     : "N/A";
 
-  // Format vehicle details
-  const formatVehicleDetails = () => {
+  // vehicleDetailsFor defined below per-visitor
+
+  const vehicleDetailsFor = (v?: any) => {
+    if (!v) return null;
+    const carPasses = v?.car_passes || [];
     if (carPasses.length === 0) return null;
     const car = carPasses[0];
     const vehicleNumber = car?.car_number || "";
@@ -188,8 +199,6 @@ export default function PreviewPassScreen({ navigation, route }: Props) {
       tag: tag,
     };
   };
-
-  const vehicleDetails = formatVehicleDetails();
 
   // Get visitor type (category - pass type)
   const visitorType =
@@ -233,7 +242,7 @@ export default function PreviewPassScreen({ navigation, route }: Props) {
     try {
       // Get request_id and visitor_id
       const requestId = passRequestData?.id || passRequestData?.request_id;
-      const visitorId = firstVisitor?.id || firstVisitor?.visitor_id;
+      const visitorId = visitors?.[0]?.id || visitors?.[0]?.visitor_id;
 
       if (!requestId || !visitorId) {
         Alert.alert("Error", "Missing request ID or visitor ID");
@@ -241,6 +250,30 @@ export default function PreviewPassScreen({ navigation, route }: Props) {
       }
 
       // Call the resend WhatsApp API
+      try {
+        await api.resendWhatsApp(String(requestId), String(visitorId));
+        Alert.alert("Success", "Pass has been sent via WhatsApp successfully");
+      } catch (apiError) {
+        const errorMessage =
+          apiError instanceof Error
+            ? apiError.message
+            : "Failed to send pass via WhatsApp. Please try again.";
+        Alert.alert("Error", errorMessage);
+        return;
+      }
+    } catch (error) {
+      Alert.alert("Error", "Failed to share pass. Please try again.");
+    }
+  };
+
+  const handleShareForVisitor = async (visitor: any) => {
+    try {
+      const requestId = passRequestData?.id || passRequestData?.request_id;
+      const visitorId = visitor?.id || visitor?.visitor_id;
+      if (!requestId || !visitorId) {
+        Alert.alert("Error", "Missing request ID or visitor ID");
+        return;
+      }
       try {
         await api.resendWhatsApp(String(requestId), String(visitorId));
         Alert.alert("Success", "Pass has been sent via WhatsApp successfully");
@@ -315,94 +348,135 @@ export default function PreviewPassScreen({ navigation, route }: Props) {
             <Text style={styles.visitorTypeText}>{visitorType}</Text>
             <View style={styles.divider} />
 
-            {/* Visitor Info Section */}
-            <View style={styles.visitorInfoSection}>
-              {/* Avatar Circle */}
-              <View style={styles.avatarCircle}>
-                {identificationPhotoUrl ? (
-                  <Image
-                    source={{ uri: identificationPhotoUrl }}
-                    style={styles.avatarImage}
-                    resizeMode="cover"
-                  />
-                ) : (
-                  <Text style={styles.avatarText}>{getVisitorInitial()}</Text>
-                )}
-              </View>
+            {/* Visitors (multiple) */}
+            {visitors.map((v, idx) => {
+              const identificationPhotoUrl =
+                v?.identification_photo_url || v?.identification_photo;
+              const passNumber = v?.pass_number || null;
+              const identificationType = v?.identification_type || null;
+              const identificationNumber = v?.identification_number || null;
+              const qrCodeString = v?.pass_qr_string || "";
+              const vehicleDetails = vehicleDetailsFor(v);
+              const visitorName =
+                v?.first_name && v?.last_name
+                  ? `${v.first_name} ${v.last_name}`.trim()
+                  : "N/A";
 
-              {/* Visitor Details */}
-              <View style={styles.visitorDetails}>
-                <Text style={styles.visitorName}>{visitorName}</Text>
-                {passNumber && (
-                  <Text
-                    style={[
-                      styles.visitorDetail,
-                      { fontSize: 14, fontWeight: "bold" },
-                    ]}
-                  >
-                    {passNumber}
-                  </Text>
-                )}
-                {passTypeName && (
-                  <Text style={styles.visitorDetail}>
-                    <Text style={styles.visitorDetailBold}>PASSTYPE: </Text>
-                    {passTypeName}
-                  </Text>
-                )}
-                <Text style={styles.visitorDetail}>
-                  <Text style={styles.visitorDetailBold}>VALID FROM: </Text>
-                  {validFrom}
-                </Text>
-                <Text style={styles.visitorDetail}>
-                  <Text style={styles.visitorDetailBold}>VALID TO: </Text>
-                  {validTo}
-                </Text>
-                {requestedBy && (
-                  <Text style={styles.visitorDetail}>
-                    <Text style={styles.visitorDetailBold}>REQUESTED BY: </Text>
-                    {requestedBy}
-                  </Text>
-                )}
-                {identificationType && identificationNumber && (
-                  <Text style={styles.visitorDetail}>
-                    <Text style={styles.visitorDetailBold}>
-                      {identificationType.toLowerCase()}:{" "}
-                    </Text>
-                    {identificationNumber}
-                  </Text>
-                )}
-              </View>
-            </View>
-            <View style={styles.divider} />
-            {/* Vehicle Pass Details */}
-            {vehicleDetails && (
-              <>
-                <Text style={styles.vehicleTitle}>Vehicle Pass Details</Text>
-                <View style={styles.vehicleBox}>
-                  <Text style={styles.vehicleText}>
-                    Vehicle: {vehicleDetails.number}
-                  </Text>
-                  {vehicleDetails.details && (
-                    <Text style={styles.vehicleText}>
-                      {vehicleDetails.details}
-                    </Text>
-                  )}
-                  {vehicleDetails.tag && (
-                    <View style={styles.vehicleTagContainer}>
-                      <Text style={styles.vehicleTagText}>
-                        {vehicleDetails.tag}
-                      </Text>
+              return (
+                <View key={v.id || v.visitor_id || idx}>
+                  <View style={styles.visitorInfoSection}>
+                    <View style={styles.avatarCircle}>
+                      {identificationPhotoUrl ? (
+                        <Image
+                          source={{ uri: identificationPhotoUrl }}
+                          style={styles.avatarImage}
+                          resizeMode="cover"
+                        />
+                      ) : (
+                        <Text style={styles.avatarText}>
+                          {getVisitorInitial(v)}
+                        </Text>
+                      )}
                     </View>
-                  )}
-                </View>
-              </>
-            )}
 
-            {/* QR Code Section */}
-            <QRCodeDisplay
-              qrCodeString={qrCodeString}
-              qrCodeViewRef={qrCodeViewRef}
-            />
+                    <View style={styles.visitorDetails}>
+                      <Text style={styles.visitorName}>{visitorName}</Text>
+                      {passNumber && (
+                        <Text
+                          style={[
+                            styles.visitorDetail,
+                            { fontSize: 14, fontWeight: "bold" },
+                          ]}
+                        >
+                          {passNumber}
+                        </Text>
+                      )}
+                      {passTypeName && (
+                        <Text style={styles.visitorDetail}>
+                          <Text style={styles.visitorDetailBold}>
+                            PASSTYPE:{" "}
+                          </Text>
+                          {passTypeName}
+                        </Text>
+                      )}
+                      <Text style={styles.visitorDetail}>
+                        <Text style={styles.visitorDetailBold}>
+                          VALID FROM:{" "}
+                        </Text>
+                        {validFrom}
+                      </Text>
+                      <Text style={styles.visitorDetail}>
+                        <Text style={styles.visitorDetailBold}>VALID TO: </Text>
+                        {validTo}
+                      </Text>
+                      {requestedBy && (
+                        <Text style={styles.visitorDetail}>
+                          <Text style={styles.visitorDetailBold}>
+                            REQUESTED BY:{" "}
+                          </Text>
+                          {requestedBy}
+                        </Text>
+                      )}
+                      {identificationType && identificationNumber && (
+                        <Text style={styles.visitorDetail}>
+                          <Text style={styles.visitorDetailBold}>
+                            {identificationType.toLowerCase()}:{" "}
+                          </Text>
+                          {identificationNumber}
+                        </Text>
+                      )}
+                    </View>
+                  </View>
+
+                  <View style={styles.divider} />
+
+                  {vehicleDetails && (
+                    <>
+                      <Text style={styles.vehicleTitle}>
+                        Vehicle Pass Details
+                      </Text>
+                      <View style={styles.vehicleBox}>
+                        <Text style={styles.vehicleText}>
+                          Vehicle: {vehicleDetails.number}
+                        </Text>
+                        {vehicleDetails.details && (
+                          <Text style={styles.vehicleText}>
+                            {vehicleDetails.details}
+                          </Text>
+                        )}
+                        {vehicleDetails.tag && (
+                          <View style={styles.vehicleTagContainer}>
+                            <Text style={styles.vehicleTagText}>
+                              {vehicleDetails.tag}
+                            </Text>
+                          </View>
+                        )}
+                      </View>
+                    </>
+                  )}
+
+                  <QRCodeDisplay
+                    qrCodeString={qrCodeString}
+                    qrCodeViewRef={qrCodeViewRef}
+                  />
+
+                  {/* Per-visitor share button */}
+                  <View style={{ alignItems: "center", marginVertical: 8 }}>
+                    <TouchableOpacity
+                      style={styles.shareButton}
+                      onPress={() => handleShareForVisitor(v)}
+                    >
+                      <ShareIcon width={14} height={14} />
+                      <Text style={styles.shareButtonText}>
+                        Share for {v.first_name || "Visitor"}
+                      </Text>
+                    </TouchableOpacity>
+                  </View>
+
+                  {idx < visitors.length - 1 && <View style={styles.divider} />}
+                </View>
+              );
+            })}
           </View>
 
           {/* Blue Approval Section */}
