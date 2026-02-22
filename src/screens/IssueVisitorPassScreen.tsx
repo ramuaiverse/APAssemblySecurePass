@@ -313,23 +313,31 @@ export default function IssueVisitorPassScreen({ navigation, route }: Props) {
       const categoryId = selectedCategory.id;
       setSelectedCategoryId(categoryId);
       // Store subcategories for later use
-      setSelectedCategorySubCategories(selectedCategory.sub_categories || []);
+      // Only keep active subcategories for selection
+      const categorySubCategories = selectedCategory.sub_categories || [];
+      const activeSubCategories = categorySubCategories.filter(
+        (sc) => sc.is_active,
+      );
+      setSelectedCategorySubCategories(activeSubCategories);
       setLoadingPassTypes(true);
 
       try {
-        // Call both APIs in parallel
-        const [categoryPassTypeIdsData, allPassTypesData] = await Promise.all([
-          api.getCategoryPassTypes(categoryId),
-          api.getAllPassTypes(),
-        ]);
+        // Fetch all pass types and (optionally) category-specific pass type ids in parallel
+        const [/* categoryPassTypeIdsData */, allPassTypesData] =
+          await Promise.all([api.getCategoryPassTypes(categoryId), api.getAllPassTypes()]);
 
         // Store all pass types for future use
         setAllPassTypes(allPassTypesData);
 
-        // Match IDs from category pass types with all pass types
-        const matchedPassTypes = allPassTypesData
-          .filter((passType) => categoryPassTypeIdsData.includes(passType.id))
-          .map((passType) => passType.name);
+        // Build pass type names from active subcategories by mapping their pass_type_id to the pass type name.
+        // Fall back to subcategory name if mapping is missing.
+        const matchedPassTypes = activeSubCategories
+          .map((subCat) => {
+            const pt = allPassTypesData.find((p) => p.id === subCat.pass_type_id);
+            return pt?.name || subCat.name;
+          })
+          // dedupe
+          .filter((v, i, a) => a.indexOf(v) === i);
 
         setPassTypes(matchedPassTypes);
       } catch (error) {
@@ -815,7 +823,10 @@ export default function IssueVisitorPassScreen({ navigation, route }: Props) {
           <View style={styles.headerContent}>
             <Text style={styles.headerTitle}>Insta Pass</Text>
           </View>
-          <TouchableOpacity onPress={() => handleLogout(navigation)} style={styles.headerButton}>
+          <TouchableOpacity
+            onPress={() => handleLogout(navigation)}
+            style={styles.headerButton}
+          >
             <LogOutIcon width={24} height={24} />
           </TouchableOpacity>
         </View>
@@ -881,9 +892,7 @@ export default function IssueVisitorPassScreen({ navigation, route }: Props) {
             ) : null}
 
             {/* Email */}
-            <Text style={styles.inputLabel}>
-              Email
-            </Text>
+            <Text style={styles.inputLabel}>Email</Text>
             <View
               style={[
                 styles.inputContainer,

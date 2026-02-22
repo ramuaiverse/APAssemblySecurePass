@@ -117,7 +117,8 @@ const getInitials = (firstName: string, lastName: string) => {
 
 export default function VisitorDetailsScreen({ navigation, route }: Props) {
   const { request, visitor } = route.params;
-  const userRole = route.params?.role || "";
+
+ 
 
   // Category mappings
   const [categoryMap, setCategoryMap] = useState<{ [key: string]: string }>({});
@@ -320,12 +321,24 @@ export default function VisitorDetailsScreen({ navigation, route }: Props) {
 
   const extractUUIDFromQRString = (qrString: string | null | undefined) => {
     if (!qrString) return "—";
+
+    // If qrString is a JSON string like '{"v":"<uuid>", "r":"REQ-..."}', parse and return v
+    try {
+      const parsed = JSON.parse(qrString);
+      if (parsed && typeof parsed === "object" && parsed.v) {
+        return String(parsed.v);
+      }
+    } catch {
+      // Not JSON - continue to other extraction methods
+    }
+
     // Extract UUID from URL format: https://.../validate/{uuid}
     const match = qrString.match(/\/validate\/([^\/\s]+)/);
     if (match && match[1]) {
       return match[1];
     }
-    // If no match, return the original string
+
+    // As a last resort, return the original string
     return qrString;
   };
 
@@ -368,7 +381,10 @@ export default function VisitorDetailsScreen({ navigation, route }: Props) {
         <View style={styles.headerTitleContainer}>
           <Text style={styles.headerTitle}>Visitor Details</Text>
         </View>
-        <TouchableOpacity onPress={() => handleLogout(navigation)} style={styles.logoutButton}>
+        <TouchableOpacity
+          onPress={() => handleLogout(navigation)}
+          style={styles.logoutButton}
+        >
           <LogOutIcon width={22} height={22} />
         </TouchableOpacity>
       </View>
