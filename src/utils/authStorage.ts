@@ -11,6 +11,7 @@ export interface AuthData {
   sub_categories?: Array<any>;
   loginType?: "login" | "security" | "admin"; // Track which login type was used
   initialScreen?: string; // Track which screen to navigate to (Home or PreCheck)
+  access_token?: string; // Access token for API authentication
 }
 
 export const authStorage = {

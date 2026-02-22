@@ -82,7 +82,7 @@ APAssemblySecurePass/
     ├── navigation/                  # Navigation setup
     │   └── index.tsx                # Navigation configuration with stack navigator
     ├── utils/                       # Utility functions
-    │   ├── authStorage.ts           # Persistent authentication storage using AsyncStorage
+    │   ├── authStorage.ts           # Persistent authentication storage using AsyncStorage (stores access_token)
     │   └── logout.ts                # Centralized logout utility function
     ├── screens/                     # Screen components
     │   ├── LoginMethodSelectionScreen.tsx  # Initial screen to choose login method (Username/Password or Username/OTP)
@@ -118,42 +118,60 @@ APAssemblySecurePass/
 
 The app integrates with backend APIs for authentication and pass management:
 
-- **API Base URL**: `https://category-service-714903368119.us-central1.run.app`
+- **API Base URL**: `https://apld-stg-apiserivce-714903368119.us-central1.run.app`
+- **Authentication**: All authenticated endpoints require `Authorization: Bearer {access_token}` header. Token is obtained from login/OTP verification response and stored securely.
 
-### Authentication Endpoints
+### Authentication Endpoints (Public - No Token Required)
 
 - `POST /api/v1/pass-requests/auth/login` - Username and password authentication (admin/security roles)
+  - Returns: `LoginResponse` including `access_token` for subsequent API calls
 - `POST /api/v1/pass-requests/auth/otp/generate` - Generate OTP for username-based login or forgot password flow
   - Form fields: `username`, `expected_role` (empty string)
 - `POST /api/v1/pass-requests/auth/otp/verify` - Verify OTP and complete login or reset password
   - Form fields: `username`, `otp_code`, `expected_role` (empty string)
+  - Returns: `LoginResponse` including `access_token` for subsequent API calls
 - `POST /api/v1/pass-requests/auth/set-password` - Set password for first-time login (multipart/form-data)
   - Form fields: `username`, `password` (minimum 12 characters)
 
-### Validation Endpoints (Public)
+### Validation Endpoints (Requires Authentication)
 
-- `GET /api/v1/pass-requests/validate-qr/{qrCodeId}` - Validate QR code (public, no authentication required)
-  - Query parameters: `gate` (optional), `gate_action` (optional: "entry" | "exit")
-- `GET /api/v1/pass-requests/validate-pass-number/{passNumber}` - Validate pass number (public, no authentication required)
+- `GET /api/v1/pass-requests/validate-qr/{qrCodeId}` - Validate QR code (requires authentication token)
+  - Query parameters: `auto_record_scan` (default: true), `gate_location` (optional), `gate_action` (optional: "entry" | "exit")
+  - Headers: `Authorization: Bearer {access_token}`
+- `GET /api/v1/pass-requests/validate-pass-number/{passNumber}` - Validate pass number (requires authentication token)
   - Query parameters: `auto_record_scan` (default: true), `scanned_by` (optional), `gate_location` (optional), `gate_action` (optional: "entry" | "exit")
+  - Headers: `Authorization: Bearer {access_token}`
+- `POST /api/v1/pass-requests/validate-qr/{qrCodeId}/upload-photo` - Upload visitor photo (requires authentication token)
+  - Headers: `Authorization: Bearer {access_token}`
 
-### Category Endpoints
+### Category Endpoints (Requires Authentication)
 
 - `GET /api/v1/categories/main` - Get all main categories
+  - Headers: `Authorization: Bearer {access_token}`
 - `GET /api/v1/categories/main/{categoryId}/pass-types` - Get pass type IDs for a specific category
+  - Headers: `Authorization: Bearer {access_token}`
 - `GET /api/v1/categories/pass-types?active_only=true` - Get all active pass types
+  - Headers: `Authorization: Bearer {access_token}`
 - `GET /api/v1/categories/sessions?limit=1000&active_only=true` - Get all active sessions
+  - Headers: `Authorization: Bearer {access_token}`
 
-### Pass Request Endpoints
+### Pass Request Endpoints (Requires Authentication)
 
 - `POST /api/v1/pass-requests/submit-with-files` - Submit pass request with visitor photos and documents (multipart/form-data)
-- `PATCH /api/v1/pass-requests/{requestId}/status` - Update pass request status (approve/reject)
-- `POST /api/v1/pass-requests/{requestId}/generate-pass` - Generate pass for a pass request
+  - Headers: `Authorization: Bearer {access_token}`
+- `GET /api/v1/pass-requests?limit={limit}` - Get all pass requests
+  - Headers: `Authorization: Bearer {access_token}`
 - `GET /api/v1/pass-requests/{requestId}` - Get pass request details
+  - Headers: `Authorization: Bearer {access_token}`
+- `PATCH /api/v1/pass-requests/{requestId}/status` - Update pass request status (approve/reject)
+  - Headers: `Authorization: Bearer {access_token}`
+- `POST /api/v1/pass-requests/{requestId}/generate-pass` - Generate pass for a pass request
+  - Headers: `Authorization: Bearer {access_token}`
 
-### Issuer Endpoints
+### Issuer Endpoints (Requires Authentication)
 
 - `GET /api/v1/issuers?limit=100&is_active=true` - Get all active pass issuers
+  - Headers: `Authorization: Bearer {access_token}`
 
 ### Visitor Endpoints
 
@@ -183,11 +201,18 @@ The app integrates with backend APIs for authentication and pass management:
 - **Security Access**: Access to QR scanning and pass validation
 - **Session Management**: Persistent authentication storage with automatic session restoration
 - **OTP System**: OTP is sent to registered email/phone for username-based login and password reset
-- **Logout Functionality**:
+- **Token-Based Authentication**:
+  - All authenticated API requests use `access_token` from login response
+  - Token is stored securely in AsyncStorage along with user data
+  - Token is automatically included in Authorization header (`Bearer {token}`) for all authenticated endpoints
+  - Token is cleared on logout
+  - All authenticated endpoints (21 total) use centralized `getAuthHeaders()` helper function
+  - Public endpoints (login, OTP generation/verification, password reset) do not require authentication
+- **Logout Functionality**: 
   - Centralized logout utility function (`src/utils/logout.ts`)
   - Consistent logout behavior across all screens
   - Shows confirmation dialog before logging out
-  - Clears authentication data and navigates to login screen
+  - Clears authentication data (including access_token) and navigates to login screen
 - **Navigation Security**:
   - After login, navigation stack is reset to prevent back navigation to login screens
   - Swipe-back gestures are disabled on Home screen to prevent accidental logout
@@ -397,6 +422,7 @@ The application consists of 23 screens organized by functionality:
 ### Authentication & Session Management
 
 - **Persistent Login**: Implemented persistent authentication using AsyncStorage. Users remain logged in across app restarts and backgrounding.
+- **Token-Based Authentication**: Implemented JWT token-based authentication using `access_token` from login response. All authenticated API requests (21 endpoints) now automatically include `Authorization: Bearer {token}` header via centralized `getAuthHeaders()` helper function.
 - **Centralized Logout**: Created unified logout utility function (`src/utils/logout.ts`) used across all screens for consistent behavior.
 - **Navigation Security**: Fixed navigation stack to prevent swipe-back gestures from returning to login screens after successful login.
 

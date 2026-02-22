@@ -111,6 +111,7 @@ export default function UsernameOTPLoginScreen({ navigation }: Props) {
             userId: response.id,
             loginType: activeTab,
             initialScreen: "IssueVisitorPass",
+            access_token: response.access_token,
           });
           
           // Reset navigation stack to IssueVisitorPass screen (prevents back gesture to login screens)
@@ -132,6 +133,7 @@ export default function UsernameOTPLoginScreen({ navigation }: Props) {
             userFullName: response.full_name,
             loginType: activeTab,
             initialScreen: "PreCheck",
+            access_token: response.access_token,
           });
           
           // Reset navigation stack to PreCheck screen (prevents back gesture to login screens)

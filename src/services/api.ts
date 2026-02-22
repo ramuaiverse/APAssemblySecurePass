@@ -1,9 +1,26 @@
-// Base URL for pass-requests validation APIs (no authentication required)
+// Base URL for pass-requests APIs
 export const API_BASE_URL =
-  "https://category-service-714903368119.us-central1.run.app";
+  "https://apld-stg-apiserivce-714903368119.us-central1.run.app";
 
 export const STAGE_API_BASE_URL =
   "https://apld-stg-apiserivce-714903368119.us-central1.run.app";
+
+// Import authStorage to get access token
+import { authStorage } from "@/utils/authStorage";
+
+// Helper function to get authorization headers
+const getAuthHeaders = async (): Promise<Record<string, string>> => {
+  const authData = await authStorage.getAuthData();
+  const headers: Record<string, string> = {
+    Accept: "application/json",
+  };
+  
+  if (authData?.access_token) {
+    headers["Authorization"] = `Bearer ${authData.access_token}`;
+  }
+  
+  return headers;
+};
 
 // UserLoginRequest schema from new API
 export interface LoginRequest {
@@ -34,6 +51,7 @@ export interface LoginResponse {
   created_by: string | null;
   sub_categories: Array<object>;
   is_first_time_login: boolean | null;
+  access_token: "string";
 }
 
 // ScanStatus enum from Swagger
@@ -371,7 +389,7 @@ export const api = {
     }
   },
 
-  // Validate QR code without authentication (public endpoint)
+  // Validate QR code (requires authentication)
   validateQRCodePublic: async (
     qrCodeId: string,
     gate?: string,
@@ -398,11 +416,12 @@ export const api = {
         url += `?${queryParams.join("&")}`;
       }
 
+      const authHeaders = await getAuthHeaders();
       const response = await fetch(url, {
         method: "GET",
         headers: {
+          ...authHeaders,
           "Content-Type": "application/json",
-          Accept: "application/json",
         },
       });
 
@@ -445,7 +464,7 @@ export const api = {
     }
   },
 
-  // Validate pass number without authentication (public endpoint)
+  // Validate pass number (requires authentication)
   validatePassNumber: async (
     passNumber: string,
     options?: {
@@ -495,11 +514,12 @@ export const api = {
         url += `?${queryParams.join("&")}`;
       }
 
+      const authHeaders = await getAuthHeaders();
       const response = await fetch(url, {
         method: "GET",
         headers: {
+          ...authHeaders,
           "Content-Type": "application/json",
-          Accept: "application/json",
         },
       });
 
@@ -542,7 +562,7 @@ export const api = {
     }
   },
 
-  // Upload visitor photo (no authentication required)
+  // Upload visitor photo (requires authentication)
   uploadVisitorPhoto: async (
     qrData: string,
     photoUri: string,
@@ -566,11 +586,12 @@ export const api = {
         qrData,
       )}/upload-photo`;
 
+      const authHeaders = await getAuthHeaders();
       const response = await fetch(url, {
         method: "POST",
         headers: {
+          ...authHeaders,
           // Don't set Content-Type - let fetch set it with boundary for FormData
-          Accept: "application/json",
         },
         body: formData,
       });
@@ -651,10 +672,11 @@ export const api = {
     formData.append("reason", requestBody.reason);
 
     try {
+      const authHeaders = await getAuthHeaders();
       const response = await fetch(url, {
         method: "PATCH",
         headers: {
-          Accept: "application/json",
+          ...authHeaders,
           // Don't set Content-Type - let fetch set it with boundary for FormData
         },
         body: formData,
@@ -747,10 +769,11 @@ export const api = {
     formData.append("activated_by", String(data.activated_by).trim());
 
     try {
+      const authHeaders = await getAuthHeaders();
       const response = await fetch(url, {
         method: "PATCH",
         headers: {
-          Accept: "*/*",
+          ...authHeaders,
           // Don't set Content-Type - let fetch set it with boundary for FormData
         },
         body: formData,
@@ -821,11 +844,12 @@ export const api = {
   // Get main categories
   getMainCategories: async (): Promise<MainCategory[]> => {
     try {
+      const authHeaders = await getAuthHeaders();
       const response = await fetch(`${API_BASE_URL}/api/v1/categories/main`, {
         method: "GET",
         headers: {
+          ...authHeaders,
           "Content-Type": "application/json",
-          Accept: "application/json",
         },
       });
 
@@ -872,13 +896,14 @@ export const api = {
   // Get pass types for a specific category
   getCategoryPassTypes: async (categoryId: string): Promise<string[]> => {
     try {
+      const authHeaders = await getAuthHeaders();
       const response = await fetch(
         `${API_BASE_URL}/api/v1/categories/main/${categoryId}/pass-types`,
         {
           method: "GET",
           headers: {
+            ...authHeaders,
             "Content-Type": "application/json",
-            Accept: "application/json",
           },
         },
       );
@@ -922,13 +947,14 @@ export const api = {
   // Get all pass types
   getAllPassTypes: async (): Promise<PassTypeItem[]> => {
     try {
+      const authHeaders = await getAuthHeaders();
       const response = await fetch(
         `${API_BASE_URL}/api/v1/categories/pass-types?active_only=true`,
         {
           method: "GET",
           headers: {
+            ...authHeaders,
             "Content-Type": "application/json",
-            Accept: "application/json",
           },
         },
       );
@@ -974,10 +1000,11 @@ export const api = {
     const url = `${API_BASE_URL}/api/v1/pass-requests/submit-with-files`;
 
     try {
+      const authHeaders = await getAuthHeaders();
       const response = await fetch(url, {
         method: "POST",
         headers: {
-          Accept: "application/json",
+          ...authHeaders,
           // Don't set Content-Type - let fetch set it with boundary for FormData
         },
         body: formData,
@@ -1054,13 +1081,14 @@ export const api = {
   // Get sessions
   getSessions: async (): Promise<Session[]> => {
     try {
+      const authHeaders = await getAuthHeaders();
       const response = await fetch(
         `${API_BASE_URL}/api/v1/categories/sessions?limit=1000&active_only=true`,
         {
           method: "GET",
           headers: {
+            ...authHeaders,
             "Content-Type": "application/json",
-            Accept: "application/json",
           },
         },
       );
@@ -1143,10 +1171,11 @@ export const api = {
         formData.append("season", statusData.season);
       }
 
+      const authHeaders = await getAuthHeaders();
       const response = await fetch(url, {
         method: "PATCH",
         headers: {
-          Accept: "*/*",
+          ...authHeaders,
           // Don't set Content-Type - let fetch set it with boundary for FormData
         },
         body: formData,
@@ -1215,10 +1244,12 @@ export const api = {
     formData.append("rejection_reason", data.rejection_reason);
 
     try {
+      const authHeaders = await getAuthHeaders();
       const response = await fetch(url, {
         method: "PATCH",
         headers: {
-          Accept: "*/*",
+          ...authHeaders,
+          // Don't set Content-Type - let fetch set it with boundary for FormData
         },
         body: formData,
       });
@@ -1305,10 +1336,12 @@ export const api = {
         formData.append("season", generateData.season);
       }
 
+      const authHeaders = await getAuthHeaders();
       const response = await fetch(url, {
         method: "POST",
         headers: {
-          Accept: "application/json",
+          ...authHeaders,
+          // Don't set Content-Type - let fetch set it with boundary for FormData
         },
         body: formData,
       });
@@ -1357,11 +1390,12 @@ export const api = {
     const url = `${API_BASE_URL}/api/v1/pass-requests/${requestId}`;
 
     try {
+      const authHeaders = await getAuthHeaders();
       const response = await fetch(url, {
         method: "GET",
         headers: {
+          ...authHeaders,
           "Content-Type": "application/json",
-          Accept: "application/json",
         },
       });
 
@@ -1405,11 +1439,12 @@ export const api = {
     const url = `${API_BASE_URL}/api/v1/pass-requests/users/by-role/${roleName}`;
 
     try {
+      const authHeaders = await getAuthHeaders();
       const response = await fetch(url, {
         method: "GET",
         headers: {
+          ...authHeaders,
           "Content-Type": "application/json",
-          Accept: "application/json",
         },
       });
 
@@ -1453,11 +1488,12 @@ export const api = {
     const url = `${API_BASE_URL}/api/v1/issuers?limit=100&is_active=true`;
 
     try {
+      const authHeaders = await getAuthHeaders();
       const response = await fetch(url, {
         method: "GET",
         headers: {
+          ...authHeaders,
           "Content-Type": "application/json",
-          Accept: "application/json",
         },
       });
 
@@ -1727,10 +1763,11 @@ export const api = {
     const url = `${API_BASE_URL}/api/v1/pass-requests/${requestId}/visitor/${visitorId}/resend-whatsapp`;
 
     try {
+      const authHeaders = await getAuthHeaders();
       const response = await fetch(url, {
         method: "POST",
         headers: {
-          Accept: "application/json",
+          ...authHeaders,
         },
       });
 
@@ -1776,11 +1813,12 @@ export const api = {
     const url = `${API_BASE_URL}/api/v1/pass-requests?limit=${limit}`;
 
     try {
+      const authHeaders = await getAuthHeaders();
       const response = await fetch(url, {
         method: "GET",
         headers: {
+          ...authHeaders,
           "Content-Type": "application/json",
-          Accept: "application/json",
         },
       });
 
@@ -1847,10 +1885,11 @@ export const api = {
     }
 
     try {
+      const authHeaders = await getAuthHeaders();
       const response = await fetch(url, {
         method: "PATCH",
         headers: {
-          Accept: "*/*",
+          ...authHeaders,
           // Don't set Content-Type - let fetch set it with boundary for FormData
         },
         body: formData,
@@ -1897,10 +1936,11 @@ export const api = {
     const url = `${API_BASE_URL}/api/v1/pass-requests/superiors/${department}`;
 
     try {
+      const authHeaders = await getAuthHeaders();
       const response = await fetch(url, {
         method: "GET",
         headers: {
-          Accept: "*/*",
+          ...authHeaders,
         },
       });
 
@@ -1978,10 +2018,12 @@ export const api = {
     formData.append("visitor_id", data.visitor_id);
 
     try {
+      const authHeaders = await getAuthHeaders();
       const response = await fetch(url, {
         method: "PATCH",
         headers: {
-          Accept: "*/*",
+          ...authHeaders,
+          // Don't set Content-Type - let fetch set it with boundary for FormData
         },
         body: formData,
       });

@@ -121,8 +121,9 @@ export default function LoginScreen({ navigation }: Props) {
             sub_categories: response.sub_categories || [],
             loginType: activeTab,
             initialScreen: "Home",
+            access_token: response.access_token,
           });
-          
+
           // Reset navigation stack to Home screen (prevents back gesture to login screens)
           navigation.reset({
             index: 0,
@@ -146,8 +147,9 @@ export default function LoginScreen({ navigation }: Props) {
             userFullName: response.full_name,
             loginType: activeTab,
             initialScreen: "PreCheck",
+            access_token: response.access_token,
           });
-          
+
           // Reset navigation stack to PreCheck screen (prevents back gesture to login screens)
           navigation.reset({
             index: 0,
