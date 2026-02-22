@@ -68,7 +68,6 @@ export default function VisitorsScreen({ navigation, route }: Props) {
   const isApprover = hodApprover;
   const isLegislative = userRole === "legislative";
   const userSubCategories = route.params?.sub_categories || [];
-
   const [passRequests, setPassRequests] = useState<any[]>([]);
   const [allRequests, setAllRequests] = useState<any[]>([]); // Store all requests for filtering
   const [loading, setLoading] = useState(true);
@@ -106,11 +105,48 @@ export default function VisitorsScreen({ navigation, route }: Props) {
   >(null);
   const [showCategoryFilterModal, setShowCategoryFilterModal] = useState(false);
 
+  // Sub-category filter state
+  const [selectedSubCategoryFilter, setSelectedSubCategoryFilter] =
+    useState("All Sub-categories");
+  const [selectedSubCategoryFilterId, setSelectedSubCategoryFilterId] =
+    useState<string | null>(null);
+  const [showSubCategoryFilterModal, setShowSubCategoryFilterModal] =
+    useState(false);
+  const [subCategorySearchQuery, setSubCategorySearchQuery] = useState("");
+
   // Date filter state
-  const [selectedDateFilter, setSelectedDateFilter] = useState("All Dates");
+  // Pass Valid From filter state
+  const [selectedDateFilter, setSelectedDateFilter] =
+    useState("Pass Valid From");
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
   const [showDatePickerModal, setShowDatePickerModal] = useState(false);
   const [tempSelectedDate, setTempSelectedDate] = useState<Date>(new Date());
+  const [activeDateFilterType, setActiveDateFilterType] = useState<
+    "passValidFrom" | "requestDate" | "approvedDate"
+  >("passValidFrom");
+
+  // Request Date filter state
+  const [selectedRequestDateFilter, setSelectedRequestDateFilter] =
+    useState("Request Date");
+  const [selectedRequestDate, setSelectedRequestDate] = useState<Date | null>(
+    null,
+  );
+  const [showRequestDatePickerModal, setShowRequestDatePickerModal] =
+    useState(false);
+  const [tempSelectedRequestDate, setTempSelectedRequestDate] = useState<Date>(
+    new Date(),
+  );
+
+  // Approved Date filter state
+  const [selectedApprovedDateFilter, setSelectedApprovedDateFilter] =
+    useState("Approved Date");
+  const [selectedApprovedDate, setSelectedApprovedDate] = useState<Date | null>(
+    null,
+  );
+  const [showApprovedDatePickerModal, setShowApprovedDatePickerModal] =
+    useState(false);
+  const [tempSelectedApprovedDate, setTempSelectedApprovedDate] =
+    useState<Date>(new Date());
 
   // Approve/Reject modals state
   const [showApproveAllModal, setShowApproveAllModal] = useState(false);
@@ -199,7 +235,6 @@ export default function VisitorsScreen({ navigation, route }: Props) {
     fetchCategories();
     fetchPassTypes();
     fetchVisitors();
-    fetchCategoriesForLegislative(); // Always fetch categories for filter dropdown
     if (isLegislative) {
       fetchSessions();
     }
@@ -210,18 +245,21 @@ export default function VisitorsScreen({ navigation, route }: Props) {
     useCallback(() => {
       // Reload visitors data to get latest status after actions from legislative screens
       fetchVisitors();
-    }, []),
+    }, [categories, passTypes]),
   );
 
   const fetchCategories = async () => {
     try {
-      const categories = await api.getMainCategories();
+      const fetchedCategories = await api.getMainCategories();
+
+      // Set categories state (used for filters and other operations)
+      setCategories(fetchedCategories);
 
       // Create category ID to name mapping
       const catMap: { [key: string]: string } = {};
       const subCatMap: { [key: string]: string } = {};
 
-      categories.forEach((category: MainCategory) => {
+      fetchedCategories.forEach((category: MainCategory) => {
         catMap[category.id] = category.name;
 
         // Create sub-category ID to name mapping
@@ -264,15 +302,6 @@ export default function VisitorsScreen({ navigation, route }: Props) {
       setSessions(fetchedSessions);
     } catch (error) {
       // Error fetching sessions
-    }
-  };
-
-  const fetchCategoriesForLegislative = async () => {
-    try {
-      const fetchedCategories = await api.getMainCategories();
-      setCategories(fetchedCategories);
-    } catch (error) {
-      // Error fetching categories
     }
   };
 
@@ -534,9 +563,13 @@ export default function VisitorsScreen({ navigation, route }: Props) {
         // Continue even if user fetch fails
       }
 
-      // Fetch categories and pass types for buildVisitorRows
-      const allCategories = await api.getMainCategories();
-      const allPassTypes = await api.getAllPassTypes();
+      // Use categories state if available, otherwise fetch
+      // Note: categories are fetched in useEffect, but we fetch here as fallback
+      // to ensure data is available even if state hasn't updated yet
+      const allCategories =
+        categories.length > 0 ? categories : await api.getMainCategories();
+      const allPassTypes =
+        passTypes.length > 0 ? passTypes : await api.getAllPassTypes();
 
       // Build visitor rows using the same logic as web
       const visitorRows = buildVisitorRows(
@@ -796,7 +829,14 @@ export default function VisitorsScreen({ navigation, route }: Props) {
         }
       }
 
-      // Date filter
+      // Sub-category filter
+      if (selectedSubCategoryFilterId) {
+        if (req.sub_category_id !== selectedSubCategoryFilterId) {
+          return false;
+        }
+      }
+
+      // Pass Valid From date filter
       if (selectedDate) {
         const filterDate = new Date(selectedDate);
         filterDate.setHours(0, 0, 0, 0);
@@ -814,6 +854,39 @@ export default function VisitorsScreen({ navigation, route }: Props) {
               return false;
             }
           } else {
+            return false;
+          }
+        } else {
+          return false;
+        }
+      }
+
+      // Request Date filter
+      if (selectedRequestDate) {
+        const filterDate = new Date(selectedRequestDate);
+        filterDate.setHours(0, 0, 0, 0);
+
+        if (req.created_at) {
+          const requestDate = new Date(req.created_at);
+          requestDate.setHours(0, 0, 0, 0);
+          if (requestDate.getTime() !== filterDate.getTime()) {
+            return false;
+          }
+        } else {
+          return false;
+        }
+      }
+
+      // Approved Date filter
+      if (selectedApprovedDate) {
+        const filterDate = new Date(selectedApprovedDate);
+        filterDate.setHours(0, 0, 0, 0);
+
+        // Check if request is approved and has approved_at date
+        if (req.status === "approved" && req.approved_at) {
+          const approvedDate = new Date(req.approved_at);
+          approvedDate.setHours(0, 0, 0, 0);
+          if (approvedDate.getTime() !== filterDate.getTime()) {
             return false;
           }
         } else {
@@ -911,7 +984,10 @@ export default function VisitorsScreen({ navigation, route }: Props) {
     selectedStatusValue,
     selectedPassTypeId,
     selectedCategoryFilterId,
+    selectedSubCategoryFilterId,
     selectedDate,
+    selectedRequestDate,
+    selectedApprovedDate,
   ]);
 
   const loadMore = () => {
@@ -1000,6 +1076,14 @@ export default function VisitorsScreen({ navigation, route }: Props) {
     return `${dayName}, ${day}/${month}/${year}`;
   };
 
+  const formatDateMMDDYYYY = (date: Date | null): string => {
+    if (!date) return "mm/dd/yyyy";
+    const month = String(date.getMonth() + 1).padStart(2, "0");
+    const day = String(date.getDate()).padStart(2, "0");
+    const year = date.getFullYear();
+    return `${month}/${day}/${year}`;
+  };
+
   const handleCategoryFilterSelect = (category: MainCategory | null) => {
     if (category) {
       setSelectedCategoryFilter(category.name);
@@ -1008,24 +1092,159 @@ export default function VisitorsScreen({ navigation, route }: Props) {
       setSelectedCategoryFilter("All Categories");
       setSelectedCategoryFilterId(null);
     }
+    // Reset sub-category filter when category changes
+    setSelectedSubCategoryFilter("All Sub-categories");
+    setSelectedSubCategoryFilterId(null);
     setShowCategoryFilterModal(false);
+  };
+
+  // Get all sub-categories with their parent category info
+  const getAllSubCategories = (): Array<{
+    id: string;
+    name: string;
+    categoryId: string;
+    categoryName: string;
+  }> => {
+    const allSubCategories: Array<{
+      id: string;
+      name: string;
+      categoryId: string;
+      categoryName: string;
+    }> = [];
+
+    categories.forEach((category) => {
+      if (category.sub_categories && category.sub_categories.length > 0) {
+        category.sub_categories.forEach((subCat) => {
+          allSubCategories.push({
+            id: subCat.id,
+            name: subCat.name,
+            categoryId: category.id,
+            categoryName: category.name,
+          });
+        });
+      }
+    });
+
+    return allSubCategories;
+  };
+
+  // Get filtered sub-categories based on selected category
+  const getFilteredSubCategories = (): Array<{
+    id: string;
+    name: string;
+    categoryId: string;
+    categoryName: string;
+  }> => {
+    const allSubCategories = getAllSubCategories();
+
+    if (selectedCategoryFilterId) {
+      // Filter by selected category
+      return allSubCategories.filter(
+        (subCat) => subCat.categoryId === selectedCategoryFilterId,
+      );
+    }
+
+    // Return all sub-categories if no category is selected
+    return allSubCategories;
+  };
+
+  const handleSubCategoryFilterSelect = (
+    subCategory: { id: string; name: string; categoryName: string } | null,
+  ) => {
+    if (subCategory) {
+      setSelectedSubCategoryFilter(
+        `${subCategory.name} (${subCategory.categoryName})`,
+      );
+      setSelectedSubCategoryFilterId(subCategory.id);
+    } else {
+      setSelectedSubCategoryFilter("All Sub-categories");
+      setSelectedSubCategoryFilterId(null);
+    }
+    setSubCategorySearchQuery("");
+    setShowSubCategoryFilterModal(false);
+  };
+
+  const handleClearAllFilters = () => {
+    // Clear status filter
+    setSelectedStatus("All Status");
+    setSelectedStatusValue(null);
+
+    // Clear pass type filter
+    setSelectedPassType("All Pass Types");
+    setSelectedPassTypeId(null);
+
+    // Clear category filter
+    setSelectedCategoryFilter("All Categories");
+    setSelectedCategoryFilterId(null);
+
+    // Clear sub-category filter
+    setSelectedSubCategoryFilter("All Sub-categories");
+    setSelectedSubCategoryFilterId(null);
+    setSubCategorySearchQuery("");
+
+    // Clear date filters
+    setSelectedDateFilter("Pass Valid From");
+    setSelectedDate(null);
+    setSelectedRequestDateFilter("Request Date");
+    setSelectedRequestDate(null);
+    setSelectedApprovedDateFilter("Approved Date");
+    setSelectedApprovedDate(null);
+
+    // Clear search query
+    setSearchQuery("");
   };
 
   const handleDateSelect = (day: any) => {
     const selectedDate = new Date(day.year, day.month - 1, day.day);
-    setTempSelectedDate(selectedDate);
+    if (activeDateFilterType === "passValidFrom") {
+      setTempSelectedDate(selectedDate);
+    } else if (activeDateFilterType === "requestDate") {
+      setTempSelectedRequestDate(selectedDate);
+    } else if (activeDateFilterType === "approvedDate") {
+      setTempSelectedApprovedDate(selectedDate);
+    }
   };
 
   const handleDateFilterDone = () => {
-    setSelectedDate(tempSelectedDate);
-    setSelectedDateFilter(formatDateForDisplay(tempSelectedDate));
-    setShowDatePickerModal(false);
+    if (activeDateFilterType === "passValidFrom") {
+      setSelectedDate(tempSelectedDate);
+      setSelectedDateFilter(formatDateMMDDYYYY(tempSelectedDate));
+      setShowDatePickerModal(false);
+    } else if (activeDateFilterType === "requestDate") {
+      setSelectedRequestDate(tempSelectedRequestDate);
+      setSelectedRequestDateFilter(formatDateMMDDYYYY(tempSelectedRequestDate));
+      setShowRequestDatePickerModal(false);
+    } else if (activeDateFilterType === "approvedDate") {
+      setSelectedApprovedDate(tempSelectedApprovedDate);
+      setSelectedApprovedDateFilter(
+        formatDateMMDDYYYY(tempSelectedApprovedDate),
+      );
+      setShowApprovedDatePickerModal(false);
+    }
+  };
+
+  const handleDateFilterClear = () => {
+    if (activeDateFilterType === "passValidFrom") {
+      setSelectedDate(null);
+      setSelectedDateFilter("Pass Valid From");
+      setTempSelectedDate(new Date());
+      setShowDatePickerModal(false);
+    } else if (activeDateFilterType === "requestDate") {
+      setSelectedRequestDate(null);
+      setSelectedRequestDateFilter("Request Date");
+      setTempSelectedRequestDate(new Date());
+      setShowRequestDatePickerModal(false);
+    } else if (activeDateFilterType === "approvedDate") {
+      setSelectedApprovedDate(null);
+      setSelectedApprovedDateFilter("Approved Date");
+      setTempSelectedApprovedDate(new Date());
+      setShowApprovedDatePickerModal(false);
+    }
   };
 
   const handleVisitorClick = (request: any, visitor: any) => {
     navigation.navigate("VisitorDetails", { request, visitor, role: userRole });
   };
-
 
   // Handler for Resend WhatsApp
   const handleResendWhatsApp = async (request: any, visitor: any) => {
@@ -1667,7 +1886,10 @@ export default function VisitorsScreen({ navigation, route }: Props) {
         <View style={styles.headerTitleContainer}>
           <Text style={styles.headerTitle}>Visitors</Text>
         </View>
-        <TouchableOpacity onPress={() => handleLogout(navigation)} style={styles.logoutButton}>
+        <TouchableOpacity
+          onPress={() => handleLogout(navigation)}
+          style={styles.logoutButton}
+        >
           <LogOutIcon width={24} height={24} />
         </TouchableOpacity>
       </View>
@@ -1749,15 +1971,95 @@ export default function VisitorsScreen({ navigation, route }: Props) {
                 <ChevronDownIcon width={16} height={16} />
               </TouchableOpacity>
               <TouchableOpacity
-                style={styles.filterButton}
-                onPress={() => setShowDatePickerModal(true)}
+                style={styles.filterButtonSubCategory}
+                onPress={() => setShowSubCategoryFilterModal(true)}
               >
-                <Text style={styles.filterText} numberOfLines={1}>
-                  {selectedDateFilter}
+                <Text style={styles.filterTextSubCategory} numberOfLines={3}>
+                  {selectedSubCategoryFilter}
                 </Text>
-                <ChevronDownIcon width={16} height={16} />
+                <View style={styles.filterButtonIconContainer}>
+                  <ChevronDownIcon width={16} height={16} />
+                </View>
               </TouchableOpacity>
             </View>
+            {/* Date Filters Row */}
+            <View style={styles.dateFiltersRow}>
+              <TouchableOpacity
+                style={styles.dateFilterButton}
+                onPress={() => {
+                  setActiveDateFilterType("passValidFrom");
+                  if (selectedDate) {
+                    setTempSelectedDate(selectedDate);
+                  } else {
+                    setTempSelectedDate(new Date());
+                  }
+                  setShowDatePickerModal(true);
+                }}
+              >
+                <Text style={styles.dateFilterButtonLabel}>Pass Valid From</Text>
+                <Text
+                  style={[
+                    styles.dateFilterButtonValue,
+                    !selectedDate && styles.dateFilterButtonPlaceholder,
+                  ]}
+                  numberOfLines={1}
+                >
+                  {formatDateMMDDYYYY(selectedDate)}
+                </Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={styles.dateFilterButton}
+                onPress={() => {
+                  setActiveDateFilterType("requestDate");
+                  if (selectedRequestDate) {
+                    setTempSelectedRequestDate(selectedRequestDate);
+                  } else {
+                    setTempSelectedRequestDate(new Date());
+                  }
+                  setShowRequestDatePickerModal(true);
+                }}
+              >
+                <Text style={styles.dateFilterButtonLabel}>Request Date</Text>
+                <Text
+                  style={[
+                    styles.dateFilterButtonValue,
+                    !selectedRequestDate && styles.dateFilterButtonPlaceholder,
+                  ]}
+                  numberOfLines={1}
+                >
+                  {formatDateMMDDYYYY(selectedRequestDate)}
+                </Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={styles.dateFilterButton}
+                onPress={() => {
+                  setActiveDateFilterType("approvedDate");
+                  if (selectedApprovedDate) {
+                    setTempSelectedApprovedDate(selectedApprovedDate);
+                  } else {
+                    setTempSelectedApprovedDate(new Date());
+                  }
+                  setShowApprovedDatePickerModal(true);
+                }}
+              >
+                <Text style={styles.dateFilterButtonLabel}>Approved Date</Text>
+                <Text
+                  style={[
+                    styles.dateFilterButtonValue,
+                    !selectedApprovedDate && styles.dateFilterButtonPlaceholder,
+                  ]}
+                  numberOfLines={1}
+                >
+                  {formatDateMMDDYYYY(selectedApprovedDate)}
+                </Text>
+              </TouchableOpacity>
+            </View>
+            <TouchableOpacity
+              style={styles.clearAllButton}
+              onPress={handleClearAllFilters}
+            >
+              <Text style={styles.clearAllButtonText}>Clear All</Text>
+            </TouchableOpacity>
           </View>
 
           {/* Summary Cards */}
@@ -1901,8 +2203,11 @@ export default function VisitorsScreen({ navigation, route }: Props) {
                               (visitor: any, index: number) => {
                                 const visitorId =
                                   visitor.id || `${request.id}-${index}`;
+                                // Only show expanded state if the request itself is expanded
+                                // Default to false (collapsed) for visitors not in state
                                 const isVisitorExpanded =
-                                  expandedVisitors[visitorId] ?? true;
+                                  isExpanded &&
+                                  (expandedVisitors[visitorId] ?? false);
 
                                 // Get processed status from visitorRows if available
                                 const visitorRow = request.visitorRows?.find(
@@ -3881,7 +4186,101 @@ export default function VisitorsScreen({ navigation, route }: Props) {
         </TouchableOpacity>
       </Modal>
 
-      {/* Date Filter Modal */}
+      {/* Sub-Category Filter Modal */}
+      <Modal
+        visible={showSubCategoryFilterModal}
+        transparent={true}
+        animationType="fade"
+        onRequestClose={() => setShowSubCategoryFilterModal(false)}
+      >
+        <TouchableOpacity
+          style={styles.modalOverlay}
+          activeOpacity={1}
+          onPress={() => setShowSubCategoryFilterModal(false)}
+        >
+          <View style={styles.modalContent}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Select Sub-category</Text>
+              <TouchableOpacity
+                onPress={() => setShowSubCategoryFilterModal(false)}
+                style={styles.modalCloseButton}
+              >
+                <Text style={styles.modalCloseText}>✕</Text>
+              </TouchableOpacity>
+            </View>
+            <View style={styles.modalSearchContainer}>
+              <TextInput
+                style={styles.modalSearchInput}
+                placeholder="Search sub-category..."
+                value={subCategorySearchQuery}
+                onChangeText={setSubCategorySearchQuery}
+                placeholderTextColor="#999"
+              />
+            </View>
+            <ScrollView style={styles.modalScrollView}>
+              <TouchableOpacity
+                style={[
+                  styles.modalItem,
+                  selectedSubCategoryFilter === "All Sub-categories" &&
+                    styles.modalItemSelected,
+                ]}
+                onPress={() => handleSubCategoryFilterSelect(null)}
+              >
+                <Text
+                  style={[
+                    styles.modalItemText,
+                    selectedSubCategoryFilter === "All Sub-categories" &&
+                      styles.modalItemTextSelected,
+                  ]}
+                >
+                  All Sub-categories
+                </Text>
+              </TouchableOpacity>
+              {getFilteredSubCategories()
+                .filter((subCat) => {
+                  if (!subCategorySearchQuery.trim()) return true;
+                  const searchLower = subCategorySearchQuery.toLowerCase();
+                  return (
+                    subCat.name.toLowerCase().includes(searchLower) ||
+                    subCat.categoryName.toLowerCase().includes(searchLower)
+                  );
+                })
+                .map((subCat) => (
+                  <TouchableOpacity
+                    key={subCat.id}
+                    style={[
+                      styles.modalItem,
+                      selectedSubCategoryFilterId === subCat.id &&
+                        styles.modalItemSelected,
+                    ]}
+                    onPress={() => handleSubCategoryFilterSelect(subCat)}
+                  >
+                    <Text
+                      style={[
+                        styles.modalItemText,
+                        selectedSubCategoryFilterId === subCat.id &&
+                          styles.modalItemTextSelected,
+                      ]}
+                    >
+                      {subCat.name}{" "}
+                      <Text
+                        style={[
+                          styles.modalItemCategoryText,
+                          selectedSubCategoryFilterId === subCat.id &&
+                            styles.modalItemCategoryTextSelected,
+                        ]}
+                      >
+                        ({subCat.categoryName})
+                      </Text>
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+            </ScrollView>
+          </View>
+        </TouchableOpacity>
+      </Modal>
+
+      {/* Pass Valid From Date Filter Modal */}
       <Modal
         visible={showDatePickerModal}
         transparent={true}
@@ -3905,18 +4304,206 @@ export default function VisitorsScreen({ navigation, route }: Props) {
                 <Text style={styles.datePickerCancelText}>Cancel</Text>
               </TouchableOpacity>
               <Text style={styles.datePickerModalTitle}>Select Date</Text>
-              <TouchableOpacity
-                onPress={handleDateFilterDone}
-                style={styles.datePickerDoneButton}
-              >
-                <Text style={styles.datePickerDoneText}>Done</Text>
-              </TouchableOpacity>
+              <View style={styles.datePickerHeaderRight}>
+                <TouchableOpacity
+                  onPress={handleDateFilterClear}
+                  style={styles.datePickerClearButton}
+                >
+                  <Text style={styles.datePickerClearText}>Clear</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  onPress={handleDateFilterDone}
+                  style={styles.datePickerDoneButton}
+                >
+                  <Text style={styles.datePickerDoneText}>Done</Text>
+                </TouchableOpacity>
+              </View>
             </View>
             <Calendar
               current={formatDateForFilter(tempSelectedDate)}
               onDayPress={handleDateSelect}
               markedDates={{
                 [formatDateForFilter(tempSelectedDate)]: {
+                  selected: true,
+                  selectedColor: "#457E51",
+                  selectedTextColor: "#FFFFFF",
+                },
+              }}
+              theme={{
+                backgroundColor: "#FFFFFF",
+                calendarBackground: "#FFFFFF",
+                textSectionTitleColor: "#111827",
+                selectedDayBackgroundColor: "#457E51",
+                selectedDayTextColor: "#FFFFFF",
+                todayTextColor: "#457E51",
+                dayTextColor: "#111827",
+                textDisabledColor: "#D1D5DB",
+                dotColor: "#457E51",
+                selectedDotColor: "#FFFFFF",
+                arrowColor: "#457E51",
+                monthTextColor: "#111827",
+                indicatorColor: "#457E51",
+                textDayFontWeight: "500",
+                textMonthFontWeight: "bold",
+                textDayHeaderFontWeight: "600",
+                textDayFontSize: 16,
+                textMonthFontSize: 18,
+                textDayHeaderFontSize: 14,
+              }}
+              enableSwipeMonths={true}
+            />
+          </View>
+        </TouchableOpacity>
+      </Modal>
+
+      {/* Request Date Filter Modal */}
+      <Modal
+        visible={showRequestDatePickerModal}
+        transparent={true}
+        animationType="slide"
+        onRequestClose={() => setShowRequestDatePickerModal(false)}
+      >
+        <TouchableOpacity
+          style={styles.datePickerModalOverlay}
+          activeOpacity={1}
+          onPress={() => setShowRequestDatePickerModal(false)}
+        >
+          <View
+            style={styles.datePickerModalContent}
+            onStartShouldSetResponder={() => true}
+          >
+            <View style={styles.datePickerModalHeader}>
+              <TouchableOpacity
+                onPress={() => setShowRequestDatePickerModal(false)}
+                style={styles.datePickerCancelButton}
+              >
+                <Text style={styles.datePickerCancelText}>Cancel</Text>
+              </TouchableOpacity>
+              <Text style={styles.datePickerModalTitle}>Select Date</Text>
+              <View style={styles.datePickerHeaderRight}>
+                <TouchableOpacity
+                  onPress={() => {
+                    setSelectedRequestDate(null);
+                    setSelectedRequestDateFilter("Request Date");
+                    setTempSelectedRequestDate(new Date());
+                    setShowRequestDatePickerModal(false);
+                  }}
+                  style={styles.datePickerClearButton}
+                >
+                  <Text style={styles.datePickerClearText}>Clear</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  onPress={() => {
+                    setSelectedRequestDate(tempSelectedRequestDate);
+                    setSelectedRequestDateFilter(
+                      formatDateMMDDYYYY(tempSelectedRequestDate),
+                    );
+                    setShowRequestDatePickerModal(false);
+                  }}
+                  style={styles.datePickerDoneButton}
+                >
+                  <Text style={styles.datePickerDoneText}>Done</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+            <Calendar
+              current={formatDateForFilter(tempSelectedRequestDate)}
+              onDayPress={(day) => {
+                const selectedDate = new Date(day.year, day.month - 1, day.day);
+                setTempSelectedRequestDate(selectedDate);
+              }}
+              markedDates={{
+                [formatDateForFilter(tempSelectedRequestDate)]: {
+                  selected: true,
+                  selectedColor: "#457E51",
+                  selectedTextColor: "#FFFFFF",
+                },
+              }}
+              theme={{
+                backgroundColor: "#FFFFFF",
+                calendarBackground: "#FFFFFF",
+                textSectionTitleColor: "#111827",
+                selectedDayBackgroundColor: "#457E51",
+                selectedDayTextColor: "#FFFFFF",
+                todayTextColor: "#457E51",
+                dayTextColor: "#111827",
+                textDisabledColor: "#D1D5DB",
+                dotColor: "#457E51",
+                selectedDotColor: "#FFFFFF",
+                arrowColor: "#457E51",
+                monthTextColor: "#111827",
+                indicatorColor: "#457E51",
+                textDayFontWeight: "500",
+                textMonthFontWeight: "bold",
+                textDayHeaderFontWeight: "600",
+                textDayFontSize: 16,
+                textMonthFontSize: 18,
+                textDayHeaderFontSize: 14,
+              }}
+              enableSwipeMonths={true}
+            />
+          </View>
+        </TouchableOpacity>
+      </Modal>
+
+      {/* Approved Date Filter Modal */}
+      <Modal
+        visible={showApprovedDatePickerModal}
+        transparent={true}
+        animationType="slide"
+        onRequestClose={() => setShowApprovedDatePickerModal(false)}
+      >
+        <TouchableOpacity
+          style={styles.datePickerModalOverlay}
+          activeOpacity={1}
+          onPress={() => setShowApprovedDatePickerModal(false)}
+        >
+          <View
+            style={styles.datePickerModalContent}
+            onStartShouldSetResponder={() => true}
+          >
+            <View style={styles.datePickerModalHeader}>
+              <TouchableOpacity
+                onPress={() => setShowApprovedDatePickerModal(false)}
+                style={styles.datePickerCancelButton}
+              >
+                <Text style={styles.datePickerCancelText}>Cancel</Text>
+              </TouchableOpacity>
+              <Text style={styles.datePickerModalTitle}>Select Date</Text>
+              <View style={styles.datePickerHeaderRight}>
+                <TouchableOpacity
+                  onPress={() => {
+                    setSelectedApprovedDate(null);
+                    setSelectedApprovedDateFilter("Approved Date");
+                    setTempSelectedApprovedDate(new Date());
+                    setShowApprovedDatePickerModal(false);
+                  }}
+                  style={styles.datePickerClearButton}
+                >
+                  <Text style={styles.datePickerClearText}>Clear</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  onPress={() => {
+                    setSelectedApprovedDate(tempSelectedApprovedDate);
+                    setSelectedApprovedDateFilter(
+                      formatDateMMDDYYYY(tempSelectedApprovedDate),
+                    );
+                    setShowApprovedDatePickerModal(false);
+                  }}
+                  style={styles.datePickerDoneButton}
+                >
+                  <Text style={styles.datePickerDoneText}>Done</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+            <Calendar
+              current={formatDateForFilter(tempSelectedApprovedDate)}
+              onDayPress={(day) => {
+                const selectedDate = new Date(day.year, day.month - 1, day.day);
+                setTempSelectedApprovedDate(selectedDate);
+              }}
+              markedDates={{
+                [formatDateForFilter(tempSelectedApprovedDate)]: {
                   selected: true,
                   selectedColor: "#457E51",
                   selectedTextColor: "#FFFFFF",
@@ -4561,6 +5148,8 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     flexWrap: "wrap",
     gap: 8,
+    width: "100%",
+    paddingHorizontal: 0,
   },
   filterButton: {
     flexDirection: "row",
@@ -4572,11 +5161,67 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: "#D1D5DB",
     gap: 6,
+    minWidth: 120,
+    flexBasis: "48%",
+    flexGrow: 0,
+    flexShrink: 1,
+    maxWidth: "48%",
+  },
+  filterButtonSubCategory: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    backgroundColor: "#FFFFFF",
+    borderRadius: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderWidth: 1,
+    borderColor: "#D1D5DB",
+    gap: 6,
+    minHeight: 36,
+    minWidth: 120,
+    flexBasis: "48%",
+    flexGrow: 0,
+    flexShrink: 1,
+    maxWidth: "48%",
   },
   filterText: {
     fontSize: 12,
     color: "#111827",
     fontWeight: "500",
+    flexShrink: 1,
+    flexGrow: 1,
+    minWidth: 0,
+  },
+  filterTextSubCategory: {
+    fontSize: 12,
+    color: "#111827",
+    fontWeight: "500",
+    flexShrink: 1,
+    flexGrow: 0,
+    lineHeight: 16,
+  },
+  filterButtonIconContainer: {
+    paddingTop: 2,
+    flexShrink: 0,
+    width: 16,
+    height: 16,
+    alignItems: "center",
+    justifyContent: "flex-start",
+  },
+  clearAllButton: {
+    alignSelf: "flex-start",
+    backgroundColor: "#FFFFFF",
+    borderRadius: 8,
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    marginTop: 8,
+    borderWidth: 1,
+    borderColor: "#D1D5DB",
+  },
+  clearAllButtonText: {
+    fontSize: 12,
+    color: "#374151",
+    fontWeight: "600",
   },
   loadingContainer: {
     flex: 1,
@@ -4870,6 +5515,29 @@ const styles = StyleSheet.create({
   modalItemTextSelected: {
     color: "#3B82F6",
     fontWeight: "600",
+  },
+  modalItemCategoryText: {
+    color: "#9CA3AF",
+    fontSize: 14,
+  },
+  modalItemCategoryTextSelected: {
+    color: "#93C5FD",
+  },
+  modalSearchContainer: {
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: "#E5E7EB",
+  },
+  modalSearchInput: {
+    backgroundColor: "#F9FAFB",
+    borderWidth: 1,
+    borderColor: "#E5E7EB",
+    borderRadius: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    fontSize: 14,
+    color: "#111827",
   },
   approveRejectAllContainer: {
     flexDirection: "row",
@@ -5344,6 +6012,20 @@ const styles = StyleSheet.create({
     fontWeight: "600",
     color: "#111827",
   },
+  datePickerHeaderRight: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+  },
+  datePickerClearButton: {
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+  },
+  datePickerClearText: {
+    fontSize: 16,
+    color: "#EF4444",
+    fontWeight: "600",
+  },
   datePickerDoneButton: {
     paddingVertical: 8,
     paddingHorizontal: 12,
@@ -5352,6 +6034,43 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: "600",
     color: "#457E51",
+  },
+  // Compact Date Filter Styles
+  dateFiltersRow: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 8,
+    width: "100%",
+    marginTop: 8,
+  },
+  dateFilterButton: {
+    backgroundColor: "#FFFFFF",
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: "#D1D5DB",
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    minWidth: 100,
+    flexBasis: "31%",
+    flexGrow: 0,
+    flexShrink: 1,
+    maxWidth: "31%",
+  },
+  dateFilterButtonLabel: {
+    fontSize: 10,
+    fontWeight: "600",
+    color: "#111827",
+    marginBottom: 2,
+    textTransform: "none",
+  },
+  dateFilterButtonValue: {
+    fontSize: 11,
+    color: "#111827",
+    fontWeight: "500",
+  },
+  dateFilterButtonPlaceholder: {
+    color: "#9CA3AF",
+    fontSize: 11,
   },
   // Time Picker Styles
   timePickerContainer: {
@@ -5410,7 +6129,7 @@ const styles = StyleSheet.create({
   },
   endOfListText: {
     fontSize: 14,
-    color: "#9CA3AF",
+    color: "#111827",
     fontStyle: "italic",
   },
   carPassCard: {
