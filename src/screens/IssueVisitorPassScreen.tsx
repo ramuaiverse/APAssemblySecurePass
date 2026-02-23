@@ -11,6 +11,7 @@ import {
   Modal,
   Alert,
   ActivityIndicator,
+  Image,
 } from "react-native";
 import { Calendar } from "react-native-calendars";
 import { Ionicons } from "@expo/vector-icons";
@@ -66,6 +67,7 @@ export default function IssueVisitorPassScreen({ navigation, route }: Props) {
     lastName: "",
     email: "",
     phone: "+91",
+    designation: "",
     idType: "Aadhaar",
     idNumber: "",
     identificationPhoto: null as string | null,
@@ -110,6 +112,7 @@ export default function IssueVisitorPassScreen({ navigation, route }: Props) {
   // UI States
   const [showIdTypeModal, setShowIdTypeModal] = useState(false);
   const [showPassCategoryModal, setShowPassCategoryModal] = useState(false);
+  const [showSubCategoryModal, setShowSubCategoryModal] = useState(false);
   const [showPassTypeModal, setShowPassTypeModal] = useState(false);
   const [showSessionModal, setShowSessionModal] = useState(false);
   const [showValidFromPicker, setShowValidFromPicker] = useState(false);
@@ -394,29 +397,30 @@ export default function IssueVisitorPassScreen({ navigation, route }: Props) {
       setLoadingPassTypes(true);
 
       try {
-        // Fetch all pass types and (optionally) category-specific pass type ids in parallel
-        const [, /* categoryPassTypeIdsData */ allPassTypesData] =
-          await Promise.all([
-            api.getCategoryPassTypes(categoryId),
-            api.getAllPassTypes(),
-          ]);
+        // Fetch mapped pass type ids for this category and all pass types
+        const [categoryPassTypeIdsData, allPassTypesData] = await Promise.all([
+          api.getCategoryPassTypes(categoryId),
+          api.getAllPassTypes(),
+        ]);
 
-        // Store all pass types for future use
+        // Store all pass types for future lookup
         setAllPassTypes(allPassTypesData);
 
-        // Build pass type names from active subcategories by mapping their pass_type_id to the pass type name.
-        // Fall back to subcategory name if mapping is missing.
-        const matchedPassTypes = activeSubCategories
-          .map((subCat) => {
-            const pt = allPassTypesData.find(
-              (p) => p.id === subCat.pass_type_id,
-            );
-            return pt?.name || subCat.name;
-          })
-          // dedupe
-          .filter((v, i, a) => a.indexOf(v) === i);
-
-        setPassTypes(matchedPassTypes);
+        // If category mapping exists, filter available pass types to those IDs
+        if (categoryPassTypeIdsData && categoryPassTypeIdsData.length > 0) {
+          const filtered = allPassTypesData.filter((pt) =>
+            categoryPassTypeIdsData.includes(pt.id),
+          );
+          setPassTypes(filtered.map((pt) => pt.name));
+          // If currently selected passType isn't in filtered list, reset it
+          if (passType && !filtered.some((pt) => pt.name === passType)) {
+            setPassType("");
+            setSelectedPassTypeId(null);
+          }
+        } else {
+          // If no mapping, show empty list (portal behaviour)
+          setPassTypes([]);
+        }
       } catch (error) {
         Alert.alert("Error", "Failed to load pass types. Please try again.");
         setPassTypes([]);
@@ -604,10 +608,6 @@ export default function IssueVisitorPassScreen({ navigation, route }: Props) {
         errors.idType = "ID type is required";
         hasError = true;
       }
-      if (!v.idNumber || !v.idNumber.trim()) {
-        errors.idNumber = "ID number is required";
-        hasError = true;
-      }
       return { ...v, errors };
     });
 
@@ -744,9 +744,10 @@ export default function IssueVisitorPassScreen({ navigation, route }: Props) {
           first_name: (v.firstName || "").trim(),
           last_name: (v.lastName || "").trim(),
           email: (v.email || "").trim(),
+          designation: (v.designation || "").trim(),
           phone: (v.phone || "").replace(/[^0-9+]/g, ""),
           identification_type: (v.idType || "Aadhaar").toLowerCase(),
-          identification_number: (v.idNumber || "").trim(),
+          identification_number: (v.idNumber && v.idNumber.trim()) ? v.idNumber.trim() : "000000",
         };
         if (v.carPass) {
           visitorObj.car_passes = [
@@ -1136,7 +1137,7 @@ export default function IssueVisitorPassScreen({ navigation, route }: Props) {
                       >
                         <TextInput
                           style={styles.input}
-                          placeholder="Enter email"
+                          placeholder="Enter email (optional)"
                           placeholderTextColor="#ADAEBC"
                           value={visitor.email}
                           onChangeText={(text) =>
@@ -1183,6 +1184,20 @@ export default function IssueVisitorPassScreen({ navigation, route }: Props) {
                         <Text style={styles.errorText}>{visitor.errors.phone}</Text>
                       ) : null}
 
+                      {/* Designation */}
+                      <Text style={styles.inputLabel}>Designation</Text>
+                      <View style={styles.inputContainer}>
+                        <TextInput
+                          style={styles.input}
+                          placeholder="Enter designation (optional)"
+                          placeholderTextColor="#ADAEBC"
+                          value={visitor.designation}
+                          onChangeText={(text) =>
+                            updateVisitorField(visitor.id, "designation", text)
+                          }
+                        />
+                      </View>
+
                       {/* ID Type */}
                       <Text style={styles.inputLabel}>
                         ID Type<Text style={styles.required}>*</Text>
@@ -1214,18 +1229,11 @@ export default function IssueVisitorPassScreen({ navigation, route }: Props) {
                       </TouchableOpacity>
 
                       {/* ID Number */}
-                      <Text style={styles.inputLabel}>
-                        ID Number<Text style={styles.required}>*</Text>
-                      </Text>
-                      <View
-                        style={[
-                          styles.inputContainer,
-                          visitor.errors?.idNumber && styles.inputContainerError,
-                        ]}
-                      >
+                      <Text style={styles.inputLabel}>ID Number</Text>
+                      <View style={styles.inputContainer}>
                         <TextInput
                           style={styles.input}
-                          placeholder="Enter ID number"
+                          placeholder="Enter ID number (optional)"
                           placeholderTextColor="#ADAEBC"
                           value={visitor.idNumber}
                           onChangeText={(text) =>
@@ -1236,33 +1244,72 @@ export default function IssueVisitorPassScreen({ navigation, route }: Props) {
 
                       {/* Identification Photo */}
                       <Text style={styles.inputLabel}>Identification Photo</Text>
-                      <TouchableOpacity
-                        style={styles.fileUploadButton}
-                        onPress={() => handleIdentificationPhotoUploadFor(visitor.id)}
-                      >
-                        <Text style={styles.fileUploadText}>
-                          {visitor.identificationPhoto ? "File chosen" : "Choose File"}
-                        </Text>
-                        {!visitor.identificationPhoto && (
+                      {visitor.identificationPhoto ? (
+                        <View style={styles.filePreviewContainer}>
+                          <Image
+                            source={{ uri: visitor.identificationPhoto }}
+                            style={styles.filePreviewImage}
+                            resizeMode="cover"
+                          />
+                          <View style={styles.fileActionsRow}>
+                            <TouchableOpacity
+                              style={styles.fileActionButton}
+                              onPress={() => handleIdentificationPhotoUploadFor(visitor.id)}
+                            >
+                              <Text style={styles.fileActionText}>Rechoose</Text>
+                            </TouchableOpacity>
+                            <TouchableOpacity
+                              style={styles.fileActionButton}
+                              onPress={() => updateVisitorField(visitor.id, "identificationPhoto", null)}
+                            >
+                              <Text style={[styles.fileActionText, { color: "#EF4444" }]}>Remove</Text>
+                            </TouchableOpacity>
+                          </View>
+                        </View>
+                      ) : (
+                        <TouchableOpacity
+                          style={styles.fileUploadButton}
+                          onPress={() => handleIdentificationPhotoUploadFor(visitor.id)}
+                        >
+                          <Text style={styles.fileUploadText}>Choose File</Text>
                           <Text style={styles.fileUploadSubtext}>No file chosen</Text>
-                        )}
-                      </TouchableOpacity>
+                        </TouchableOpacity>
+                      )}
 
                       {/* Identification Document */}
                       <Text style={styles.inputLabel}>Identification Document</Text>
-                      <TouchableOpacity
-                        style={styles.fileUploadButton}
-                        onPress={() =>
-                          handleIdentificationDocumentUploadFor(visitor.id)
-                        }
-                      >
-                        <Text style={styles.fileUploadText}>
-                          {visitor.identificationDocument ? "File chosen" : "Choose File"}
-                        </Text>
-                        {!visitor.identificationDocument && (
+                      {visitor.identificationDocument ? (
+                        <View style={styles.filePreviewContainer}>
+                          <Text style={styles.fileNameText}>
+                            {visitor.identificationDocument.split("/").pop() ||
+                              "document"}
+                          </Text>
+                          <View style={styles.fileActionsRow}>
+                            <TouchableOpacity
+                              style={styles.fileActionButton}
+                              onPress={() => handleIdentificationDocumentUploadFor(visitor.id)}
+                            >
+                              <Text style={styles.fileActionText}>Rechoose</Text>
+                            </TouchableOpacity>
+                            <TouchableOpacity
+                              style={styles.fileActionButton}
+                              onPress={() => updateVisitorField(visitor.id, "identificationDocument", null)}
+                            >
+                              <Text style={[styles.fileActionText, { color: "#EF4444" }]}>Remove</Text>
+                            </TouchableOpacity>
+                          </View>
+                        </View>
+                      ) : (
+                        <TouchableOpacity
+                          style={styles.fileUploadButton}
+                          onPress={() =>
+                            handleIdentificationDocumentUploadFor(visitor.id)
+                          }
+                        >
+                          <Text style={styles.fileUploadText}>Choose File</Text>
                           <Text style={styles.fileUploadSubtext}>No file chosen</Text>
-                        )}
-                      </TouchableOpacity>
+                        </TouchableOpacity>
+                      )}
 
                       {/* Car Pass (per visitor) */}
                       <View style={{ marginTop: 12 }}>
@@ -1416,6 +1463,30 @@ export default function IssueVisitorPassScreen({ navigation, route }: Props) {
             {passCategoryError ? (
               <Text style={styles.errorText}>{passCategoryError}</Text>
             ) : null}
+
+            {/* Sub-Category */}
+            <Text style={styles.inputLabel}>Sub-Category</Text>
+            <TouchableOpacity
+              ref={(el) => {
+                dropdownRefs.current["subCategory"] = el;
+              }}
+              style={[
+                styles.inputContainer,
+                !passCategory && styles.inputContainerDisabled,
+              ]}
+              onPress={() =>
+                measureAndOpenRefKey("subCategory", () => setShowSubCategoryModal(true))
+              }
+              disabled={!passCategory}
+            >
+              <Text style={[styles.input, !selectedSubCategoryId && styles.placeholderText]}>
+                {selectedSubCategoryId
+                  ? selectedCategorySubCategories.find((sc) => sc.id === selectedSubCategoryId)?.name
+                  : "Select Sub-Category"}
+              </Text>
+              <ChevronDownIcon width={20} height={20} />
+            </TouchableOpacity>
+            {selectedSubCategoryId ? null : null}
 
             {/* Pass Type */}
             <Text style={styles.inputLabel}>
@@ -1720,9 +1791,7 @@ export default function IssueVisitorPassScreen({ navigation, route }: Props) {
                 ) : (
                   passTypes.map((type) => {
                     // Find the pass type object to get its ID
-                    const passTypeItem = allPassTypes.find(
-                      (pt) => pt.name === type,
-                    );
+                    const passTypeItem = allPassTypes.find((pt) => pt.name === type);
                     // Find subcategory by matching pass_type_id with pass type ID
                     const subCategory = selectedCategorySubCategories.find(
                       (subCat) => subCat.pass_type_id === passTypeItem?.id,
@@ -1736,27 +1805,20 @@ export default function IssueVisitorPassScreen({ navigation, route }: Props) {
                           // Store pass type ID
                           setSelectedPassTypeId(passTypeItem?.id || null);
 
-                          // Use subcategory ID if found, otherwise try to find by name as fallback
+                          // If the user has already selected a subcategory, keep it.
+                          // Otherwise, try to map a subcategory for this pass type.
                           let subCatId =
+                            selectedSubCategoryId ||
                             subCategory?.id ||
-                            selectedCategorySubCategories.find(
-                              (subCat) => subCat.name === type,
-                            )?.id ||
+                            selectedCategorySubCategories.find((subCat) => subCat.name === type)?.id ||
                             null;
 
                           // If still not found, use the first active subcategory as fallback
-                          if (
-                            !subCatId &&
-                            selectedCategorySubCategories.length > 0
-                          ) {
+                          if (!subCatId && selectedCategorySubCategories.length > 0) {
                             const firstActiveSubCategory =
-                              selectedCategorySubCategories.find(
-                                (subCat) => subCat.is_active,
-                              ) || selectedCategorySubCategories[0];
+                              selectedCategorySubCategories.find((subCat) => subCat.is_active) ||
+                              selectedCategorySubCategories[0];
                             subCatId = firstActiveSubCategory.id;
-                          }
-
-                          if (!subCatId) {
                           }
 
                           setSelectedSubCategoryId(subCatId);
@@ -1766,15 +1828,62 @@ export default function IssueVisitorPassScreen({ navigation, route }: Props) {
                       >
                         <Text style={styles.modalItemText}>{type}</Text>
                         {passType === type && (
-                          <Ionicons
-                            name="checkmark"
-                            size={20}
-                            color="#457E51"
-                          />
+                          <Ionicons name="checkmark" size={20} color="#457E51" />
                         )}
                       </TouchableOpacity>
                     );
                   })
+                )}
+              </ScrollView>
+            </View>
+          </View>
+        </Modal>
+        {/* Sub-Category Modal */}
+        <Modal
+          visible={showSubCategoryModal}
+          transparent={true}
+          animationType="slide"
+          onRequestClose={() => setShowSubCategoryModal(false)}
+        >
+          <View style={styles.modalOverlay}>
+            <View style={styles.modalContent}>
+              <View style={styles.modalHeader}>
+                <Text style={styles.modalTitle}>Select Sub-Category</Text>
+                <TouchableOpacity onPress={() => setShowSubCategoryModal(false)}>
+                  <Ionicons name="close" size={24} color="#111827" />
+                </TouchableOpacity>
+              </View>
+              <ScrollView>
+                {selectedCategorySubCategories.length === 0 ? (
+                  <View style={styles.modalEmptyContainer}>
+                    <Text style={styles.modalEmptyText}>
+                      No sub-categories available
+                    </Text>
+                  </View>
+                ) : (
+                  selectedCategorySubCategories.map((sc) => (
+                    <TouchableOpacity
+                      key={sc.id}
+                      style={styles.modalItem}
+                      onPress={() => {
+                        setSelectedSubCategoryId(sc.id);
+                        // Try map to pass type if available
+                        const mappedPassType = allPassTypes.find(
+                          (pt) => pt.id === sc.pass_type_id,
+                        );
+                        if (mappedPassType) {
+                          setPassType(mappedPassType.name);
+                          setSelectedPassTypeId(mappedPassType.id);
+                        }
+                        setShowSubCategoryModal(false);
+                      }}
+                    >
+                      <Text style={styles.modalItemText}>{sc.name}</Text>
+                      {selectedSubCategoryId === sc.id && (
+                        <Ionicons name="checkmark" size={20} color="#457E51" />
+                      )}
+                    </TouchableOpacity>
+                  ))
                 )}
               </ScrollView>
             </View>
@@ -2315,6 +2424,38 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: "#6B7280",
     marginTop: 4,
+  },
+  filePreviewContainer: {
+    borderWidth: 1,
+    borderColor: "#E5E7EB",
+    borderRadius: 8,
+    padding: 10,
+    marginBottom: 10,
+    backgroundColor: "#F9FAFB",
+  },
+  filePreviewImage: {
+    width: 120,
+    height: 90,
+    borderRadius: 8,
+    marginBottom: 8,
+    backgroundColor: "#E5E7EB",
+  },
+  fileActionsRow: {
+    flexDirection: "row",
+    gap: 12,
+  },
+  fileActionButton: {
+    paddingVertical: 6,
+    paddingHorizontal: 10,
+  },
+  fileActionText: {
+    color: "#1E40AF",
+    fontWeight: "600",
+  },
+  fileNameText: {
+    fontSize: 14,
+    color: "#111827",
+    marginBottom: 8,
   },
   textAreaContainer: {
     borderWidth: 1,

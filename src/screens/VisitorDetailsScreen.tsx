@@ -433,6 +433,18 @@ export default function VisitorDetailsScreen({ navigation, route }: Props) {
 
               <View style={styles.infoRow}>
                 <View style={styles.infoIcon}>
+                  <Ionicons name="briefcase" size={24} color="#6B7280" />
+                </View>
+                <View style={styles.infoContent}>
+                  <Text style={styles.infoLabel}>DESIGNATION</Text>
+                  <Text style={styles.infoValue}>
+                    {visitor.designation || "—"}
+                  </Text>
+                </View>
+              </View>
+
+              <View style={styles.infoRow}>
+                <View style={styles.infoIcon}>
                   <Ionicons name="mail-outline" size={24} color="#6B7280" />
                 </View>
                 <View style={styles.infoContent}>
