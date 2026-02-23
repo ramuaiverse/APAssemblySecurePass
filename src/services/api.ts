@@ -1,6 +1,6 @@
 // Base URL for pass-requests APIs
 export const API_BASE_URL =
-  "https://apld-stg-apiserivce-714903368119.us-central1.run.app";
+  "https://category-service-714903368119.us-central1.run.app";
 
 export const STAGE_API_BASE_URL =
   "https://apld-stg-apiserivce-714903368119.us-central1.run.app";
@@ -14,11 +14,11 @@ const getAuthHeaders = async (): Promise<Record<string, string>> => {
   const headers: Record<string, string> = {
     Accept: "application/json",
   };
-  
+
   if (authData?.access_token) {
     headers["Authorization"] = `Bearer ${authData.access_token}`;
   }
-  
+
   return headers;
 };
 
